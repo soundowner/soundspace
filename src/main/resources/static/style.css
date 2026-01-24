@@ -1,0 +1,599 @@
+/* --- CSS VARIABLES (Design System) --- */
+:root {
+    --background-main: #121212;
+    --panel-background: #1E1E1E;
+    --search-bar-background: #2A2A2A;
+    --text-primary: #EAEAEA;
+    --text-secondary: #808080;
+    --accent-primary: coral;
+    --shadow-color: rgba(0, 0, 0, 0.5);
+    --border-radius-main: 16px;
+    --transition-duration: 0.5s;
+    --transition-timing: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* --- BASE STYLES --- */
+body, html {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    font-family: 'Inter', sans-serif;
+    background-color: var(--background-main);
+    color: var(--text-primary);
+    overscroll-behavior: none;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/* --- LAYOUT CONTAINERS --- */
+.main-container {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    position: relative;
+}
+
+.parent-container {
+    width: 100%;
+    height: 100%;
+    position: fixed;
+    transition: transform var(--transition-duration) var(--transition-timing);
+    border-radius: var(--border-radius-main);
+    overflow: hidden; /* Clip scaled content */
+    will-change: transform;
+}
+
+.parent-container.content-scaled {
+    transform: scale(0.98);
+    box-shadow: 0 10px 15px var(--shadow-color);
+}
+
+.overlays-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 10;
+}
+
+/* --- PANELS --- */
+.panel {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: var(--panel-background);
+    border-top-left-radius: var(--border-radius-main);
+    border-top-right-radius: var(--border-radius-main);
+    transform: translateY(100%);
+    transition: transform var(--transition-duration) var(--transition-timing);
+    pointer-events: all;
+    box-shadow: 0 -5px 25px rgba(0,0,0,0.3);
+    will-change: transform;
+    backface-visibility: hidden;
+}
+
+.panel.active {
+    transform: translateY(0);
+}
+
+/* --- TOP SEARCH PANEL --- */
+.top-search-panel {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 15dvh;
+    background-color: var(--search-bar-background);
+    transform: translateY(-100%);
+    transition: transform var(--transition-duration) var(--transition-timing);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+    z-index: 100;
+    will-change: transform;
+}
+
+.top-search-panel.active {
+    transform: translateY(0);
+}
+
+#search-input {
+    width: 85%;
+    height: 50px;
+    background-color: transparent;
+    border: none;
+    border-bottom: 2px solid var(--text-secondary);
+    color: var(--text-primary);
+    font-size: 1.5em;
+    font-weight: 400;
+    outline: none;
+    transition: border-color 0.3s ease;
+    -webkit-appearance: none;
+    border-radius: 0;
+}
+
+#search-input:focus {
+    border-bottom-color: var(--accent-primary);
+}
+
+#search-input::placeholder {
+    color: var(--text-secondary);
+    font-weight: 400;
+}
+
+/* --- SEARCH RESULTS --- */
+#search-results-container {
+    height: 100%;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-top: 1em;
+    box-sizing: border-box;
+}
+
+.search-result-track {
+    display: flex;
+    align-items: center;
+    padding: 10px 20px;
+}
+
+.search-result-track.playing {
+    background-color: var(--search-bar-background);
+}
+
+.search-result-track-cover {
+    width: 60px;
+    height: 60px;
+    border-radius: 8px;
+    margin-right: 20px;
+    object-fit: cover;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+}
+
+.track-info {
+    font-family: 'Inter', sans-serif;
+    text-shadow: none;
+    font-size: 1em;
+}
+
+#track-title {
+    position: relative;
+    width: 100%;
+    font-size: xx-large;
+    white-space: nowrap;
+    left: 1%;
+    text-shadow
+}
+
+.track-title {
+    font-size: 1.1em;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0 0 4px 0;
+    text-transform: none; /* More elegant than all-caps */
+    letter-spacing: normal;
+}
+
+.track-artist {
+    font-size: 0.9em;
+    font-weight: 400;
+    color: var(--text-secondary);
+    margin: 0;
+    letter-spacing: normal;
+    height: auto;
+}
+
+/* --- BOTTOM NAVBAR --- */
+.bottom-navbar {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100dvw;
+    height: 9dvh;
+    background: #00000073;
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    box-shadow: none;
+}
+
+.nav-button {
+    background: none;
+    border: none;
+    padding: 10px;
+    cursor: pointer;
+    outline: none;
+    -webkit-tap-highlight-color: transparent;
+    transition: transform 0.2s ease;
+}
+
+.nav-button:active {
+    transform: scale(0.9);
+}
+
+.nav-button .material-symbols-outlined {
+    font-size: 32px;
+    color: var(--text-secondary);
+    transition: color 0.3s ease, text-shadow 0.3s ease;
+    text-shadow: none;
+}
+
+.nav-button.active .material-symbols-outlined {
+    color: var(--accent-primary);
+    text-shadow: 0 0 15px var(--accent-primary);
+}
+
+.player-controls-button svg {
+    width: 36px;
+    height: 36px;
+    stroke: var(--text-primary);
+}
+
+/* --- PLAYER & TIMEBAR --- */
+#player-panel-container-bg-container {
+    position: absolute;
+    width: 100dvh;
+    height: 100dvh;
+    z-index: -1;
+    transform: translateZ(0);
+}
+
+#player-panel-container-bg-container img {
+    filter: blur(5px);
+}
+
+#player-timebar-container {
+    height: 2vh;
+    border: 1px solid;
+}
+
+#timebar-progress-container {
+    width: 100vw;
+    height: 1.5vh;
+    border: 1px solid;
+}
+
+#timebar-progress {
+    width: 0%;
+    will-change: width;
+    transition: width 0.2s linear;
+    height: 1.5vh;
+
+    background: #ccff0af9;
+}
+
+#time-container {
+    display: flex;
+    justify-content: space-between;
+    padding: 0 20px;
+    margin-top: 5px;
+    font-size: 0.8em;
+    color: var(--text-secondary);
+}
+
+/* --- Player Panel Layout --- */
+#player-panel-container {
+    height: 100vh;
+    width: 100vw;
+    display: flex;
+    flex-direction: column;
+}
+#track-cover-and-context-buttons-container {
+    width: 100vw;
+    transform: scale(0.99);
+    outline: none;
+    height: 62vh;
+    overflow: hidden;
+}
+#track-cover-container {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+}
+#track-cover {
+    position: relative;
+    width: 100%;
+    height: 100%;
+}
+#player-panel-container-track-info {
+    position: absolute;
+    width: 100vw;
+    height: 64vh;
+    box-shadow: inset black 7px 33px 136px 51px;
+}
+/* --- TOP TITLE & INFO CONTAINER --- */
+#track-title-container {
+    background: rgba(0, 0, 0, 0.85);
+    height: 105px;
+    padding: 15px 25px 15px 20px;
+    left: 0;
+    width: 85%; /* FIXED WIDTH (was fit-content) to freeze the shape/clip-path */
+    top: 3%;
+    position: absolute;
+    text-align: left;
+    box-shadow: 5px 5px 15px rgba(0,0,0,0.5);
+    clip-path: polygon(0% 0%, 100% 0%, 88% 100%, 0% 100%);
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    overflow: hidden;
+}
+
+#track-title {
+    position: relative;
+    font-size: 1.6em;
+    font-weight: 600;
+    white-space: nowrap;
+    color: white;
+    margin: 0;
+    line-height: 40px;
+    height: 40px;
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.title-wrapper {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    height: 40px;
+    margin-bottom: 4px;
+}
+
+#playing-bars {
+    display: flex;
+    align-items: flex-end;
+    height: 20px;
+    min-width: 20px;
+    margin-right: 8px;
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+#playing-bars.active {
+    opacity: 1;
+}
+
+.bar {
+    width: 4px;
+    background-color: var(--accent-primary);
+    margin-right: 3px;
+    border-radius: 2px;
+    animation: music-bounce 1s infinite ease-in-out;
+}
+
+/* Pseudo-random durations for chaotic effect (Speed +20%) */
+.bar:nth-child(1) { animation-duration: 1.5s; animation-delay: 0s; }
+.bar:nth-child(2) { animation-duration: 2.2s; animation-delay: -0.5s; }
+.bar:nth-child(3) { animation-duration: 1.8s; animation-delay: -0.2s; }
+
+@keyframes music-bounce {
+    0% { height: 20%; }
+    20% { height: 60%; }
+    40% { height: 30%; }
+    60% { height: 100%; }
+    80% { height: 50%; }
+    100% { height: 20%; }
+}
+
+#track-info-details {
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    height: 60px;
+    width: 100%;
+    left: 0; /* REMOVED -5% to stop jumping relative to width */
+}
+
+#track-artist-container {
+    margin-top: 0;
+    position: relative;
+    width: 100%;
+    height: 28px; /* Fixed height */
+    display: flex;
+    align-items: center;
+    font-size: medium;
+    color: white;
+    text-shadow: 1px 1px 2px black, 0px 0px 3px white;
+    line-height: 1;
+    overflow: hidden;
+}
+
+#track-album-container {
+    position: relative;
+    width: 100%;
+    height: 28px; /* Fixed height */
+    display: flex;
+    align-items: center;
+    white-space: nowrap;
+    font-size: medium;
+    color: var(--text-secondary);
+    opacity: 0.8;
+    line-height: 1;
+    overflow: hidden;
+}
+
+/* --- BOTTOM ACTIONS CONTAINER (Static) --- */
+#track-artist-and-album-container {
+    background: var(--panel-background);
+    bottom: 0;
+    right: 0;
+    left: auto;
+    position: absolute;
+    width: 55%;
+    height: 11%;
+    display: flex;
+    box-shadow: -5px 0 15px rgba(0,0,0,0.5);
+    flex-direction: row; 
+    overflow: hidden; 
+    clip-path: polygon(12% 0%, 100% 0%, 100% 100%, 0% 100%);
+    z-index: 5;
+}
+
+.actions-view-static {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-evenly;
+    padding-left: 10%; /* Offset for cut */
+}
+
+/* Icons in top container */
+#track-artist-icon .fa-solid, #track-album-icon .fa-solid {
+    margin-right: 0 5px 0 15px;
+    font-size: 0.9em;
+}
+
+/* Remove unused toggle styles if any remain or just overwrite them */
+#info-actions-toggle { display: none; }
+.info-view, .actions-view { display: none; } /* Hide old classes */
+
+
+/* --- TOGGLE VIEWS --- */
+#track-artist-and-album-container {
+    background: #000000;
+    bottom: 0;
+    right: 0;
+    left: auto;
+    position: absolute;
+    width: 55%;
+    height: 11%;
+    display: flex;
+    box-shadow: -5px 0 15px rgba(0,0,0,0.5);
+    flex-direction: row; 
+    overflow: hidden; 
+    clip-path: polygon(12% 0%, 100% 0%, 100% 100%, 0% 100%);
+    z-index: 5;
+}
+
+.info-view, .actions-view {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%; /* Full width */
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    transition: transform 0.4s cubic-bezier(0.23, 1, 0.32, 1), opacity 0.4s ease;
+    will-change: transform, opacity;
+    z-index: 1;
+}
+
+/* Old info/actions styles removed */
+
+/* --- ACTIVE STATE (Show Actions) --- */
+#track-artist-and-album-container.show-actions .info-view {
+    transform: translateX(-100%);
+    opacity: 0;
+    pointer-events: none;
+}
+
+#track-artist-and-album-container.show-actions .actions-view {
+    transform: translateX(0);
+    opacity: 1;
+    pointer-events: all;
+}
+
+/* --- ACTION BUTTONS --- */
+.action-btn {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 10px;
+    border-radius: 50%;
+    transition: color 0.3s ease, background-color 0.3s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    -webkit-tap-highlight-color: transparent;
+    outline: none;
+}
+
+.action-btn.active {
+    color: var(--accent-primary);
+    text-shadow: 0 0 10px rgba(255, 127, 80, 0.5);
+}
+
+/* Old toggle button styles removed */
+.action-btn {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 10px;
+    border-radius: 50%;
+    transition: color 0.3s ease, background-color 0.3s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    -webkit-tap-highlight-color: transparent;
+    outline: none;
+}
+
+.action-btn.active {
+    color: var(--accent-primary);
+    text-shadow: 0 0 10px rgba(255, 127, 80, 0.5);
+}
+
+/* --- TOGGLE TRIGGER BUTTON (Reverted Position) --- */
+/* Removed as requested - new styles applied above */
+
+/* SINGLE LINE TEXT UTILITY */
+.single-line-text {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 90%; /* Ensure it truncates before edge */
+    display: block;
+}
+
+#track-artist-container, #track-album-container {
+    width: 100%; /* Ensure flex container takes width */
+    overflow: hidden; /* Needed for child ellipsis */
+}
+
+
+/* Adjust existing containers to fit inside .info-view */
+#track-artist-container {
+    margin-top: 5%;
+    position: relative;
+    width: 100%;
+    height: 30%; /* Adjusted height */
+    display: flex;
+    align-items: center;
+    font-size: medium;
+
+}
+#track-album-container {
+    position: relative;
+    width: 100%;
+    height: 40%; /* Adjusted height */
+    display: flex;
+    align-items: center;
+    white-space: nowrap;
+    font-size: larger;
+}
+#player-controls-container {
+    display: flex;
+    justify-content: center;
+}
+
+#track-artist-icon .fa-solid,
+#track-album-icon .fa-solid {
+    margin: 0 10px 0 15px;
+    color: var(--text-secondary);
+}
