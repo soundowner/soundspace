@@ -1,293 +1,547 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // --- ИНИЦИАЛИЗАЦИЯ ---
+
+    // --- 0. STATE MANAGEMENT (PROXY) ---
+    const playerState = new Proxy({
+        isPlaying: false,
+        currentTrack: null,
+        currentTime: 0,
+        duration: 0
+    }, {
+        set(target, prop, value) {
+            target[prop] = value;
+            if (prop === 'isPlaying') updatePlayPauseUI(value);
+            if (prop === 'currentTrack') updatePlayerUI(value);
+            return true;
+        }
+    });
+
     const player = new Audio();
-    const navButtons = document.querySelectorAll('.nav-button');
-    const panels = document.querySelectorAll('.panel');
-    const parentContainer = document.querySelector('.parent-container');
-    const topSearchPanel = document.getElementById('top-search-panel');
-    const searchInput = document.getElementById('search-input');
-    const searchResultsContainer = document.getElementById('search-results-container');
+    
+    // --- ELEMENTS ---
+    const els = {
+        parentContainer: document.querySelector('.parent-container'),
+        topSearchPanel: document.getElementById('top-search-panel'),
+        searchInput: document.getElementById('search-input'),
+        searchResults: document.getElementById('search-results-container'),
+        
+        playerPanel: document.getElementById('player-panel'),
+        playerControls: document.getElementById('player-controls-container'), // Container for buttons
+        playBtnContainer: document.getElementById('play-button-container'),
+        forwardBtn: document.getElementById('forward-button-container'),
+        backwardBtn: document.getElementById('backward-button-container'),
+        
+        timeBarProgress: document.getElementById('timebar-progress'),
+        timeBarContainer: document.getElementById('timebar-progress-container'),
+        timeCurrent: document.getElementById('current-time'),
+        timeDuration: document.getElementById('duration'),
+        
+        trackTitle: document.getElementById('track-title'),
+        trackArtist: document.getElementById('track-artist-label'),
+        trackAlbum: document.getElementById('track-album-label'),
+        trackCover: document.getElementById('track-cover'),
+        trackArtistContainer: document.getElementById('track-artist-container'), // Link to artist
+        trackAlbumContainer: document.getElementById('track-album-container'),   // Link to album
+        
+        bgImage: document.querySelector('#player-panel-container-bg-container img'),
+        playingBars: document.getElementById('playing-bars'),
+        
+        artistContent: document.getElementById('artist-content'),
+        albumContent: document.getElementById('album-content'),
+        
+        bottomNavbar: document.querySelector('.bottom-navbar')
+    };
 
-    // Элементы плеера
-    const timebarProgress = document.getElementById('timebar-progress');
-    const timebarProgressContainer = document.getElementById('timebar-progress-container'); // NEW
-    const playButton = document.getElementById('play-button-container');
-    const trackCover = document.getElementById('track-cover');
-    const bgImage = document.querySelector('#player-panel-container-bg-container img');
-    const trackTitleLabel = document.getElementById('track-title');
-    const trackArtistLabel = document = document.getElementById('track-artist-label');
-    const trackAlbumLabel = document.getElementById('track-album-label');
-    const currentTimeEl = document.getElementById('current-time');
-    const durationEl = document.getElementById('duration');
+    // --- 1. CORE PLAYER LOGIC ---
+    function updatePlayerUI(track) {
+        if (!track) return;
+        if (els.trackTitle) els.trackTitle.textContent = track.title;
+        if (els.trackArtist) els.trackArtist.textContent = track.artist;
+        if (els.trackAlbum) els.trackAlbum.textContent = track.album;
 
-    // Настройка GPU-ускорения для таймбара
-    if (timebarProgress) {
-        timebarProgress.style.cssText = 'width: 0%;';
-    }
+        if (track.cover) {
+            if (els.trackCover) els.trackCover.src = track.cover;
+            if (els.bgImage) els.bgImage.src = track.cover;
+        }
 
-    // Добавляем обработчик клика для перемотки
-    if (timebarProgressContainer) {
-        timebarProgressContainer.addEventListener('click', (e) => {
-            const progressBarWidth = timebarProgressContainer.offsetWidth;
-            const clickX = e.offsetX;
-            const seekTime = (clickX / progressBarWidth) * player.duration;
-            if (player.duration) { // Убедиться, что длительность доступна
-                player.currentTime = seekTime;
-            }
-        });
-    }
-
-    function formatTime(seconds) {
-        const minutes = Math.floor(seconds / 60);
-        const remainingSeconds = Math.floor(seconds % 60);
-        return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
-    }
-
-    // --- Централизованные функции управления UI ---
-    function dismissSearch() {
-        if (topSearchPanel.classList.contains('active')) {
-            topSearchPanel.classList.remove('active');
-            searchInput.value = '';
-            searchInput.blur();
+        // Auto-open player if closed
+        if (els.playerPanel && !els.playerPanel.classList.contains('active') && !document.querySelector('.overlay-panel.active')) {
+            const openBtn = document.querySelector('[data-panel="player-panel"]');
+            if (openBtn) openBtn.click(); // Trigger nav click
         }
     }
 
-    function closeAllPanels() {
-        panels.forEach(p => p.classList.remove('active'));
-        parentContainer.classList.remove('content-scaled');
-        dismissSearch(); // Также убираем поиск, если он был активен
+    function updatePlayPauseUI(isPlaying) {
+        if (!els.playBtnContainer) return;
+        els.playBtnContainer.innerHTML = '';
+        const icon = document.createElement('i');
+        icon.setAttribute('data-lucide', isPlaying ? 'pause' : 'play');
+        els.playBtnContainer.appendChild(icon);
+        if (window.lucide) window.lucide.createIcons();
+        if (els.playingBars) isPlaying ? els.playingBars.classList.add('active') : els.playingBars.classList.remove('active');
     }
 
-    // --- ЛОГИКА ПАНЕЛЕЙ (UI) ---
-    navButtons.forEach(button => {
-        button.addEventListener('click', () => {
-            const panelId = button.getAttribute('data-panel');
+    async function handleTrackClick(el) {
+        // Visual Feedback
+        document.querySelectorAll('.playing').forEach(n => n.classList.remove('playing'));
+        el.classList.add('playing');
 
-            if (panelId === 'close-panel') {
-                closeAllPanels();
-                return;
-            }
+        const meta = {
+            id: el.dataset.trackId,
+            title: el.dataset.title,
+            artist: el.dataset.artist,
+            album: el.dataset.album,
+            cover: el.dataset.cover,
+            artistId: el.dataset.artistId,
+            albumId: el.dataset.albumId
+        };
 
-            const targetPanel = document.getElementById(panelId);
-            
-            // Always close all panels first to ensure a clean state,
-            // including dismissing the search UI if active.
-            closeAllPanels(); 
+        playerState.currentTrack = meta;
+        playerState.isPlaying = true;
 
-            if (targetPanel) {
-                targetPanel.classList.add('active');
-                parentContainer.classList.add('content-scaled');
-                // Always activate search input if the search panel is the target
-                if (panelId === 'search-panel') {
-                    topSearchPanel.classList.add('active');
-                    searchInput.focus(); // Focus and bring up keyboard
+        try {
+            const res = await fetch(`/data/audio/play?trackId=${meta.id}&formatId=6`);
+            const data = await res.json();
+            if (data.url) {
+                player.src = data.url;
+                const playPromise = player.play();
+                if (playPromise !== undefined) {
+                    playPromise.catch(error => {
+                        if (error.name === 'AbortError') {
+                            console.log('Playback aborted (likely due to track change)');
+                        } else {
+                            console.error('Playback error:', error);
+                            playerState.isPlaying = false;
+                        }
+                    });
                 }
             }
-        });
+        } catch (e) {
+            console.error(e);
+            playerState.isPlaying = false;
+        }
+    }
+
+    function playAdjacent(direction) {
+        // Find currently playing element in the DOM to determine next/prev
+        const current = document.querySelector('.search-result-track.playing, .playable-track.playing');
+        if (!current) return;
+        
+        // This relies on the DOM structure. 
+        // Note: This only works if the playlist is currently visible in the DOM.
+        const sibling = direction === 'next' ? current.nextElementSibling : current.previousElementSibling;
+        if (sibling && (sibling.classList.contains('search-result-track') || sibling.classList.contains('playable-track'))) {
+            handleTrackClick(sibling);
+        }
+    }
+
+    // --- 2. SEARCH & NAVIGATION LOGIC ---
+    function dismissSearch() {
+        if (els.topSearchPanel.classList.contains('active')) {
+            els.topSearchPanel.classList.remove('active');
+            els.searchInput.blur();
+        }
+    }
+
+    // Input Handler
+    els.searchInput.addEventListener('search', async (e) => {
+        const query = e.target.value.trim();
+        dismissSearch();
+        if (query.length < 2) return;
+        try {
+            const res = await fetch(`/data/audio/search?query=${encodeURIComponent(query)}&type=tracks`);
+            const data = await res.json();
+            renderResults(data.tracks?.items || []);
+        } catch (err) { console.error(err); }
     });
 
-    // --- Логика скрытия клавиатуры при касании вне поля ввода ---
-    parentContainer.addEventListener('touchstart', (e) => {
-        // Не закрывать, если касание было внутри верхнего поискового бара
-        if (!topSearchPanel.contains(e.target)) {
+    // Touch outside search to dismiss
+    els.parentContainer.addEventListener('touchstart', (e) => {
+        if (!els.topSearchPanel.contains(e.target) && els.topSearchPanel.classList.contains('active')) {
             dismissSearch();
         }
     }, { passive: true });
 
+    // Navbar Delegation
+    els.bottomNavbar.addEventListener('click', (e) => {
+        const navBtn = e.target.closest('.nav-button');
+        if (!navBtn) return;
 
-    // --- ПОИСК (срабатывает при нажатии "поиск" на клавиатуре) ---
-    searchInput.addEventListener('search', async (e) => {
-        const query = e.target.value.trim();
+        const panelId = navBtn.dataset.panel;
         
-        dismissSearch(); // Немедленно убираем клавиатуру и инпут
+        // Special case: Close all
+        if (panelId === 'close-panel') {
+            document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+            els.parentContainer.classList.remove('content-scaled');
+            dismissSearch();
+            return;
+        }
 
-        if (query.length < 2) return;
-
-        try {
-            const response = await fetch(`/data/audio/search?query=${encodeURIComponent(query)}&type=tracks`);
-            const data = await response.json();
-            renderResults(data.tracks?.items || []);
-        } catch (err) {
-            console.error("Search error:", err);
+        // Normal Navigation
+        document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+        const target = document.getElementById(panelId);
+        if (target) {
+            target.classList.add('active');
+            els.parentContainer.classList.add('content-scaled');
+            if (panelId === 'search-panel') {
+                els.topSearchPanel.classList.add('active');
+                els.searchInput.focus();
+            }
         }
     });
+
+    // Generic Close Buttons (Delegation on Document for simplicity as they are scattered)
+    document.addEventListener('click', (e) => {
+        const closeBtn = e.target.closest('.back-btn, .close-fab, #close-artist-panel, #album-close-fab');
+        if (closeBtn) {
+            const panel = closeBtn.closest('.panel');
+            if (panel) closeOverlay(panel.id);
+        }
+        
+        // Also handle Action Buttons (Like, Share, etc.) here as they are generic UI toggles
+        const actionBtn = e.target.closest('.action-btn');
+        if (actionBtn) {
+            actionBtn.classList.toggle('active');
+            e.stopPropagation();
+        }
+    });
+
+    // --- 3. CONTAINER-SPECIFIC EVENT LISTENERS (DELEGATION) ---
+
+    // A. SEARCH RESULTS CONTAINER
+    if (els.searchResults) {
+        els.searchResults.addEventListener('click', (e) => {
+            const trackCard = e.target.closest('.search-result-track');
+            if (trackCard) {
+                handleTrackClick(trackCard);
+            }
+        });
+    }
+
+    // B. ARTIST CONTENT CONTAINER (Tracks & Albums)
+    if (els.artistContent) {
+        els.artistContent.addEventListener('click', (e) => {
+            // 1. Check for Track
+            const trackRow = e.target.closest('.playable-track');
+            if (trackRow) {
+                handleTrackClick(trackRow);
+                return;
+            }
+
+            // 2. Check for Album Card
+            const albumCard = e.target.closest('.album-card');
+            if (albumCard) {
+                const id = albumCard.dataset.albumId;
+                openOverlay('album-panel');
+                loadAlbum(id);
+            }
+        });
+    }
+
+    // C. ALBUM CONTENT CONTAINER (Tracks)
+    if (els.albumContent) {
+        els.albumContent.addEventListener('click', (e) => {
+            const trackRow = e.target.closest('.playable-track');
+            if (trackRow) {
+                handleTrackClick(trackRow);
+            }
+        });
+    }
+
+    // --- 4. PLAYER CONTROLS LISTENERS ---
+    
+    // Play/Pause
+    if (els.playBtnContainer) {
+        els.playBtnContainer.addEventListener('click', () => {
+            if (player.paused) { 
+                player.play(); 
+                playerState.isPlaying = true; 
+            } else { 
+                player.pause(); 
+                playerState.isPlaying = false; 
+            }
+        });
+    }
+
+    // Next/Prev
+    if (els.forwardBtn) els.forwardBtn.addEventListener('click', () => playAdjacent('next'));
+    if (els.backwardBtn) els.backwardBtn.addEventListener('click', () => playAdjacent('prev'));
+
+    // Timebar Seek
+    if (els.timeBarContainer) {
+        els.timeBarContainer.addEventListener('click', (e) => {
+            const width = els.timeBarContainer.offsetWidth;
+            const clickX = e.offsetX;
+            if (player.duration) {
+                player.currentTime = (clickX / width) * player.duration;
+            }
+        });
+    }
+
+    // Player Panel Context Links (Artist/Album name click)
+    if (els.trackArtistContainer) {
+        els.trackArtistContainer.addEventListener('click', () => {
+            if (playerState.currentTrack?.artistId) {
+                 openOverlay('artist-panel');
+                 loadArtist(playerState.currentTrack.artistId);
+            }
+        });
+    }
+
+    if (els.trackAlbumContainer) {
+        els.trackAlbumContainer.addEventListener('click', () => {
+            if (playerState.currentTrack?.albumId) {
+                 openOverlay('album-panel');
+                 loadAlbum(playerState.currentTrack.albumId);
+            }
+        });
+    }
+
+    // --- 5. RENDERERS & FETCHERS ---
 
     function renderResults(items) {
-        searchResultsContainer.innerHTML = '';
-        const fragment = document.createDocumentFragment();
-
-        items.forEach((item) => {
-            const trackEl = document.createElement('div');
-            trackEl.className = 'search-result-track';
-
-            // СОХРАНЯЕМ ID И ДАННЫЕ В DATA-АТРИБУТЫ
-            trackEl.dataset.trackId = item.id;
-            trackEl.dataset.title = item.title;
-            trackEl.dataset.artist = item.performer?.name || item.artist?.name || "Unknown Artist";
-            trackEl.dataset.album = item.album?.title || "Unknown Album";
-            trackEl.dataset.cover = item.album?.image?.large || item.image?.large || "";
-
-            // Создаем контент (без innerHTML для безопасности)
-            const img = document.createElement('img');
-            img.className = 'search-result-track-cover';
-            img.src = item.album?.image?.small || item.image?.small || "";
-            img.loading = 'lazy';
-
-            const infoDiv = document.createElement('div');
-            infoDiv.className = 'track-info';
-
-            const titleP = document.createElement('p');
-            titleP.className = 'track-title';
-            titleP.textContent = item.title;
-
-            const artistP = document.createElement('p');
-            artistP.className = 'track-artist';
-            artistP.textContent = trackEl.dataset.artist;
-
-            infoDiv.append(titleP, artistP);
-            trackEl.append(img, infoDiv);
-
-            // Навешиваем событие клика
-            trackEl.addEventListener('click', handleTrackClick);
-            fragment.appendChild(trackEl);
-        });
-
-        searchResultsContainer.appendChild(fragment);
+        els.searchResults.innerHTML = items.map(item => `
+            <div class="search-result-track"
+                 data-track-id="${item.id}"
+                 data-artist-id="${item.performer?.id || item.artist?.id}"
+                 data-album-id="${item.album?.id}"
+                 data-title="${escapeHtml(item.title)}"
+                 data-artist="${escapeHtml(item.performer?.name || item.artist?.name)}"
+                 data-album="${escapeHtml(item.album?.title)}"
+                 data-cover="${item.album?.image?.large || item.image?.large || ''}">
+                <img src="${item.album?.image?.small || item.image?.small}" class="search-result-track-cover" loading="lazy">
+                <div class="track-info">
+                    <p class="track-title">${escapeHtml(item.title)}</p>
+                    <p class="track-artist">${escapeHtml(item.performer?.name || item.artist?.name)}</p>
+                </div>
+            </div>
+        `).join('');
     }
 
-    // --- ОБРАБОТКА КЛИКА И ВЫЗОВ /PLAY ---
-    async function handleTrackClick(e) {
-        const target = e.currentTarget;
-        const trackId = target.dataset.trackId;
-
-        // Управление классом 'playing'
-        const currentlyPlaying = document.querySelector('.search-result-track.playing');
-        if (currentlyPlaying) {
-            currentlyPlaying.classList.remove('playing');
-        }
-        target.classList.add('playing');
-
-        // Визуальный фидбек (опционально)
-        console.log("Loading track ID:", trackId);
-
+    async function loadArtist(id) {
+        if (els.artistContent.dataset.loadedId === id) return;
+        els.artistContent.dataset.loadedId = id;
+        els.artistContent.innerHTML = '<div style="padding:40px; text-align:center">Loading Frequency...</div>';
         try {
-            // ПОДСТАВЛЯЕМ ID В ЗАПРОС
-            const response = await fetch(`/data/audio/play?trackId=${trackId}&formatId=6`);
-            const data = await response.json();
-
-            if (data.url) {
-                player.src = data.url;
-                player.play();
-
-                // Обновляем плеер данными из дата-атрибутов
-                trackTitleLabel.textContent = target.dataset.title;
-                trackArtistLabel.textContent = target.dataset.artist;
-                trackAlbumLabel.textContent = target.dataset.album;
-                trackCover.src = target.dataset.cover;
-                bgImage.src = target.dataset.cover;
-
-                // Переключаемся на панель плеера
-                const playerNavBtn = document.querySelector('[data-panel="player-panel"]');
-                if (playerNavBtn) playerNavBtn.click();
-            }
-        } catch (err) {
-            console.error("Playback error:", err);
+            const res = await fetch(`/data/audio/artist?artistId=${id}`);
+            const data = await res.json();
+            renderArtistPanel(data);
+        } catch (e) { 
+            console.error(e);
+            els.artistContent.innerHTML = '<div style="padding:40px; text-align:center; color:red">Error loading artist</div>';
         }
     }
 
-    // --- ACTIONS LOGIC (Static) ---
-    const actionBtns = document.querySelectorAll('.actions-view-static .action-btn');
+    async function loadAlbum(id) {
+        if (els.albumContent.dataset.loadedId === id) return;
+        els.albumContent.dataset.loadedId = id;
+        els.albumContent.innerHTML = '<div style="padding:40px; text-align:center">Loading Geometry...</div>';
+        try {
+            const res = await fetch(`/data/audio/album?albumId=${id}`);
+            const data = await res.json();
+            renderAlbumPanel(data);
+        } catch (e) { 
+            console.error(e);
+            els.albumContent.innerHTML = '<div style="padding:40px; text-align:center; color:red">Error loading album</div>';
+        }
+    }
 
-    // Handle Action Buttons (Radio Logic)
-    actionBtns.forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            
-            // Remove active class from all others
-            actionBtns.forEach(b => b.classList.remove('active'));
-            
-            // Add active class to clicked
-            btn.classList.add('active');
-            
-            console.log('Action active:', btn.id);
+    function renderArtistPanel(data) {
+        const content = els.artistContent;
+        content.replaceChildren();
+
+        content.className = 'relative bg-black overflow-hidden font-sans';
+        content.style.height = '90%';
+
+        const imgUrl = getImg(data);
+        const trackList = data.tracks?.items || [];
+
+        // 1. BG - Opacity 0.2 ONLY. No Filters.
+        const bgContainer = document.createElement('div');
+        bgContainer.className = 'absolute inset-0 z-0 pointer-events-none';
+        bgContainer.innerHTML = `
+            <div class="absolute inset-0 bg-cover bg-center transition-opacity duration-700 ease-in-out opacity-0"
+                 style="background-image: url('${imgUrl}'); opacity: 0.2;">
+            </div>
+        `;
+        requestAnimationFrame(() => {
+             bgContainer.firstElementChild?.classList.remove('opacity-0');
         });
-    });
+        content.appendChild(bgContainer);
 
-    // --- ТАЙМБАР (Плавный цикл через requestAnimationFrame) ---
-    function updateProgressLoop() {
+        // 2. HEADER - Font Weight 400
+        const header = document.createElement('div');
+        header.className = 'absolute top-0 left-0 w-full h-[20dvh] z-20 flex flex-col justify-end px-6 pb-4 pointer-events-none select-none';
+        header.innerHTML = `
+            <p class="text-[coral] text-[10px] font-extrabold tracking-[0.3em] mb-0.5 leading-none uppercase">ARTIST</p>
+            <h1 class="text-white text-[2.5rem] font-normal uppercase tracking-tighter leading-[0.85] m-0 line-clamp-2 text-ellipsis overflow-hidden">
+                ${escapeHtml(data.name)}
+            </h1>
+        `;
+        content.appendChild(header);
+
+        // 3. SCROLL AREA
+        const scrollArea = document.createElement('div');
+        scrollArea.className = 'absolute left-0 right-0 bottom-0 z-10 overflow-y-auto no-scrollbar pt-2 pb-32 px-4';
+        scrollArea.style.top = '25%';
+
+        // TRACK LIST (No Header)
+        const list = document.createElement('div');
+        list.className = 'flex flex-col w-full space-y-2 mb-12';
+
+        trackList.forEach((t) => {
+            const row = document.createElement('div');
+            row.className = 'group flex items-center justify-between py-4 px-6 border-b border-white/5 active:bg-white/10 transition-colors cursor-pointer playable-track';
+
+            row.dataset.trackId = t.id;
+            row.dataset.artistId = data.id;
+            row.dataset.albumId = t.album?.id;
+            row.dataset.title = escapeHtml(t.title);
+            row.dataset.artist = escapeHtml(data.name);
+            row.dataset.album = escapeHtml(t.album?.title);
+            row.dataset.cover = getImg(t.album);
+
+            row.innerHTML = `
+                <div class="flex-1 min-w-0 mr-4">
+                    <h4 class="text-white font-medium text-[20px] truncate leading-tight group-hover:text-white/90">
+                        ${escapeHtml(t.title)}
+                    </h4>
+                </div>
+                <div class="text-neutral-500 text-[13px] font-medium font-variant-numeric whitespace-nowrap">
+                    ${formatTime(t.duration)}
+                </div>
+            `;
+            list.appendChild(row);
+        });
+        scrollArea.appendChild(list);
+
+        // ALBUMS GRID
+        if (data.albums?.items?.length) {
+            const grid = document.createElement('div');
+            grid.className = 'grid grid-cols-2 gap-4 pb-12';
+
+            data.albums.items.forEach(album => {
+                const card = document.createElement('div');
+                card.className = 'relative aspect-square w-full overflow-hidden rounded-xl bg-white/5 cursor-pointer active:scale-95 transition-transform group album-card';
+                card.dataset.albumId = album.id;
+
+                const img = getImg(album);
+
+                card.innerHTML = `
+                    <img src="${img}" class="w-full h-full object-cover" loading="lazy" />
+                    <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-transparent"></div>
+                    <div class="absolute bottom-0 left-0 p-3 w-full">
+                        <p class="text-[coral] text-sm font-bold truncate leading-tight drop-shadow-md">
+                            ${escapeHtml(album.title)}
+                        </p>
+                    </div>
+                `;
+                grid.appendChild(card);
+            });
+            scrollArea.appendChild(grid);
+        }
+
+        content.appendChild(scrollArea);
+    }
+
+    function renderAlbumPanel(data) {
+        const content = els.albumContent;
+        content.replaceChildren();
+
+        const header = document.createElement('div');
+        header.className = 'album-header-fixed';
+        header.style.cssText = 'display:flex; flex-direction:row; align-items:flex-end; padding:40px 20px 20px; background:linear-gradient(180deg, #1e1e1e 0%, #0f0f0f 100%); gap:20px;';
+
+        header.innerHTML = `
+            <img src="${getImg(data)}" style="width:120px; height:120px; border-radius:12px; box-shadow:0 5px 20px rgba(0,0,0,0.5); object-fit:cover">
+            <div class="album-header-info">
+                <h1 class="neon-text" style="font-size:1.2rem; margin:0 0 5px 0; lineHeight:1.1; color:#fff; text-shadow:0 0 12px rgba(255,255,255,0.5); font-weight:700;">${escapeHtml(data.title)}</h1>
+                <p style="color:coral; font-weight:600; margin:0">${escapeHtml(data.artist?.name)}</p>
+                <p style="color:rgba(255,255,255,0.6); font-size:0.8em; margin-top:5px">${new Date(data.released_at * 1000).getFullYear()} • ${escapeHtml(data.genre?.name || 'Music')}</p>
+            </div>
+        `;
+
+        const scroll = document.createElement('div');
+        scroll.className = 'track-list-scroll';
+
+        if (data.tracks?.items) {
+            data.tracks.items.forEach((t, i) => {
+                const row = document.createElement('div');
+                row.className = 'search-result-track playable-track track-row-3d';
+                row.dataset.trackId = t.id;
+                row.dataset.artistId = data.artist?.id;
+                row.dataset.albumId = data.id;
+                row.dataset.title = escapeHtml(t.title);
+                row.dataset.artist = escapeHtml(data.artist?.name);
+                row.dataset.album = escapeHtml(data.title);
+                row.dataset.cover = getImg(data);
+
+                row.innerHTML = `
+                     <div class="track-index-neon" style="width:25px; text-align:center; margin-right:15px; color:coral; font-weight:bold">${i+1}</div>
+                     <div class="track-info">
+                        <p class="track-title" style="color:#fff">${escapeHtml(t.title)}</p>
+                        <p class="track-artist" style="opacity:0.7">${formatTime(t.duration)}</p>
+                     </div>
+                `;
+                scroll.appendChild(row);
+            });
+        }
+
+        content.appendChild(header);
+        content.appendChild(scroll);
+    }
+
+    // --- UTILS ---
+    function openOverlay(id) {
+        document.getElementById(id).classList.add('active');
+        if(id === 'album-panel') document.querySelector('.bottom-navbar').classList.add('hidden-by-overlay');
+    }
+
+    function closeOverlay(id) {
+        document.getElementById(id).classList.remove('active');
+        if(id === 'album-panel') document.querySelector('.bottom-navbar').classList.remove('hidden-by-overlay');
+    }
+
+    function formatTime(s) {
+        if (!s) return '0:00';
+        const m = Math.floor(s / 60);
+        const sec = Math.floor(s % 60);
+        return `${m}:${sec.toString().padStart(2, '0')}`;
+    }
+
+    function escapeHtml(str) {
+        if (!str) return '';
+        // Comprehensive XSS protection
+        return str
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
+
+    function getImg(item) {
+        if (!item) return '';
+        if (item.image) return item.image.large || item.image.medium || item.image.small || '';
+        if (item.album && item.album.image) return item.album.image.large || item.album.image.medium || item.album.image.small || '';
+        return '';
+    }
+
+    // --- INIT ---
+    function loop() {
         if (!player.paused && player.duration) {
-            const progress = player.currentTime / player.duration;
-            timebarProgress.style.width = `${progress * 100}%`;
-            currentTimeEl.textContent = formatTime(player.currentTime);
+            const pct = (player.currentTime / player.duration) * 100;
+            els.timeBarProgress.style.width = `${pct}%`;
+            els.timeCurrent.textContent = formatTime(player.currentTime);
         }
-        requestAnimationFrame(updateProgressLoop);
+        requestAnimationFrame(loop);
     }
-    requestAnimationFrame(updateProgressLoop);
-
-    // --- Управление иконками Play/Pause (Lucide) и Барами ---
-    const playingBars = document.getElementById('playing-bars');
-
-    function switchPlayPauseIcon(state) {
-        playButton.innerHTML = ''; // Очищаем кнопку
-        const icon = document.createElement('i');
-        icon.setAttribute('data-lucide', state === 'play' ? 'play' : 'pause');
-        playButton.appendChild(icon);
-        lucide.createIcons(); // Перерисовываем иконку
-        
-        // Toggle Bars
-        if (state === 'pause') { // Playing
-            playingBars.classList.add('active');
-        } else {
-            playingBars.classList.remove('active');
-        }
-    }
-
-    player.addEventListener('play', () => {
-        switchPlayPauseIcon('pause');
-    });
-
-    player.addEventListener('pause', () => {
-        switchPlayPauseIcon('play');
-    });
+    loop();
 
     player.addEventListener('loadedmetadata', () => {
-        durationEl.textContent = formatTime(player.duration);
+        playerState.duration = player.duration;
+        els.timeDuration.textContent = formatTime(player.duration);
     });
+    player.addEventListener('ended', () => playAdjacent('next'));
 
-    playButton.addEventListener('click', () => {
-        player.paused ? player.play() : player.pause();
-    });
-
-    // --- Logic for forward/backward buttons ---
-    const backwardButton = document.getElementById('backward-button-container');
-    const forwardButton = document.getElementById('forward-button-container');
-
-    function playAdjacentTrack(direction) {
-        const currentlyPlaying = document.querySelector('.search-result-track.playing');
-        if (!currentlyPlaying) return;
-
-        const sibling = direction === 'next' ? currentlyPlaying.nextElementSibling : currentlyPlaying.previousElementSibling;
-
-        if (sibling && sibling.classList.contains('search-result-track')) {
-            sibling.click();
-        }
-    }
-
-    forwardButton.addEventListener('click', () => playAdjacentTrack('next'));
-    backwardButton.addEventListener('click', () => playAdjacentTrack('previous'));
-    // --- End Logic for forward/backward buttons ---
-
-    // Автоматическое воспроизведение следующего трека
-    player.addEventListener('ended', () => {
-        const currentlyPlaying = document.querySelector('.search-result-track.playing');
-        if (currentlyPlaying) {
-            const nextTrack = currentlyPlaying.nextElementSibling;
-            if (nextTrack && nextTrack.classList.contains('search-result-track')) {
-                nextTrack.click();
-            }
-        }
-    });
-
-    // Первичная отрисовка иконок Lucide
-    lucide.createIcons();
+    if(window.lucide) window.lucide.createIcons();
 });

@@ -19,8 +19,18 @@ public class QobuzController {
         return qobuzApiService.search(query, type);
     }
 
-    @GetMapping("/artists/{artistId}")
-    public Mono<String> getArtistWithAlbums(@PathVariable String artistId) {
+    @GetMapping("/artist")
+    public Mono<String> getArtistWithAlbums(@RequestParam String artistId) {
         return qobuzApiService.getArtistWithAlbums(artistId);
+    }
+
+    @GetMapping("/album")
+    public Mono<String> getAlbumById(@RequestParam String albumId) {
+        return qobuzApiService.getAlbumById(albumId);
+    }
+
+    @GetMapping("/play")
+    public Mono<String>getHlsStreamUrl(Integer trackId, @RequestParam(required=false) Integer formatId) {
+        return qobuzApiService.getFileUrl(trackId,formatId);
     }
 }
