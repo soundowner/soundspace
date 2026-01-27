@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mobile UI</title>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet" />
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkcmfRyVX3pBnMFcV7oQPJkl9QevSCWr3W6A==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="main-container">
+        <div class="parent-container">
+            <div class="top-search-panel" id="top-search-panel">
+
+                    <input type="search" enterkeyhint="search" id="search-input" placeholder="Search...">
+            </div>
+            <div class="content">
+                <!-- Main content goes here -->
+            </div>
+            <div class="overlays-container">
+                <div class="panel" id="library-panel"></div>
+
+                <div class="panel" id="search-panel">
+                    <div id="search-results-container">
+
+                    </div>
+                </div>
+
+                <div class="panel" id="player-panel">
+                    <div id="player-panel-container">
+
+                        <div id="player-panel-container-bg-container" style="display:none;">
+                            <img src="" alt="bg">
+
+                        </div>
+
+                            <div id="track-cover-and-context-buttons-container">
+
+                                <div id="track-cover-container">
+                                    <img id="track-cover" alt="cover" src=""/>
+                                </div>
+
+                                <div id="track-context-buttons-container">
+
+                                    <div id="like-button-container"></div>
+
+                                    <div id="add-button-container"></div>
+
+                                    <div id="download-button-container"></div>
+
+                                    <div id="share-button-container"></div>
+
+                                </div>
+                                <div id="player-panel-container-track-info">
+
+                                    <div id="track-title-container">
+                                        <div class="title-wrapper">
+                                            <div id="playing-bars">
+                                                <div class="bar"></div>
+                                                <div class="bar"></div>
+                                                <div class="bar"></div>
+                                            </div>
+                                            <div id="track-title"></div>
+                                        </div>
+                                        <!-- Moved Info Here -->
+                                        <div id="track-info-details">
+                                            <div id="track-artist-container">
+                                                <div id="track-artist-icon"><i class="fa-solid fa-user"></i></div>
+                                                <div id="track-artist-label" class="single-line-text"></div>
+                                            </div>
+                                            <div id="track-album-container">
+                                                <div id="track-album-icon"><i class="fa-solid fa-compact-disc"></i></div>
+                                                <div id="track-album-label" class="single-line-text"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- MAIN CONTAINER FOR ACTIONS ONLY -->
+                                    <div id="track-artist-and-album-container">
+                                        <div class="actions-view-static">
+                                            <button class="action-btn" id="btn-like"><i data-lucide="heart"></i></button>
+                                            <button class="action-btn" id="btn-add"><i data-lucide="plus"></i></button>
+                                            <button class="action-btn" id="btn-download"><i data-lucide="download"></i></button>
+                                            <button class="action-btn" id="btn-share"><i data-lucide="share-2"></i></button>
+                                        </div>
+                                    </div>
+
+                                </div> <!-- End of player-panel-container-track-info -->
+                            </div> <!-- End of track-cover-and-context-buttons-container -->
+
+                        <div id="player-controls-container">
+
+                            <div id="backward-button-container" class="player-controls-button"><i data-lucide="skip-back"></i></div>
+                            <div id="play-button-container" class="player-controls-button"><i data-lucide="play"></i></div>
+                            <div id="forward-button-container" class="player-controls-button"><i data-lucide="skip-forward"></i></div>
+
+                        </div>
+
+                        <div id="player-timebar-container">
+
+                            <div id="timebar-progress-container">
+                                <div id="timebar-progress"></div>
+                            </div>
+
+                        </div>
+
+                        <div id="time-container">
+                            <span id="current-time">0:00</span>
+                            <span id="duration">0:00</span>
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- ARTIST OVERLAY -->
+                <div id="artist-panel" class="panel overlay-panel">
+                    <div class="overlay-header">
+                        <button class="back-btn" id="close-artist-panel"><i data-lucide="chevron-down"></i></button>
+                    </div>
+                    <div class="scroll-content" id="artist-content">
+                        <!-- Content will be injected here -->
+                    </div>
+                </div>
+
+                <!-- ALBUM OVERLAY -->
+                <div id="album-panel" class="panel overlay-panel">
+                    <!-- Top header removed to save space -->
+                    <div class="scroll-content" id="album-content">
+                        <!-- Content will be injected here -->
+                    </div>
+                    <!-- Bottom Floating Close Button -->
+                    <button id="album-close-fab" class="close-fab">
+                        <i data-lucide="x"></i>
+                    </button>
+                </div>
+            </div>
+
+        <nav class="bottom-navbar">
+            <button class="nav-button" data-panel="library-panel"><span class="material-symbols-outlined">library_music</span></button>
+            <button id="search-button" class="nav-button" data-panel="search-panel"><span class="material-symbols-outlined">search</span></button>
+            <button class="nav-button" data-panel="player-panel"><span class="material-symbols-outlined">play_circle</span></button>
+            <button id="close-button" class="nav-button" data-panel="close-panel"><span class="material-symbols-outlined">close</span></button>
+        </nav>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>

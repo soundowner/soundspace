@@ -73,10 +73,11 @@ public class QobuzApiService {
                 .queryParam("app_id", properties.getAppId())
                 .queryParam("query", query)
                 .queryParam("type", type !=null && !type.isEmpty() ? type : "tracks")
+                .queryParam("extra", "albums") // Added to get alphanumeric IDs
                 .queryParam("user_auth_token", validSearchToken)
                 .toUriString();
 
-        log.info("Requesting URL: {}", url); // Логирование URL для отладки
+        log.info("Requesting Catalog Search URL: {}", url); // Логирование URL для отладки
 
         return webClient.get()
                 .uri(url)
@@ -126,9 +127,9 @@ public class QobuzApiService {
         String url = UriComponentsBuilder.fromUriString(properties.getQobuzBaseUrl() + "artist/get")
                 .queryParam("app_id", properties.getAppId())
                 .queryParam("artist_id", artistId)
-                .queryParam("type", "artists")
-                .queryParam("extra", "albums")
-                .queryParam("limit", 100)
+                //.queryParam("type", "artists") // Removed redundant type
+                .queryParam("extra", "albums,tracks") // Added tracks for top tracks
+                .queryParam("limit", 15)
                 .queryParam("user_auth_token", validSearchToken)
                 .toUriString();
 
@@ -143,8 +144,6 @@ public class QobuzApiService {
         String url = UriComponentsBuilder.fromUriString(properties.getQobuzBaseUrl() + "album/get")
                 .queryParam("app_id", properties.getAppId())
                 .queryParam("album_id", albumId)
-                .queryParam("type", "albums")
-                .queryParam("limit", 100)
                 .queryParam("user_auth_token", validSearchToken)
                 .toUriString();
 
