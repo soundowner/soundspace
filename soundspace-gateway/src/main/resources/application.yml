@@ -1,26 +1,35 @@
 server:
   port: 8080
+  forward-headers-strategy: framework
 
 spring:
   application:
     name: soundspace-gateway
   cloud:
     gateway:
+      default-filters:
+        - PreserveHostHeader
       routes:
-        # Auth Server (Внутреннее имя в Docker Compose)
+        # Auth Server
         - id: auth-server
           uri: http://auth-server:8081
           predicates:
             - Path=/auth/**
+          filters:
+            - StripPrefix=1
 
-        # Qobuz Gateway (Внутреннее имя в Docker Compose)
+        # Qobuz API
         - id: qobuz-api
           uri: http://qobuz-api-gateway:8082
           predicates:
             - Path=/data/audio/**
 
+        # Статика (Фронтенд)
+        - id: qobuz-static
+          uri: http://qobuz-api-gateway:8082
+          predicates:
+            - Path=/**
+
 logging:
   level:
     org.springframework.cloud.gateway: TRACE
-    org.springframework.http.server.reactive: DEBUG
-    reactor.netty: DEBUG
