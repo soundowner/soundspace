@@ -520,7 +520,7 @@ body, html {
 }
 /* --- TOP TITLE & INFO CONTAINER --- */
 #track-title-container {
-    height: 105px;
+    height: 140px;
     padding: 15px 25px 15px 20px;
     left: 0;
     width: 65%; /* FIXED WIDTH (was fit-content) to freeze the shape/clip-path */
@@ -599,7 +599,7 @@ body, html {
     height: 60px;
     width: 100%;
     left: -5%; /* REMOVED -5% to stop jumping relative to width */
-    margin-top: 5%;
+    margin-top: 2%;
 }
 
 #track-artist-container {
@@ -790,7 +790,7 @@ color: #00ffaf;}
 #track-album-container {
     position: relative;
     width: 100%;
-    height: 55%; /* Adjusted height */
+    height: 25%; /* Adjusted height */
     display: flex;
     align-items: center;
     white-space: nowrap;
