@@ -1,0 +1,58 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: soundspace-db
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: soundspace_db
+      POSTGRES_USER: soundowner
+      POSTGRES_PASSWORD: secret_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U soundowner -d soundspace_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  soundspace-gateway:
+    build:
+      context: ./soundspace-gateway
+      dockerfile: Dockerfile
+    container_name: soundspace-gateway
+    ports:
+      - "8080:8080"
+    depends_on:
+      - auth-server
+      - qobuz-api-gateway
+
+  auth-server:
+    build:
+      context: ./auth-server
+      dockerfile: Dockerfile
+    container_name: auth-server
+    ports:
+      - "8081:8081"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/soundspace_db
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  qobuz-api-gateway:
+    build:
+      context: ./qobuz-data-gateway
+      dockerfile: Dockerfile
+    container_name: qobuz-api-gateway
+    ports:
+      - "8082:8082"
+    # Пробрасываем переменные из .env внутрь контейнера
+    environment:
+      - QOBUZ_APP_ID=${QOBUZ_APP_ID}
+      - QOBUZ_APP_SECRET=${QOBUZ_APP_SECRET}
+      - QOBUZ_USER_TOKEN=${QOBUZ_USER_TOKEN}
+      - QOBUZ_USER_ALTERNATE_TOKEN=${QOBUZ_USER_ALTERNATE_TOKEN}
+
+volumes:
+  postgres_data:

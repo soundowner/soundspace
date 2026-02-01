@@ -1,0 +1,26 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: soundspace-gateway
+  cloud:
+    gateway:
+      routes:
+        # Auth Server (Внутреннее имя в Docker Compose)
+        - id: auth-server
+          uri: http://auth-server:8081
+          predicates:
+            - Path=/auth/**
+
+        # Qobuz Gateway (Внутреннее имя в Docker Compose)
+        - id: qobuz-api
+          uri: http://qobuz-api-gateway:8082
+          predicates:
+            - Path=/data/audio/**
+
+logging:
+  level:
+    org.springframework.cloud.gateway: TRACE
+    org.springframework.http.server.reactive: DEBUG
+    reactor.netty: DEBUG

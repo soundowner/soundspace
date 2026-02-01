@@ -1,0 +1,20 @@
+server:
+  port: 8082
+
+spring:
+  application:
+    name: qobuz-api-gateway
+
+qobuz:
+  app-id: ${QOBUZ_APP_ID:placeholder_id}
+  app-secret: ${QOBUZ_APP_SECRET:placeholder_secret}
+  qobuz-base-url: https://www.qobuz.com/api.json/0.2/
+  # Токены тоже можно скрыть, если нужно
+  user-auth-token: ${QOBUZ_USER_TOKEN:placeholder_token}
+  user-alternative-auth-token: ${QOBUZ_USER_ALTERNATE_TOKEN:placeholder_token}
+
+logging:
+  level:
+    com.soundowner: DEBUG
+    io.netty.handler.logging.LoggingHandler: TRACE
+    org.springframework.web.reactive.function.client.ExchangeFunctions: TRACE
