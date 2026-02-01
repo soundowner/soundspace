@@ -10,7 +10,6 @@ spring:
       default-filters:
         - PreserveHostHeader
       routes:
-        # Auth Server
         - id: auth-server
           uri: http://auth-server:8081
           predicates:
@@ -18,17 +17,18 @@ spring:
           filters:
             - StripPrefix=1
 
-        # Qobuz API
         - id: qobuz-api
           uri: http://qobuz-api-gateway:8082
           predicates:
             - Path=/data/audio/**
 
-        # Статика (Фронтенд)
         - id: qobuz-static
           uri: http://qobuz-api-gateway:8082
           predicates:
             - Path=/**
+
+jwt:
+  secret: ${JWT_SECRET}
 
 logging:
   level:
