@@ -1,14 +1,6 @@
-server:
-  port: 8080
-  forward-headers-strategy: framework
-
 spring:
-  application:
-    name: soundspace-gateway
   cloud:
     gateway:
-      default-filters:
-        - PreserveHostHeader
       routes:
         - id: auth-server
           uri: http://auth-server:8081
@@ -17,19 +9,35 @@ spring:
           filters:
             - StripPrefix=1
 
+        - id: auth-login
+          uri: http://auth-server:8081
+          predicates:
+            - Path=/login
+          filters:
+            - SetPath=/login.html
+
+        - id: auth-register
+          uri: http://auth-server:8081
+          predicates:
+            - Path=/register
+          filters:
+            - SetPath=/register.html
+
         - id: qobuz-api
           uri: http://qobuz-api-gateway:8082
           predicates:
             - Path=/data/audio/**
 
+        # НОВЫЙ МАРШРУТ ДЛЯ КОРНЯ (Главная страница)
+        - id: qobuz-root
+          uri: http://qobuz-api-gateway:8082
+          predicates:
+            - Path=/
+          filters:
+            - SetPath=/index.html  # <--- Магия: меняем путь запроса на файл
+
+        # ОСТАЛЬНАЯ СТАТИКА (JS, CSS)
         - id: qobuz-static
           uri: http://qobuz-api-gateway:8082
           predicates:
             - Path=/**
-
-jwt:
-  secret: ${JWT_SECRET}
-
-logging:
-  level:
-    org.springframework.cloud.gateway: TRACE

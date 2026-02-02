@@ -19,6 +19,27 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
 
+    public String[] refreshToken(String refreshToken) {
+        // 1. Проверяем валидность подписи (JwtService выкинет ошибку, если протух)
+        if (!jwtService.isTokenValid(refreshToken)) { // Нужно добавить этот метод публичным в JwtService
+            throw new RuntimeException("Invalid refresh token");
+        }
+
+        // 2. Достаем email из токена
+        String email = jwtService.extractEmail(refreshToken); // Нужно добавить метод извлечения
+
+        // 3. ИДЕМ В БД: Проверяем, что юзер реально существует и не заблокирован
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("User not found during refresh"));
+
+        // 4. Генерируем новую пару
+        return new String[]{
+                jwtService.generateAccessToken(user),
+                jwtService.generateRefreshToken(user)
+        };
+    }
+
+
     public UserProfileResponse getUserProfile(String userId) {
         User user = userRepository.findById(java.util.UUID.fromString(userId))
                 .orElseThrow(() -> new RuntimeException("User not found"));

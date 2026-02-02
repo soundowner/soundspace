@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Soundspace | Entry</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #050505; color: white; overflow: hidden; }
+        .neon-border { position: relative; }
+        .neon-border::after {
+            content: ''; position: absolute; inset: -1px;
+            background: linear-gradient(45deg, coral, transparent, #505050);
+            z-index: -1; border-radius: inherit; opacity: 0.3;
+        }
+        .glass { background: rgba(20, 20, 20, 0.7); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.05); }
+        input:focus { outline: none; border-color: coral !important; box-shadow: 0 0 15px rgba(255, 127, 80, 0.2); }
+        .btn-primary { background: coral; color: black; transition: all 0.3s; }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 5px 20px rgba(255, 127, 80, 0.4); }
+        .hidden { display: none; }
+        .form-container { transition: opacity 0.3s ease; }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen">
+    <div class="absolute inset-0 z-0">
+        <div class="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-orange-500/10 rounded-full blur-[120px]"></div>
+        <div class="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-500/5 rounded-full blur-[120px]"></div>
+    </div>
+
+    <div class="glass p-10 rounded-[32px] w-full max-w-md z-10 neon-border shadow-2xl">
+        <div class="mb-10 text-center">
+            <h1 class="text-4xl font-extrabold tracking-tighter mb-2 italic">SOUNDSPACE</h1>
+            <p id="form-subtitle" class="text-neutral-500 text-sm tracking-widest uppercase">Sonic Identity Gateway</p>
+        </div>
+
+        <!-- LOGIN FORM -->
+        <form id="login-form" class="space-y-6 form-container">
+            <div>
+                <label class="block text-[10px] font-bold text-neutral-500 uppercase tracking-widest mb-2 ml-1">Email</label>
+                <input type="email" id="login-email" class="w-full bg-white/5 border border-white/10 p-4 rounded-2xl text-white transition-all" placeholder="Enter email" required>
+            </div>
+            <div>
+                <label class="block text-[10px] font-bold text-neutral-500 uppercase tracking-widest mb-2 ml-1">Password</label>
+                <input type="password" id="login-password" class="w-full bg-white/5 border border-white/10 p-4 rounded-2xl text-white transition-all" placeholder="••••••••" required>
+            </div>
+            <button type="submit" class="w-full btn-primary font-bold py-4 rounded-2xl uppercase tracking-wider text-sm">Sign In</button>
+        </form>
+
+        <!-- REGISTER FORM -->
+        <form id="register-form" class="space-y-6 form-container hidden">
+            <div>
+                <label class="block text-[10px] font-bold text-neutral-500 uppercase tracking-widest mb-2 ml-1">Display Name</label>
+                <input type="text" id="reg-name" class="w-full bg-white/5 border border-white/10 p-4 rounded-2xl text-white transition-all" placeholder="How should we call you?" required>
+            </div>
+            <div>
+                <label class="block text-[10px] font-bold text-neutral-500 uppercase tracking-widest mb-2 ml-1">Email</label>
+                <input type="email" id="reg-email" class="w-full bg-white/5 border border-white/10 p-4 rounded-2xl text-white transition-all" placeholder="your@email.com" required>
+            </div>
+            <div>
+                <label class="block text-[10px] font-bold text-neutral-500 uppercase tracking-widest mb-2 ml-1">Password</label>
+                <input type="password" id="reg-password" class="w-full bg-white/5 border border-white/10 p-4 rounded-2xl text-white transition-all" placeholder="Min 6 characters" required>
+            </div>
+            <button type="submit" class="w-full btn-primary font-bold py-4 rounded-2xl uppercase tracking-wider text-sm">Initialize Identity</button>
+        </form>
+
+        <div class="relative my-8">
+            <div class="absolute inset-0 flex items-center"><div class="w-full border-t border-white/10"></div></div>
+            <div class="relative flex justify-center text-[10px] uppercase tracking-widest"><span class="bg-[#0f0f0f] px-4 text-neutral-600">Or pulse with</span></div>
+        </div>
+
+        <button onclick="window.location.href='/auth/login/oauth2/google'" class="w-full bg-white text-black font-bold py-4 rounded-2xl flex items-center justify-center gap-3 hover:bg-neutral-200 transition-all text-sm">
+            <svg class="w-5 h-5" viewBox="0 0 24 24">
+                <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                <path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                <path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.27.81-.57z"/>
+                <path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+            </svg>
+            Continue with Google
+        </button>
+
+        <p class="mt-8 text-center text-neutral-600 text-[10px] tracking-widest uppercase">
+            <span id="toggle-text">Don't have an identity?</span> 
+            <a href="#" id="toggle-form" class="text-white hover:text-orange-400">Initialize</a>
+        </p>
+    </div>
+
+    <script>
+        const loginForm = document.getElementById('login-form');
+        const registerForm = document.getElementById('register-form');
+        const toggleBtn = document.getElementById('toggle-form');
+        const toggleText = document.getElementById('toggle-text');
+        const subtitle = document.getElementById('form-subtitle');
+
+        let isLogin = true;
+
+        toggleBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            isLogin = !isLogin;
+            
+            if (isLogin) {
+                loginForm.classList.remove('hidden');
+                registerForm.classList.add('hidden');
+                toggleBtn.innerText = 'Initialize';
+                toggleText.innerText = "Don't have an identity?";
+                subtitle.innerText = 'Sonic Identity Gateway';
+            } else {
+                loginForm.classList.add('hidden');
+                registerForm.classList.remove('hidden');
+                toggleBtn.innerText = 'Sign In';
+                toggleText.innerText = "Already synthesized?";
+                subtitle.innerText = 'Identity Initialization';
+            }
+        });
+
+        // Handle Login
+        loginForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('login-email').value;
+            const password = document.getElementById('login-password').value;
+            await handleAuth('/auth/login', { email, password }, 'SYNCHRONIZING...');
+        });
+
+        // Handle Register
+        registerForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const displayName = document.getElementById('reg-name').value;
+            const email = document.getElementById('reg-email').value;
+            const password = document.getElementById('reg-password').value;
+            
+            const success = await handleAuth('/auth/register', { displayName, email, password }, 'INITIALIZING...');
+            if (success) {
+                alert('IDENTITY CREATED. Please sign in.');
+                toggleBtn.click(); // Switch to login
+            }
+        });
+
+        async function handleAuth(url, body, loadingText) {
+            const activeForm = isLogin ? loginForm : registerForm;
+            const btn = activeForm.querySelector('button');
+            const originalText = btn.innerText;
+
+            btn.innerText = loadingText;
+            btn.disabled = true;
+
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+
+                if (response.ok) {
+                    if (isLogin) {
+                        window.location.href = '/index.html';
+                    }
+                    return true;
+                } else {
+                    const error = await response.text();
+                    alert('ERROR: ' + error);
+                    return false;
+                }
+            } catch (err) {
+                console.error(err);
+                alert('CONNECTION FAILED');
+                return false;
+            } finally {
+                btn.innerText = originalText;
+                btn.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>

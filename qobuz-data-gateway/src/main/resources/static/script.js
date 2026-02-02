@@ -1,3 +1,23 @@
+// --- FETCH INTERCEPTOR FOR AUTO-REFRESH ---
+const originalFetch = window.fetch;
+window.fetch = async (url, options) => {
+    let response = await originalFetch(url, options);
+
+    if (response.status === 401) {
+        try {
+            const refreshRes = await originalFetch('/auth/refresh');
+            if (refreshRes.ok) {
+                response = await originalFetch(url, options);
+            } else {
+                window.location.href = '/login.html';
+            }
+        } catch (err) {
+            window.location.href = '/login.html';
+        }
+    }
+    return response;
+};
+
 document.addEventListener('DOMContentLoaded', () => {
 
     // --- 0. STATE MANAGEMENT (PROXY) ---

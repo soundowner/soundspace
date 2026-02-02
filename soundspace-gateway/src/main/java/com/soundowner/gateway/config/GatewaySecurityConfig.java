@@ -9,6 +9,7 @@ import org.springframework.security.config.annotation.web.reactive.EnableWebFlux
 import org.springframework.security.config.web.server.ServerHttpSecurity;
 import org.springframework.security.web.server.SecurityWebFilterChain;
 import org.springframework.web.server.ServerWebExchange;
+import org.springframework.web.server.WebFilter;
 import reactor.core.publisher.Mono;
 
 @Configuration
@@ -19,12 +20,28 @@ public class GatewaySecurityConfig {
     private final JwtUtils jwtUtils;
 
     @Bean
+    public WebFilter redirectAuthenticatedFilter() {
+        return (exchange, chain) -> {
+            String path = exchange.getRequest().getPath().value();
+            if (path.equals("/login.html") || path.equals("/login")) {
+                HttpCookie cookie = exchange.getRequest().getCookies().getFirst("ACCESS_TOKEN");
+                if (cookie != null && jwtUtils.isTokenValid(cookie.getValue())) {
+                    exchange.getResponse().setStatusCode(HttpStatus.FOUND);
+                    exchange.getResponse().getHeaders().set("Location", "/");
+                    return exchange.getResponse().setComplete();
+                }
+            }
+            return chain.filter(exchange);
+        };
+    }
+
+    @Bean
     public SecurityWebFilterChain springSecurityFilterChain(ServerHttpSecurity http) {
         http
             .csrf(ServerHttpSecurity.CsrfSpec::disable)
             .authorizeExchange(exchanges -> exchanges
-                // Разрешаем вход
-                .pathMatchers("/auth/**").permitAll()
+                // Разрешаем вход и статику для входа
+                .pathMatchers("/auth/**", "/login.html", "/tailwindcss.js").permitAll()
                 // Всё остальное (статика, API) проверяем вручную через фильтр ниже
                 .anyExchange().access((authentication, context) -> {
                     ServerWebExchange exchange = context.getExchange();
@@ -41,7 +58,7 @@ public class GatewaySecurityConfig {
                     // Если не авторизован и просит статику — редирект на логин
                     if (exchange.getRequest().getPath().value().endsWith(".html") || exchange.getRequest().getPath().value().equals("/")) {
                         exchange.getResponse().setStatusCode(HttpStatus.FOUND);
-                        exchange.getResponse().getHeaders().set("Location", "/auth/login/oauth2/google");
+                        exchange.getResponse().getHeaders().set("Location", "/login.html");
                         return exchange.getResponse().setComplete();
                     }
                     // Если API — просто 401
