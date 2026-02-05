@@ -37,7 +37,6 @@ CREATE TABLE albums (
 CREATE TABLE tracks (
     id BIGINT PRIMARY KEY,
     album_id VARCHAR(50) REFERENCES albums(id),
-    artist_id BIGINT REFERENCES artists(id),
     title VARCHAR(500) NOT NULL,
     version VARCHAR(255),
     isrc VARCHAR(50),
@@ -49,9 +48,7 @@ CREATE TABLE tracks (
     maximum_bit_depth INTEGER,
     maximum_sampling_rate FLOAT,
     maximum_technical_specifications VARCHAR(255),
-    release_date_original DATE,
-    replaygain_track_peak FLOAT,
-    replaygain_track_gain FLOAT
+    release_date_original DATE
 );
 
 -- 2. User Library & Playlists
@@ -90,7 +87,6 @@ CREATE TABLE user_artists (
 -- 3. Indexes for performance
 CREATE INDEX idx_albums_artist_id ON albums(artist_id);
 CREATE INDEX idx_tracks_album_id ON tracks(album_id);
-CREATE INDEX idx_tracks_artist_id ON tracks(artist_id);
 CREATE INDEX idx_playlists_user_id ON playlists(user_id);
 CREATE INDEX idx_playlist_tracks_playlist_id ON playlist_tracks(playlist_id);
 CREATE INDEX idx_user_albums_user_id ON user_albums(user_id);

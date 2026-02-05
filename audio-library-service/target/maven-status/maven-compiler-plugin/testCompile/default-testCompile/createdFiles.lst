@@ -1,0 +1,3 @@
+com\soundowner\library\mapper\LibraryMapperTest.class
+com\soundowner\library\controller\LibraryControllerTest.class
+com\soundowner\library\service\LibraryServiceTest.class
