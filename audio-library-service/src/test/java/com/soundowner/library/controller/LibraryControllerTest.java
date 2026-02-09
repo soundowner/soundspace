@@ -44,7 +44,7 @@ class LibraryControllerTest {
         AlbumDto dto = new AlbumDto();
         dto.setId("alb1");
 
-        when(libraryMapper.toAlbum(any())).thenReturn(new Album());
+        when(libraryMapper.toAlbum(any(AlbumDto.class))).thenReturn(new Album());
 
         mockMvc.perform(post("/library/albums")
                 .header("X-User-Id", userId.toString())
@@ -61,7 +61,7 @@ class LibraryControllerTest {
         TrackDto dto = new TrackDto();
         dto.setId(100L);
 
-        when(libraryMapper.toTrack(any())).thenReturn(new Track());
+        when(libraryMapper.toTrack(any(TrackDto.class))).thenReturn(new Track());
 
         mockMvc.perform(post("/library/playlists/{id}/tracks", playlistId)
                 .contentType(MediaType.APPLICATION_JSON)

@@ -36,6 +36,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     const player = new Audio();
+    const trackCache = new Map();
     
     // --- ELEMENTS ---
     const els = {
@@ -68,8 +69,111 @@ document.addEventListener('DOMContentLoaded', () => {
         artistContent: document.getElementById('artist-content'),
         albumContent: document.getElementById('album-content'),
         
-        bottomNavbar: document.querySelector('.bottom-navbar')
+        bottomNavbar: document.querySelector('.bottom-navbar'),
+
+        // Library Elements
+        libraryPanel: document.getElementById('library-panel'),
+        playlistsContainer: document.getElementById('playlists-grid-ss'),
+        createPlaylistBtn: document.getElementById('create_playlist_btn'),
+        createPlaylistModal: document.getElementById('create-playlist-modal'),
+        createPlaylistConfirm: document.getElementById('create-playlist-confirm'),
+        createPlaylistCancel: document.getElementById('create-playlist-cancel'),
+        playlistTitleInput: document.getElementById('playlist_title'),
+        playlistDescInput: document.getElementById('playlist_description'),
+
+        // Playlist Detail
+        playlistPanel: document.getElementById('playlist-panel'),
+        playlistContent: document.getElementById('playlist-content-ss'),
+        playlistCloseFab: document.getElementById('playlist-close-fab'),
+
+        // Add to Playlist Modal
+        addToPlaylistModal: document.getElementById('add-to-playlist-modal'),
+        selectPlaylistList: document.getElementById('select-playlist-list'),
+        addToPlaylistCancel: document.getElementById('add-to-playlist-cancel')
     };
+
+    let libraryState = {
+        playlists: JSON.parse(localStorage.getItem('ss_playlists') || '[]'),
+        lastUpdated: localStorage.getItem('ss_library_updated')
+    };
+
+    // --- MAPPING HELPERS ---
+    
+    function mapQobuzImageToDto(qobuzImg) {
+        if (!qobuzImg) return null;
+        return {
+            small: qobuzImg.small,
+            medium: qobuzImg.thumbnail || qobuzImg.medium, // Qobuz uses 'thumbnail' for albums, 'medium' for artists
+            large: qobuzImg.large
+        };
+    }
+
+    function mapToTrackDto(qobuzTrack) {
+        if (!qobuzTrack) return null;
+        
+        // Deep copy to avoid mutating cache
+        const t = JSON.parse(JSON.stringify(qobuzTrack));
+        
+        // Ensure album structure
+        if (t.album) {
+            t.album.image = mapQobuzImageToDto(t.album.image);
+            if (t.album.artist) {
+                t.album.artist.image = mapQobuzImageToDto(t.album.artist.image);
+            }
+        }
+        
+        // Ensure performers string (Backend uses this field)
+        if (!t.performers && t.performer) {
+            t.performers = t.performer.name;
+        } else if (!t.performers && t.artist) {
+            t.performers = t.artist.name;
+        }
+
+        // Return object matching TrackDto.java
+        return {
+            id: Number(t.id),
+            title: t.title,
+            version: t.version,
+            isrc: t.isrc,
+            duration: t.duration,
+            track_number: t.track_number || t.position,
+            performers: t.performers,
+            parental_warning: t.parental_warning,
+            hires: t.hires,
+            maximum_bit_depth: t.maximum_bit_depth,
+            maximum_sampling_rate: t.maximum_sampling_rate,
+            maximum_technical_specifications: t.maximum_technical_specifications,
+            release_date_original: t.release_date_original,
+            album: t.album ? {
+                id: String(t.album.id),
+                title: t.album.title,
+                version: t.album.version,
+                subtitle: t.album.subtitle,
+                upc: t.album.upc,
+                url: t.album.url,
+                qobuz_id: t.album.qobuz_id,
+                is_official: t.album.is_official,
+                tracks_count: t.album.tracks_count,
+                duration: t.album.duration,
+                maximum_bit_depth: t.album.maximum_bit_depth,
+                maximum_sampling_rate: t.album.maximum_sampling_rate,
+                maximum_technical_specifications: t.album.maximum_technical_specifications,
+                hires: t.album.hires,
+                release_date_original: t.album.release_date_original,
+                release_type: t.album.release_type,
+                popularity: t.album.popularity,
+                description: t.album.description,
+                image: t.album.image, // Already mapped
+                artist: t.album.artist ? {
+                    id: Number(t.album.artist.id),
+                    name: t.album.artist.name,
+                    slug: t.album.artist.slug,
+                    albums_count: t.album.artist.albums_count,
+                    image: t.album.artist.image // Already mapped
+                } : null
+            } : null
+        };
+    }
 
     // --- 1. CORE PLAYER LOGIC ---
     function updatePlayerUI(track) {
@@ -100,15 +204,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function handleTrackClick(el, isAutoPlay = false) {
-        // Управление классами UI
         document.querySelectorAll('.search-result-track').forEach(n => {
             n.classList.remove('playing');
-            n.classList.remove('show-actions'); // Clear buttons from all tracks
+            n.classList.remove('show-actions');
         });
         
         el.classList.add('playing');
         
-        // Показываем кнопки только если кликнул человек (isAutoPlay === false)
         if (isAutoPlay === false) {
             requestAnimationFrame(() => {
                 el.classList.add('show-actions');
@@ -152,7 +254,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const sibling = direction === 'next' ? current.nextElementSibling : current.previousElementSibling;
         if (sibling && sibling.classList.contains('search-result-track')) {
-            handleTrackClick(sibling, true); // Auto-play = true
+            handleTrackClick(sibling, true);
         }
     }
 
@@ -200,29 +302,313 @@ document.addEventListener('DOMContentLoaded', () => {
                 els.topSearchPanel.classList.add('active');
                 els.searchInput.focus();
             }
+            if (panelId === 'library-panel') {
+                fetchPlaylistsSS();
+            }
         }
     });
 
+    // --- LIBRARY LOGIC ---
+    function saveLibraryToLocal() {
+        localStorage.setItem('ss_playlists', JSON.stringify(libraryState.playlists));
+        localStorage.setItem('ss_library_updated', new Date().toISOString());
+    }
+
+    async function fetchPlaylistsSS() {
+        if (!els.playlistsContainer) return;
+        renderPlaylistsSS(libraryState.playlists);
+
+        try {
+            const res = await fetch('/library/playlists');
+            if (res.ok) {
+                const playlists = await res.json();
+                libraryState.playlists = playlists.map(newPl => {
+                    const existing = libraryState.playlists.find(p => p.id === newPl.id);
+                    return existing ? { ...newPl, tracks: existing.tracks } : newPl;
+                });
+                saveLibraryToLocal();
+                renderPlaylistsSS(libraryState.playlists);
+            }
+        } catch (e) { console.error('Library sync failed', e); }
+    }
+
+    function renderPlaylistsSS(playlists) {
+        if (!playlists || playlists.length === 0) {
+            els.playlistsContainer.innerHTML = '<div class="empty-state-ss">No playlists yet</div>';
+            return;
+        }
+        
+        els.playlistsContainer.innerHTML = playlists.map(pl => `
+            <div class="playlist-card-ss" data-id="${pl.id}">
+                <div class="playlist-cover-ss">
+                    ${pl.coverImage ? `<img src="${pl.coverImage}" loading="lazy">` : '<span class="material-symbols-outlined" style="font-size:2rem; color:rgba(255,255,255,0.1)">music_note</span>'}
+                </div>
+                <div class="playlist-info-ss">
+                    <h4>${escapeHtml(pl.title)}</h4>
+                    <p>${pl.trackCount || pl.tracks?.length || 0} tracks</p>
+                </div>
+                <div class="ss-playlist-arrow">
+                    <span class="material-symbols-outlined">chevron_right</span>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    async function handlePlaylistClickSS(id) {
+        openOverlay('playlist-panel');
+        els.playlistContent.innerHTML = '<div style="padding:40px; text-align:center">Loading Spirits...</div>';
+
+        try {
+            const res = await fetch(`/library/playlists/${id}/tracks`);
+            if (res.ok) {
+                const tracks = await res.json();
+                const pl = libraryState.playlists.find(p => p.id === id);
+                if (pl) {
+                    pl.tracks = tracks;
+                    saveLibraryToLocal();
+                }
+                renderPlaylistDetailSS(pl || { title: 'Playlist', tracks });
+            }
+        } catch (e) { console.error(e); }
+    }
+
+    function renderPlaylistDetailSS(playlist) {
+        const content = els.playlistContent;
+        content.replaceChildren();
+        content.className = 'ss-playlist-view'; 
+        
+        const coverUrl = playlist.coverImage || (playlist.tracks?.length ? getImg(playlist.tracks[0]) : '');
+        
+        const headerWrapper = document.createElement('div');
+        headerWrapper.className = 'ss-playlist-header-wrapper';
+        headerWrapper.innerHTML = `
+            <div class="ss-label-header">PLAYLIST</div>
+            <div class="ss-playlist-header">
+                <div class="ss-cover-container">
+                    ${coverUrl ? `<img src="${coverUrl}" class="ss-main-cover-mini">` : '<div class="ss-main-cover-mini" style="background:#222; display:flex; align-items:center; justify-content:center;"><span class="material-symbols-outlined" style="font-size:3rem; color:#444">music_note</span></div>'}
+                    <button class="ss-play-mini-btn">
+                        <span class="material-symbols-outlined">play_arrow</span>
+                    </button>
+                </div>
+                <div class="ss-header-text-block">
+                    <h1 class="ss-title-huge">${escapeHtml(playlist.title)}</h1>
+                    <div class="ss-label-header" style="margin-top:8px; color:rgba(255,255,255,0.2);">${playlist.trackCount || playlist.tracks?.length || 0} TRACKS</div>
+                </div>
+            </div>
+        `;
+
+        const trackList = document.createElement('div');
+        trackList.className = 'ss-acid-list no-scrollbar';
+        
+        if (playlist.tracks) {
+            playlist.tracks.forEach((t) => {
+                const row = document.createElement('div');
+                row.className = 'ss-acid-row search-result-track'; 
+                
+                row.innerHTML = `
+                    <div class="ss-acid-row-content playable-track" 
+                         data-track-id="${t.id}"
+                         data-title="${escapeHtml(t.title)}"
+                         data-artist="${escapeHtml(t.performers || t.album?.artist?.name || 'Unknown')}"
+                         data-artist-id="${t.album?.artist?.id || ''}"
+                         data-album="${escapeHtml(t.album?.title || '')}"
+                         data-album-id="${t.album?.id || ''}"
+                         data-cover="${getImg(t)}">
+                        <div class="ss-acid-title">${escapeHtml(t.title)}</div>
+                        <div class="ss-acid-time">${formatTime(t.duration)}</div>
+                    </div>
+                    <button class="ss-delete-track-btn">
+                        <span class="material-symbols-outlined">close</span>
+                    </button>
+                `;
+
+                // Long Press Logic
+                let pressTimer;
+                const startPress = () => {
+                    pressTimer = setTimeout(() => {
+                        row.classList.add('show-delete');
+                    }, 600);
+                };
+                const endPress = () => clearTimeout(pressTimer);
+
+                row.addEventListener('mousedown', startPress);
+                row.addEventListener('touchstart', startPress, { passive: true });
+                row.addEventListener('mouseup', endPress);
+                row.addEventListener('mouseleave', endPress);
+                row.addEventListener('touchend', endPress);
+
+                // Delete Logic
+                row.querySelector('.ss-delete-track-btn').onclick = async (e) => {
+                    e.stopPropagation();
+                    try {
+                        const res = await fetch(`/library/playlists/${playlist.id}/tracks/${t.id}`, { method: 'DELETE' });
+                        if (res.ok) {
+                            row.style.opacity = '0';
+                            row.style.transform = 'scale(0.9)';
+                            setTimeout(() => row.remove(), 300);
+                            
+                            const pl = libraryState.playlists.find(p => p.id === playlist.id);
+                            if (pl && pl.tracks) {
+                                pl.tracks = pl.tracks.filter(track => track.id !== t.id);
+                                pl.trackCount = Math.max(0, pl.trackCount - 1);
+                                saveLibraryToLocal();
+                                
+                                const countEl = headerWrapper.querySelector('.ss-label-header[style*="margin-top:8px"]');
+                                if (countEl) countEl.textContent = `${pl.trackCount} TRACKS`;
+                                renderPlaylistsSS(libraryState.playlists);
+                            }
+                        }
+                    } catch (err) { console.error(err); }
+                };
+
+                trackList.appendChild(row);
+            });
+        }
+
+        content.appendChild(headerWrapper);
+        content.appendChild(trackList);
+
+        // Play All Logic
+        headerWrapper.querySelector('.ss-play-mini-btn').onclick = () => {
+            const first = trackList.querySelector('.playable-track');
+            if (first) handleTrackClick(first, false);
+        };
+    }
+
+    if (els.createPlaylistBtn) {
+        els.createPlaylistBtn.addEventListener('click', () => {
+            els.createPlaylistModal.classList.remove('hidden');
+            els.playlistTitleInput.focus();
+        });
+    }
+
+    if (els.createPlaylistCancel) {
+        els.createPlaylistCancel.addEventListener('click', () => {
+            els.createPlaylistModal.classList.add('hidden');
+        });
+    }
+
+    if (els.createPlaylistConfirm) {
+        els.createPlaylistConfirm.addEventListener('click', async () => {
+            const title = els.playlistTitleInput.value.trim();
+            const desc = els.playlistDescInput.value.trim();
+            if (!title) return;
+
+            try {
+                const res = await fetch('/library/playlists', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title, description: desc })
+                });
+                
+                if (res.ok) {
+                    const newPl = await res.json();
+                    libraryState.playlists.unshift(newPl);
+                    saveLibraryToLocal();
+                    els.createPlaylistModal.classList.add('hidden');
+                    els.playlistTitleInput.value = '';
+                    els.playlistDescInput.value = '';
+                    renderPlaylistsSS(libraryState.playlists);
+                }
+            } catch (e) { console.error(e); }
+        });
+    }
+
+    // --- ADD TRACK TO PLAYLIST LOGIC ---
+    let trackToAdd = null;
+
+    function openAddToPlaylistModal(trackData) {
+        trackToAdd = trackData;
+        els.addToPlaylistModal.classList.remove('hidden');
+        els.selectPlaylistList.innerHTML = libraryState.playlists.map(pl => `
+            <div class="ss-playlist-select-item" data-id="${pl.id}">
+                <div class="ss-playlist-select-cover">
+                    ${pl.coverImage ? `<img src="${pl.coverImage}">` : '<i class="fa-solid fa-music"></i>'}
+                </div>
+                <div class="ss-playlist-select-info">
+                    <h4>${escapeHtml(pl.title)}</h4>
+                    <p>${pl.tracks?.length || 0} tracks</p>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    if (els.addToPlaylistCancel) {
+        els.addToPlaylistCancel.addEventListener('click', () => {
+            els.addToPlaylistModal.classList.add('hidden');
+            trackToAdd = null;
+        });
+    }
+
+    if (els.selectPlaylistList) {
+        els.selectPlaylistList.addEventListener('click', async (e) => {
+            const item = e.target.closest('.ss-playlist-select-item');
+            if (!item || !trackToAdd) return;
+            const playlistId = item.dataset.id;
+            
+            // Map full cached object to Backend DTO
+            const trackPayload = mapToTrackDto(trackToAdd);
+
+            try {
+                const res = await fetch(`/library/playlists/${playlistId}/tracks`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(trackPayload)
+                });
+                if (res.ok) {
+                    els.addToPlaylistModal.classList.add('hidden');
+                    
+                    // Update local state and UI immediately
+                    const pl = libraryState.playlists.find(p => p.id === playlistId);
+                    if (pl) {
+                        if (!pl.tracks) pl.tracks = [];
+                        pl.tracks.push(trackPayload);
+                        pl.trackCount = (pl.trackCount || 0) + 1; // Increment count
+                        saveLibraryToLocal();
+                        renderPlaylistsSS(libraryState.playlists);
+                    }
+                }
+            } catch (e) { console.error(e); }
+        });
+    }
+
     document.addEventListener('click', (e) => {
-        const closeBtn = e.target.closest('.back-btn, .close-fab, #close-artist-panel, #album-close-fab');
+        const closeBtn = e.target.closest('.back-btn, .close-fab, #close-artist-panel, #album-close-fab, #playlist-close-fab');
         if (closeBtn) {
             const panel = closeBtn.closest('.panel');
             if (panel) closeOverlay(panel.id);
         }
+        
         const actionBtn = e.target.closest('.action-btn');
         if (actionBtn) {
             actionBtn.classList.toggle('active');
             e.stopPropagation();
         }
+
+        const playlistCard = e.target.closest('.playlist-card-ss');
+        if (playlistCard) {
+            handlePlaylistClickSS(playlistCard.dataset.id);
+        }
+
+        const addBtn = e.target.closest('.slide-btn');
+        if (addBtn && addBtn.innerHTML.includes('plus')) {
+            const trackRow = addBtn.closest('.search-result-track');
+            if (trackRow) {
+                const trackId = trackRow.dataset.trackId;
+                const fullData = trackCache.get(String(trackId));
+                if (fullData) {
+                    openAddToPlaylistModal(fullData);
+                }
+            }
+            e.stopPropagation();
+        }
     });
 
-    // --- 3. CONTAINER-SPECIFIC EVENT LISTENERS (DELEGATION) ---
     if (els.searchResults) {
         els.searchResults.addEventListener('click', (e) => {
             const trackCard = e.target.closest('.search-result-track');
-            // If user clicked the slide buttons themselves, don't re-trigger track click
             if (trackCard && !e.target.closest('.track-actions-slide')) {
-                handleTrackClick(trackCard, false); // false = manual click, buttons will slide out
+                handleTrackClick(trackCard, false);
             }
         });
     }
@@ -231,7 +617,7 @@ document.addEventListener('DOMContentLoaded', () => {
         els.artistContent.addEventListener('click', (e) => {
             const trackRow = e.target.closest('.playable-track');
             if (trackRow && !e.target.closest('.track-actions-slide')) {
-                handleTrackClick(trackRow, false); // Manual click
+                handleTrackClick(trackRow, false);
                 return;
             }
             const albumCard = e.target.closest('.album-card');
@@ -245,14 +631,31 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (els.albumContent) {
         els.albumContent.addEventListener('click', (e) => {
+            const addBtn = e.target.closest('.btn-add');
+            if (addBtn) {
+                const trackRow = addBtn.closest('.search-result-track');
+                if (trackRow) {
+                    openAddToPlaylistModal(trackCache.get(String(trackRow.dataset.trackId)));
+                }
+                e.stopPropagation();
+                return;
+            }
             const trackRow = e.target.closest('.playable-track');
             if (trackRow && !e.target.closest('.track-actions-slide')) {
-                handleTrackClick(trackRow, false); // Manual click
+                handleTrackClick(trackRow, false); 
             }
         });
     }
 
-    // --- 4. PLAYER CONTROLS LISTENERS ---
+    if (els.playlistContent) {
+        els.playlistContent.addEventListener('click', (e) => {
+            const trackRow = e.target.closest('.playable-track');
+            if (trackRow) {
+                handleTrackClick(trackRow, false);
+            }
+        });
+    }
+
     if (els.playBtnContainer) {
         els.playBtnContainer.addEventListener('click', () => {
             player.paused ? player.play() : player.pause();
@@ -287,8 +690,8 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- 5. RENDERERS & FETCHERS ---
     function renderResults(items) {
+        items.forEach(item => trackCache.set(String(item.id), item));
         els.searchResults.innerHTML = items.map(item => `
             <div class="search-result-track"
                  data-track-id="${item.id}"
@@ -303,7 +706,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <p class="track-title">${escapeHtml(item.title)}</p>
                     <p class="track-artist">${escapeHtml(item.performer?.name || item.artist?.name)}</p>
                 </div>
-                <div class="track-actions-slide" onclick="event.stopPropagation()">
+                <div class="track-actions-slide">
                     <button class="slide-btn"><i data-lucide="heart"></i></button>
                     <button class="slide-btn"><i data-lucide="plus"></i></button>
                 </div>
@@ -339,16 +742,20 @@ document.addEventListener('DOMContentLoaded', () => {
         content.replaceChildren();
         content.className = 'relative bg-black overflow-hidden font-sans';
         content.style.height = '90%';
-
         const imgUrl = getImg(data);
         const trackList = data.tracks?.items || [];
+        
+        trackList.forEach(t => {
+            // Enrich with artist info for cache
+            if (!t.artist) t.artist = { id: data.id, name: data.name, slug: data.slug, image: data.image };
+            trackCache.set(String(t.id), t);
+        });
 
         const bgContainer = document.createElement('div');
         bgContainer.className = 'absolute inset-0 z-0 pointer-events-none';
         bgContainer.innerHTML = `<div class="absolute inset-0 bg-cover bg-center transition-opacity duration-700 opacity-0" style="background-image: url('${imgUrl}'); opacity: 0.2;"></div>`;
         requestAnimationFrame(() => bgContainer.firstElementChild?.classList.remove('opacity-0'));
         content.appendChild(bgContainer);
-
         const header = document.createElement('div');
         header.className = 'absolute top-0 left-0 w-full h-[20dvh] z-20 flex flex-col justify-end px-6 pb-4 pointer-events-none select-none';
         header.innerHTML = `
@@ -356,14 +763,11 @@ document.addEventListener('DOMContentLoaded', () => {
             <h1 class="text-white text-[2.5rem] font-normal uppercase tracking-tighter leading-[0.85] m-0 line-clamp-2 text-ellipsis overflow-hidden">${escapeHtml(data.name)}</h1>
         `;
         content.appendChild(header);
-
         const scrollArea = document.createElement('div');
         scrollArea.className = 'absolute left-0 right-0 bottom-0 z-10 overflow-y-auto no-scrollbar pt-2 pb-32 px-4';
         scrollArea.style.top = '25%';
-
         const list = document.createElement('div');
         list.className = 'flex flex-col w-full space-y-2 mb-12';
-
         trackList.forEach((t) => {
             const row = document.createElement('div');
             row.className = 'group flex items-center justify-between py-4 px-6 border-b border-white/5 active:bg-white/10 transition-colors cursor-pointer playable-track search-result-track';
@@ -374,13 +778,12 @@ document.addEventListener('DOMContentLoaded', () => {
             row.dataset.artist = escapeHtml(data.name);
             row.dataset.album = escapeHtml(t.album?.title);
             row.dataset.cover = getImg(t.album);
-
             row.innerHTML = `
                 <div class="flex-1 min-w-0 mr-4">
                     <h4 class="text-white font-medium text-[20px] truncate leading-tight group-hover:text-white/90">${escapeHtml(t.title)}</h4>
                 </div>
                 <div class="text-neutral-500 text-[13px] font-medium whitespace-nowrap">${formatTime(t.duration)}</div>
-                <div class="track-actions-slide" onclick="event.stopPropagation()">
+                <div class="track-actions-slide">
                     <button class="slide-btn"><i data-lucide="heart"></i></button>
                     <button class="slide-btn"><i data-lucide="plus"></i></button>
                 </div>
@@ -388,7 +791,6 @@ document.addEventListener('DOMContentLoaded', () => {
             list.appendChild(row);
         });
         scrollArea.appendChild(list);
-
         if (data.albums?.items?.length) {
             const grid = document.createElement('div');
             grid.className = 'grid grid-cols-2 gap-4 pb-12';
@@ -427,6 +829,12 @@ document.addEventListener('DOMContentLoaded', () => {
         scroll.className = 'track-list-scroll';
         if (data.tracks?.items) {
             data.tracks.items.forEach((t, i) => {
+                // Enrich with album and artist info for cache
+                t.album = JSON.parse(JSON.stringify(data));
+                delete t.album.tracks; // Avoid circular/heavy structure
+                if (!t.artist) t.artist = data.artist;
+                trackCache.set(String(t.id), t);
+
                 const row = document.createElement('div');
                 row.className = 'search-result-track playable-track track-row-3d';
                 row.dataset.trackId = t.id;
@@ -442,7 +850,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <p class="track-title" style="color:#fff">${escapeHtml(t.title)}</p>
                         <p class="track-artist" style="opacity:0.7">${formatTime(t.duration)}</p>
                      </div>
-                     <div class="track-actions-slide" onclick="event.stopPropagation()">
+                     <div class="track-actions-slide">
                         <button class="slide-btn"><i data-lucide="heart"></i></button>
                         <button class="slide-btn"><i data-lucide="plus"></i></button>
                      </div>
@@ -457,11 +865,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function openOverlay(id) {
         document.getElementById(id).classList.add('active');
-        if(id === 'album-panel') document.querySelector('.bottom-navbar').classList.add('hidden-by-overlay');
     }
     function closeOverlay(id) {
         document.getElementById(id).classList.remove('active');
-        if(id === 'album-panel') document.querySelector('.bottom-navbar').classList.remove('hidden-by-overlay');
     }
     function formatTime(s) {
         if (!s) return '0:00';

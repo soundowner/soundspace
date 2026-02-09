@@ -3,6 +3,7 @@ package com.soundowner.library.service;
 import com.soundowner.library.entity.*;
 import com.soundowner.library.repository.*;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -11,105 +12,118 @@ import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class LibraryService {
 
     private final ArtistRepository artistRepository;
     private final AlbumRepository albumRepository;
     private final TrackRepository trackRepository;
-    private final UserAlbumRepository userAlbumRepository;
     private final PlaylistRepository playlistRepository;
     private final PlaylistTrackRepository playlistTrackRepository;
+    private final UserAlbumRepository userAlbumRepository;
 
     @Transactional
     public void addAlbumToLibrary(UUID userId, Album album, List<Track> tracks) {
-        // 1. Проверяем и сохраняем Артиста и Альбом (данные пришли с клиента)
-        saveAlbumAndTracksMetadata(album, tracks);
-
-        // 2. Проверяем дубликат связи с пользователем
-        UserAlbumId userAlbumId = new UserAlbumId(userId, album.getId());
-        if (userAlbumRepository.existsById(userAlbumId)) {
-            throw new IllegalArgumentException("Album is already in your library");
+        log.debug("Adding album {} to library for user {}", album.getId(), userId);
+        
+        Artist managedArtist = saveArtistIfNotExist(album.getArtist());
+        album.setArtist(managedArtist);
+        
+        Album managedAlbum = saveAlbumIfNotExist(album);
+        
+        if (tracks != null) {
+            for (Track track : tracks) {
+                track.setAlbum(managedAlbum);
+                saveTrackIfNotExist(track);
+            }
         }
 
-        // 3. Вычисляем позицию для сортировки
-        int nextPos = userAlbumRepository.findMaxPositionByUserId(userId) + 1;
-        
-        // 4. Создаем связь
-        UserAlbum userAlbum = UserAlbum.builder()
-                .id(userAlbumId)
-                .album(album)
-                .position(nextPos)
-                .build();
-        
-        userAlbumRepository.save(userAlbum);
+        // Link user to album
+        UserAlbumId uaId = new UserAlbumId(userId, managedAlbum.getId());
+        if (!userAlbumRepository.existsById(uaId)) {
+            int maxPos = userAlbumRepository.findMaxPositionByUserId(userId);
+            UserAlbum ua = new UserAlbum();
+            ua.setId(uaId);
+            ua.setAlbum(managedAlbum);
+            ua.setPosition(maxPos + 1);
+            userAlbumRepository.save(ua);
+        } else {
+            log.debug("Album {} already in library for user {}", album.getId(), userId);
+        }
     }
 
     @Transactional
     public void addTrackToPlaylist(UUID playlistId, Track track) {
         Playlist playlist = playlistRepository.findById(playlistId)
-                .orElseThrow(() -> new IllegalArgumentException("Playlist not found"));
+                .orElseThrow(() -> new RuntimeException("Playlist not found"));
 
-        // 1. Гарантируем, что метаданные трека (и его альбома/артиста) есть в БД
-        saveTrackMetadata(track);
+        // Сначала сохраняем всю иерархию и получаем УПРАВЛЯЕМЫЙ трек
+        Track managedTrack = ensureTrackHierarchySaved(track);
 
-        // 2. Добавляем в плейлист
-        int nextPos = playlistTrackRepository.findMaxPositionByPlaylistId(playlistId) + 1;
+        int maxPos = playlistTrackRepository.findMaxPositionByPlaylistId(playlistId);
         
-        PlaylistTrack pt = PlaylistTrack.builder()
-                .playlist(playlist)
-                .track(track)
-                .position(nextPos)
-                .build();
-
+        PlaylistTrack pt = new PlaylistTrack();
+        pt.setPlaylist(playlist);
+        pt.setTrack(managedTrack);
+        pt.setPosition(maxPos + 1);
+        
         playlistTrackRepository.save(pt);
     }
 
-    /**
-     * Вспомогательный метод: Сохраняет структуру Альбома и всех Треков, если их нет в БД.
-     */
-    private void saveAlbumAndTracksMetadata(Album album, List<Track> tracks) {
-        // Artist
-        if (album.getArtist() != null) {
-            if (!artistRepository.existsById(album.getArtist().getId())) {
-                artistRepository.save(album.getArtist());
-            }
-        }
-        
-        // Album
-        if (!albumRepository.existsById(album.getId())) {
-            albumRepository.save(album);
-        }
-        
-        // Tracks
-        if (tracks != null && !tracks.isEmpty()) {
-            tracks.forEach(track -> {
-                track.setAlbum(album); // Привязываем к альбому
-                if (!trackRepository.existsById(track.getId())) {
-                    trackRepository.save(track);
-                }
-            });
-        }
+    @Transactional
+    public Playlist createPlaylist(Playlist playlist) {
+        return playlistRepository.save(playlist);
     }
 
-    /**
-     * Вспомогательный метод: Сохраняет структуру одного Трека (Artist -> Album -> Track).
-     */
-    private void saveTrackMetadata(Track track) {
-        Album album = track.getAlbum();
-        if (album != null) {
-            // Artist
-            if (album.getArtist() != null && !artistRepository.existsById(album.getArtist().getId())) {
-                artistRepository.save(album.getArtist());
-            }
-            // Album (сохраняем "контейнер" альбома)
-            if (!albumRepository.existsById(album.getId())) {
-                albumRepository.save(album);
-            }
-        }
+    @Transactional(readOnly = true)
+    public List<Playlist> getUserPlaylists(UUID userId) {
+        return playlistRepository.findAllByUserIdOrderByCreatedAtDesc(userId);
+    }
 
-        // Track
-        if (!trackRepository.existsById(track.getId())) {
-            trackRepository.save(track);
+    @Transactional(readOnly = true)
+    public List<PlaylistTrack> getPlaylistTracks(UUID playlistId) {
+        return playlistTrackRepository.findAllByPlaylistIdWithTracks(playlistId);
+    }
+
+    @Transactional(readOnly = true)
+    public int getPlaylistTracksCount(UUID playlistId) {
+        // Use a standard count query or reusing max position if it's reliable
+        // Better use count for accuracy
+        return (int) playlistTrackRepository.countByPlaylistId(playlistId);
+    }
+
+    @Transactional
+    public void removeTrackFromPlaylist(UUID playlistId, Long trackId) {
+        playlistTrackRepository.deleteByPlaylistIdAndTrackId(playlistId, trackId);
+    }
+
+    private Track ensureTrackHierarchySaved(Track track) {
+        if (track.getAlbum() != null) {
+            if (track.getAlbum().getArtist() != null) {
+                Artist managedArtist = saveArtistIfNotExist(track.getAlbum().getArtist());
+                track.getAlbum().setArtist(managedArtist);
+            }
+            Album managedAlbum = saveAlbumIfNotExist(track.getAlbum());
+            track.setAlbum(managedAlbum);
         }
+        return saveTrackIfNotExist(track);
+    }
+
+    private Artist saveArtistIfNotExist(Artist artist) {
+        if (artist == null) return null;
+        return artistRepository.findById(artist.getId())
+                .orElseGet(() -> artistRepository.save(artist));
+    }
+
+    private Album saveAlbumIfNotExist(Album album) {
+        if (album == null) return null;
+        return albumRepository.findById(album.getId())
+                .orElseGet(() -> albumRepository.save(album));
+    }
+
+    private Track saveTrackIfNotExist(Track track) {
+        if (track == null) return null;
+        return trackRepository.findById(track.getId())
+                .orElseGet(() -> trackRepository.save(track));
     }
 }

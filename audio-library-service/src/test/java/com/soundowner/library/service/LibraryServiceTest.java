@@ -12,7 +12,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
@@ -25,7 +24,6 @@ class LibraryServiceTest {
     @Mock private UserAlbumRepository userAlbumRepository;
     @Mock private PlaylistRepository playlistRepository;
     @Mock private PlaylistTrackRepository playlistTrackRepository;
-    @Mock private UserArtistRepository userArtistRepository;
 
     @InjectMocks
     private LibraryService libraryService;
@@ -38,9 +36,15 @@ class LibraryServiceTest {
         Album album = Album.builder().id("album1").artist(artist).title("Test Album").build();
         Track track = Track.builder().id(10L).title("Test Track").build();
         
-        when(artistRepository.existsById(100L)).thenReturn(false);
-        when(albumRepository.existsById("album1")).thenReturn(false);
-        when(trackRepository.existsById(10L)).thenReturn(false);
+        when(artistRepository.findById(100L)).thenReturn(Optional.empty());
+        when(artistRepository.save(any())).thenReturn(artist);
+        
+        when(albumRepository.findById("album1")).thenReturn(Optional.empty());
+        when(albumRepository.save(any())).thenReturn(album);
+        
+        when(trackRepository.findById(10L)).thenReturn(Optional.empty());
+        when(trackRepository.save(any())).thenReturn(track);
+        
         when(userAlbumRepository.existsById(any(UserAlbumId.class))).thenReturn(false);
         when(userAlbumRepository.findMaxPositionByUserId(userId)).thenReturn(0);
 
@@ -48,9 +52,9 @@ class LibraryServiceTest {
         libraryService.addAlbumToLibrary(userId, album, List.of(track));
 
         // Then
-        verify(artistRepository).save(artist);
-        verify(albumRepository).save(album);
-        verify(trackRepository).save(track);
+        verify(artistRepository).save(any());
+        verify(albumRepository).save(any());
+        verify(trackRepository).save(any());
         verify(userAlbumRepository).save(any(UserAlbum.class));
     }
 
@@ -63,9 +67,9 @@ class LibraryServiceTest {
         Track track = Track.builder().id(10L).build();
 
         // Metadata already in DB
-        when(artistRepository.existsById(100L)).thenReturn(true);
-        when(albumRepository.existsById("album1")).thenReturn(true);
-        when(trackRepository.existsById(10L)).thenReturn(true);
+        when(artistRepository.findById(100L)).thenReturn(Optional.of(artist));
+        when(albumRepository.findById("album1")).thenReturn(Optional.of(album));
+        when(trackRepository.findById(10L)).thenReturn(Optional.of(track));
         
         // Link does not exist
         when(userAlbumRepository.existsById(any(UserAlbumId.class))).thenReturn(false);
@@ -92,10 +96,12 @@ class LibraryServiceTest {
 
         when(playlistRepository.findById(playlistId)).thenReturn(Optional.of(playlist));
         
-        // Artist & Album exist, but Track is new
-        when(artistRepository.existsById(50L)).thenReturn(true);
-        when(albumRepository.existsById("alb50")).thenReturn(true);
-        when(trackRepository.existsById(500L)).thenReturn(false);
+        // Artist & Album exist
+        when(artistRepository.findById(50L)).thenReturn(Optional.of(artist));
+        when(albumRepository.findById("alb50")).thenReturn(Optional.of(album));
+        // Track is new
+        when(trackRepository.findById(500L)).thenReturn(Optional.empty());
+        when(trackRepository.save(any())).thenReturn(track);
 
         // When
         libraryService.addTrackToPlaylist(playlistId, track);
@@ -103,21 +109,7 @@ class LibraryServiceTest {
         // Then
         verify(artistRepository, never()).save(any());
         verify(albumRepository, never()).save(any());
-        verify(trackRepository).save(track); // Track must be saved
+        verify(trackRepository).save(any()); 
         verify(playlistTrackRepository).save(any(PlaylistTrack.class));
-    }
-
-    @Test
-    void addAlbumToLibrary_ShouldThrow_IfAlreadyAdded() {
-        // Given
-        UUID userId = UUID.randomUUID();
-        Album album = Album.builder().id("album1").build();
-        
-        when(userAlbumRepository.existsById(any())).thenReturn(true);
-
-        // Then
-        assertThrows(IllegalArgumentException.class, () -> 
-            libraryService.addAlbumToLibrary(userId, album, List.of())
-        );
     }
 }

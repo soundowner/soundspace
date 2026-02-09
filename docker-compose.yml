@@ -28,6 +28,7 @@ services:
     depends_on:
       - auth-server
       - qobuz-api-gateway
+      - audio-library-service
 
   auth-server:
     build:
@@ -57,6 +58,9 @@ services:
       - QOBUZ_APP_SECRET=${QOBUZ_APP_SECRET}
       - QOBUZ_USER_TOKEN=${QOBUZ_USER_TOKEN}
       - QOBUZ_USER_ALTERNATE_TOKEN=${QOBUZ_USER_ALTERNATE_TOKEN}
+      - SPRING_WEB_RESOURCES_STATIC_LOCATIONS=file:/static-content/
+    volumes:
+      - ./qobuz-data-gateway/src/main/resources/static:/static-content
 
   audio-library-service:
     build:

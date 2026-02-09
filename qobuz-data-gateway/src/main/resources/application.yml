@@ -4,6 +4,11 @@ server:
 spring:
   application:
     name: qobuz-api-gateway
+  web:
+    resources:
+      static-locations: file:/static-content/
+      cache:
+        period: 0
 
 qobuz:
   app-id: ${QOBUZ_APP_ID:placeholder_id}

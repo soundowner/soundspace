@@ -4,6 +4,7 @@ import com.soundowner.library.dto.AlbumDto;
 import com.soundowner.library.dto.PlaylistDto;
 import com.soundowner.library.dto.TrackDto;
 import com.soundowner.library.entity.Album;
+import com.soundowner.library.entity.Playlist;
 import com.soundowner.library.entity.Track;
 import com.soundowner.library.mapper.LibraryMapper;
 import com.soundowner.library.service.LibraryService;
@@ -66,6 +67,55 @@ public class LibraryController {
 
         return ResponseEntity.ok().build();
     }
-    
-    // TODO: Методы создания плейлистов, получения библиотеки и т.д.
+
+    @PostMapping("/playlists")
+    public ResponseEntity<PlaylistDto> createPlaylist(
+            @RequestHeader("X-User-Id") UUID userId,
+            @RequestBody PlaylistDto dto) {
+        
+        Playlist playlist = new Playlist();
+        playlist.setUserId(userId);
+        playlist.setTitle(dto.getTitle());
+        playlist.setDescription(dto.getDescription());
+        
+        Playlist created = libraryService.createPlaylist(playlist);
+        return ResponseEntity.ok(libraryMapper.toPlaylistDto(created));
+    }
+
+    @GetMapping("/playlists")
+    public ResponseEntity<List<PlaylistDto>> getMyPlaylists(
+            @RequestHeader("X-User-Id") UUID userId) {
+        
+        var playlists = libraryService.getUserPlaylists(userId);
+        var dtos = libraryMapper.toPlaylistDtoList(playlists);
+        
+        // Populate trackCount for each DTO
+        for (var dto : dtos) {
+            int count = libraryService.getPlaylistTracksCount(dto.getId());
+            dto.setTrackCount(count);
+        }
+        
+        return ResponseEntity.ok(dtos);
+    }
+
+    @GetMapping("/playlists/{playlistId}/tracks")
+    public ResponseEntity<List<TrackDto>> getPlaylistTracks(@PathVariable UUID playlistId) {
+        var playlistTracks = libraryService.getPlaylistTracks(playlistId);
+        
+        // Map List<PlaylistTrack> -> List<TrackDto>
+        List<TrackDto> tracks = playlistTracks.stream()
+                .map(pt -> libraryMapper.toTrack(pt.getTrack()))
+                .collect(Collectors.toList());
+                
+        return ResponseEntity.ok(tracks);
+    }
+
+    @DeleteMapping("/playlists/{playlistId}/tracks/{trackId}")
+    public ResponseEntity<Void> removeTrackFromPlaylist(
+            @PathVariable UUID playlistId,
+            @PathVariable Long trackId) {
+        
+        libraryService.removeTrackFromPlaylist(playlistId, trackId);
+        return ResponseEntity.ok().build();
+    }
 }

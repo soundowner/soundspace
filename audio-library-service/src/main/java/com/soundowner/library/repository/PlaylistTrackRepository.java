@@ -2,6 +2,7 @@ package com.soundowner.library.repository;
 
 import com.soundowner.library.entity.PlaylistTrack;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -18,5 +19,9 @@ public interface PlaylistTrackRepository extends JpaRepository<PlaylistTrack, UU
     @Query("SELECT COALESCE(MAX(pt.position), 0) FROM PlaylistTrack pt WHERE pt.playlist.id = :playlistId")
     int findMaxPositionByPlaylistId(@Param("playlistId") UUID playlistId);
 
-    void deleteByPlaylistIdAndTrackId(UUID playlistId, Long trackId);
+    long countByPlaylistId(UUID playlistId);
+
+    @Modifying
+    @Query("DELETE FROM PlaylistTrack pt WHERE pt.playlist.id = :playlistId AND pt.track.id = :trackId")
+    void deleteByPlaylistIdAndTrackId(@Param("playlistId") UUID playlistId, @Param("trackId") Long trackId);
 }

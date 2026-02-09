@@ -9,4 +9,5 @@ public class PlaylistDto {
     private String title;
     private String description;
     private String coverImage;
+    private long trackCount;
 }

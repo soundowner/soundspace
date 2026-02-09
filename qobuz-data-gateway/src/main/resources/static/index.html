@@ -20,7 +20,50 @@
             <!-- Main content goes here -->
         </div>
         <div class="overlays-container">
-            <div class="panel" id="library-panel"></div>
+            <div class="panel" id="library-panel">
+                <div class="library-header-ss">
+                    <h2 class="neon-text">My Library</h2>
+                    <button id="create_playlist_btn" class="ss-icon-btn-circle">
+                        <i data-lucide="plus"></i>
+                    </button>
+                </div>
+                <div id="playlists-grid-ss" class="ss-playlist-list">
+                    <!-- Playlists will be injected here -->
+                </div>
+            </div>
+
+            <!-- Create Playlist Modal -->
+            <div id="create-playlist-modal" class="ss-modal-overlay hidden">
+                <div class="ss-modal-window">
+                    <h3>New Playlist</h3>
+                    <div class="ss-modal-body">
+                        <div class="ss-modal-cover">
+                            <span>Image</span>
+                        </div>
+                        <div class="ss-modal-inputs">
+                            <input type="text" id="playlist_title" placeholder="Playlist Title" autocomplete="off">
+                            <textarea id="playlist_description" placeholder="Description (optional)" rows="3"></textarea>
+                        </div>
+                    </div>
+                    <div class="ss-modal-actions">
+                        <button id="create-playlist-cancel" class="ss-text-btn">Cancel</button>
+                        <button id="create-playlist-confirm" class="ss-primary-btn">Create</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Add to Playlist Modal -->
+            <div id="add-to-playlist-modal" class="ss-modal-overlay hidden">
+                <div class="ss-modal-window">
+                    <h3>Add to Playlist</h3>
+                    <div id="select-playlist-list" class="ss-playlist-select-list">
+                        <!-- Playlists to select -->
+                    </div>
+                    <div class="ss-modal-actions">
+                        <button id="add-to-playlist-cancel" class="ss-text-btn">Cancel</button>
+                    </div>
+                </div>
+            </div>
 
             <div class="panel" id="search-panel">
                 <div id="search-results-container"></div>
@@ -117,6 +160,16 @@
                     <!-- Content will be injected here -->
                 </div>
                 <button id="album-close-fab" class="close-fab">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+
+            <!-- SELECTED PLAYLIST OVERLAY -->
+            <div id="playlist-panel" class="panel overlay-panel">
+                <div class="scroll-content" id="playlist-content-ss">
+                    <!-- Tracks will be injected here -->
+                </div>
+                <button id="playlist-close-fab" class="close-fab">
                     <i data-lucide="x"></i>
                 </button>
             </div>
