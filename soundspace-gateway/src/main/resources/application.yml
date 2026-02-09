@@ -28,6 +28,12 @@ spring:
           predicates:
             - Path=/data/audio/**
 
+        # LIBRARY SERVICE ROUTE
+        - id: library-service
+          uri: http://audio-library-service:8083
+          predicates:
+            - Path=/library/**
+
         # НОВЫЙ МАРШРУТ ДЛЯ КОРНЯ (Главная страница)
         - id: qobuz-root
           uri: http://qobuz-api-gateway:8082

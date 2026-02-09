@@ -21,6 +21,7 @@
         <module>soundspace-gateway</module>
         <module>auth-server</module>
         <module>qobuz-data-gateway</module>
+        <module>audio-library-service</module>
     </modules>
 
     <properties>
