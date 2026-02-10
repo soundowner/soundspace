@@ -43,11 +43,23 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
         // Refresh Token Cookie (7 days)
         Cookie refreshCookie = new Cookie("REFRESH_TOKEN", refreshToken);
         refreshCookie.setHttpOnly(true);
-        refreshCookie.setPath("/auth/refresh"); // Только для эндпоинта обновления
+        refreshCookie.setPath("/"); // Устанавливаем корень для консистентности
         refreshCookie.setMaxAge(604800);
         response.addCookie(refreshCookie);
 
         // Перенаправляем на фронтенд
-        getRedirectStrategy().sendRedirect(request, response, "http://localhost:8080/index.html");
+        request.getSession().invalidate(); // Очищаем временную сессию OAuth2
+        
+        // Удаляем куку сессии явно
+        Cookie sessionCookie = new Cookie("AUTH_SESSION", null);
+        sessionCookie.setPath("/");
+        sessionCookie.setMaxAge(0);
+        response.addCookie(sessionCookie);
+
+        // Динамический редирект на основе хоста запроса
+        String host = request.getHeader("Host"); // Например 192.168.0.11:8080
+        String redirectUrl = "http://" + (host != null ? host : "localhost:8080") + "/index.html";
+        
+        getRedirectStrategy().sendRedirect(request, response, redirectUrl);
     }
 }
