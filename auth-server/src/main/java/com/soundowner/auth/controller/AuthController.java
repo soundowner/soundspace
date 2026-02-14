@@ -20,6 +20,9 @@ public class AuthController {
 
     private final AuthService authService;
 
+    @org.springframework.beans.factory.annotation.Value("${app.frontend-url}")
+    private String frontendUrl;
+
     // ... импорты
 
     // Добавляем новый метод для обновления токенов
@@ -31,12 +34,9 @@ public class AuthController {
             HttpServletRequest request
     ) throws IOException, java.io.IOException {
 
-        System.out.println("REFRESH_TOKEN RECEIVED: " + refreshToken);
-
         // 1. Если токена нет — отправляем логиниться
         if (refreshToken == null) {
-            String baseUrl =  getBaseUrl(request);
-            response.sendRedirect(baseUrl + "/login.html");
+            response.sendRedirect(frontendUrl + "/login.html");
             return;
         }
 
@@ -44,12 +44,15 @@ public class AuthController {
             // 2. Валидация и поход в БД (внутри сервиса)
             String[] newTokens = authService.refreshToken(refreshToken);
 
+            boolean isSecure = frontendUrl.startsWith("https");
+
             // 3. Установка новых кук
             // Access Token (перезаписываем)
             Cookie accessCookie = new Cookie("ACCESS_TOKEN", newTokens[0]);
             accessCookie.setHttpOnly(true);
             accessCookie.setPath("/");
             accessCookie.setMaxAge(900); // 15 мин
+            accessCookie.setSecure(isSecure);
             response.addCookie(accessCookie);
 
             // Refresh Token (продляем жизнь или меняем)
@@ -57,14 +60,14 @@ public class AuthController {
             refreshCookie.setHttpOnly(true);
             refreshCookie.setPath("/"); 
             refreshCookie.setMaxAge(604800); // 7 дней
+            refreshCookie.setSecure(isSecure);
             response.addCookie(refreshCookie);
 
-            // 4. Редирект домой (Dynamic)
-            response.sendRedirect(getBaseUrl(request) + "/");
+            // 4. Редирект домой (из конфига)
+            response.sendRedirect(frontendUrl + "/");
 
         } catch (Exception e) {
             System.err.println("Refresh failed: " + e.getMessage());
-            e.printStackTrace();
             
             Cookie deleteAccess = new Cookie("ACCESS_TOKEN", null);
             deleteAccess.setPath("/");
@@ -76,7 +79,7 @@ public class AuthController {
             deleteRefresh.setMaxAge(0);
             response.addCookie(deleteRefresh);
 
-            response.sendRedirect(getBaseUrl(request) + "/login.html");
+            response.sendRedirect(frontendUrl + "/login.html");
         }
     }
 
