@@ -71,10 +71,6 @@
 
             <div class="panel" id="player-panel">
                 <div id="player-panel-container">
-                    <div id="player-panel-container-bg-container" style="display:none;">
-                        <img src="" alt="bg">
-                    </div>
-
                     <div id="track-cover-and-context-buttons-container">
                         <div id="track-cover-container">
                             <img id="track-cover" alt="cover" src=""/>
@@ -110,10 +106,10 @@
 
                             <div id="track-artist-and-album-container">
                                 <div class="actions-view-static">
-                                    <button class="action-btn" id="btn-like"><i data-lucide="heart"></i></button>
-                                    <button class="action-btn" id="btn-add"><i data-lucide="plus"></i></button>
-                                    <button class="action-btn" id="btn-download"><i data-lucide="download"></i></button>
-                                    <button class="action-btn" id="btn-share"><i data-lucide="share-2"></i></button>
+                                    <button class="action-btn" id="btn-like"><i class="fa-solid fa-heart" style="color:#2cec9b; font-size:large;"></i></button>
+                                    <button class="action-btn" id="btn-add"><i class="fa-solid fa-plus" style="color:#2cec9b; font-size:large;"></i></button>
+                                    <button class="action-btn" id="btn-download"><i class="fa-solid fa-download" style="color:#2cec9b;font-size:large;"></i></button>
+                                    <button class="action-btn" id="btn-share"><i class="fa-solid fa-share" style="color:#2cec9b;font-size:large;"></i></button>
                                 </div>
                             </div>
                         </div>
@@ -121,11 +117,7 @@
 
 
 
-                    <div id="player-timebar-container">
-                        <div id="timebar-progress-container">
-                            <div id="timebar-progress"></div>
-                        </div>
-                    </div>
+
 
 
 
@@ -136,10 +128,24 @@
                         <div id="play-button-container" class="player-controls-button"><i data-lucide="play"></i></div>
                         <div id="forward-button-container" class="player-controls-button"><i data-lucide="skip-forward"></i></div>
                     </div>
+
+
                     <div id="time-container">
                         <span id="current-time">0:00</span>
                         <span id="duration">0:00</span>
                     </div>
+
+                    <div id="now_play_bottom_panel_part">
+
+                        <div id="player-timebar-container">
+                            <div id="timebar-progress-container">
+                                <div id="timebar-progress"></div>
+                            </div>
+                        </div>
+
+                        <div id="now_play_bottom_panel_edge"></div>
+                    </div>
+
                 </div>
 
             </div>

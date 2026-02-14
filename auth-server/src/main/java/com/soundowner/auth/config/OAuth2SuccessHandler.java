@@ -43,11 +43,45 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
         // Refresh Token Cookie (7 days)
         Cookie refreshCookie = new Cookie("REFRESH_TOKEN", refreshToken);
         refreshCookie.setHttpOnly(true);
-        refreshCookie.setPath("/auth/refresh"); // Только для эндпоинта обновления
+        refreshCookie.setPath("/"); // Устанавливаем корень для консистентности
         refreshCookie.setMaxAge(604800);
         response.addCookie(refreshCookie);
 
         // Перенаправляем на фронтенд
-        getRedirectStrategy().sendRedirect(request, response, "http://localhost:8080/index.html");
+        request.getSession().invalidate(); // Очищаем временную сессию OAuth2
+        
+        // Удаляем куку сессии явно
+        Cookie sessionCookie = new Cookie("AUTH_SESSION", null);
+        sessionCookie.setPath("/");
+        sessionCookie.setMaxAge(0);
+        response.addCookie(sessionCookie);
+
+        // Динамический редирект на основе заголовков прокси (Gateway)
+        String redirectUrl = getBaseUrl(request) + "/index.html";
+        
+        getRedirectStrategy().sendRedirect(request, response, redirectUrl);
+    }
+
+    private String getBaseUrl(HttpServletRequest request) {
+        String proto = request.getHeader("X-Forwarded-Proto");
+        String host = request.getHeader("X-Forwarded-Host");
+
+        if (proto != null && host != null) {
+            return proto + "://" + host;
+        }
+
+        // Fallback если заголовки не проброшены
+        String scheme = request.getScheme();
+        String serverName = request.getServerName();
+        int serverPort = request.getServerPort();
+
+        StringBuilder url = new StringBuilder();
+        url.append(scheme).append("://").append(serverName);
+
+        if (("http".equals(scheme) && serverPort != 80) || ("https".equals(scheme) && serverPort != 443)) {
+            url.append(":").append(serverPort);
+        }
+
+        return url.toString();
     }
 }

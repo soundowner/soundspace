@@ -31,9 +31,12 @@ public class AuthController {
             HttpServletRequest request
     ) throws IOException, java.io.IOException {
 
+        System.out.println("REFRESH_TOKEN RECEIVED: " + refreshToken);
+
         // 1. Если токена нет — отправляем логиниться
         if (refreshToken == null) {
-            response.sendRedirect("http://localhost:8080/login"); // Чистый URL
+            String baseUrl =  getBaseUrl(request);
+            response.sendRedirect(baseUrl + "/login.html");
             return;
         }
 
@@ -52,23 +55,55 @@ public class AuthController {
             // Refresh Token (продляем жизнь или меняем)
             Cookie refreshCookie = new Cookie("REFRESH_TOKEN", newTokens[1]);
             refreshCookie.setHttpOnly(true);
-            refreshCookie.setPath("/auth/refresh"); // Важно!
+            refreshCookie.setPath("/"); 
             refreshCookie.setMaxAge(604800); // 7 дней
             response.addCookie(refreshCookie);
 
-            // 4. Редирект домой (Clean URL)
-            response.sendRedirect("http://localhost:8080/");
+            // 4. Редирект домой (Dynamic)
+            response.sendRedirect(getBaseUrl(request) + "/");
 
         } catch (Exception e) {
-            // Если токен невалиден или юзер удален из БД
-            // Очищаем куки
+            System.err.println("Refresh failed: " + e.getMessage());
+            e.printStackTrace();
+            
             Cookie deleteAccess = new Cookie("ACCESS_TOKEN", null);
             deleteAccess.setPath("/");
             deleteAccess.setMaxAge(0);
             response.addCookie(deleteAccess);
 
-            response.sendRedirect("http://localhost:8080/login");
+            Cookie deleteRefresh = new Cookie("REFRESH_TOKEN", null);
+            deleteRefresh.setPath("/");
+            deleteRefresh.setMaxAge(0);
+            response.addCookie(deleteRefresh);
+
+            response.sendRedirect(getBaseUrl(request) + "/login.html");
         }
+    }
+
+    private String getBaseUrl(HttpServletRequest request) {
+        // Пытаемся взять заголовок от Gateway, если он проброшен
+        String proto = request.getHeader("X-Forwarded-Proto");
+        String host = request.getHeader("X-Forwarded-Host");
+        
+        if (proto != null && host != null) {
+            return proto + "://" + host;
+        }
+        
+        // Если заголовков нет (прямой вызов), используем данные запроса
+        String scheme = request.getScheme();
+        String serverName = request.getServerName();
+        int serverPort = request.getServerPort();
+        
+        StringBuilder url = new StringBuilder();
+        url.append(scheme).append("://").append(serverName);
+        
+        if (("http".equals(scheme) && serverPort != 80) || ("https".equals(scheme) && serverPort != 443)) {
+            url.append(":").append(serverPort);
+        }
+        
+        // ВАЖНО: Мы за Gateway, поэтому базовый URL для фронта обычно просто :8080
+        // Но так как порты могут пробрасываться, лучше вернуть относительный или чистый хост
+        return scheme + "://" + serverName + ":" + 8080; 
     }
 
 
@@ -90,7 +125,7 @@ public class AuthController {
 
         jakarta.servlet.http.Cookie refreshCookie = new jakarta.servlet.http.Cookie("REFRESH_TOKEN", tokens[1]);
         refreshCookie.setHttpOnly(true);
-        refreshCookie.setPath("/auth/refresh");
+        refreshCookie.setPath("/"); // Устанавливаем корень
         refreshCookie.setMaxAge(604800);
         response.addCookie(refreshCookie);
 
