@@ -20,6 +20,33 @@
         .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 5px 20px rgba(255, 127, 80, 0.4); }
         .hidden { display: none; }
         .form-container { transition: opacity 0.3s ease; }
+
+        #now_play_bottom_panel_part {
+            display: flex;
+            position: absolute;
+            width: 100dvw;
+            top: 83dvh;
+            overflow: visible;
+            justify-content: right;
+            /* box-shadow: 0 0 5px 1px orangered; */
+            height: 51dvh;
+            background: #121212;
+            transition: 1s ease-out;
+        }
+
+        #now_play_bottom_panel_edge {
+            height: 4.5vh;
+            clip-path: polygon(10% 0%, 100% 0%, 100% 100%, 0% 100%);
+            background: #121212;
+            left: 50%;
+            transition: 2s linear;
+            box-shadow: 0px 0px 9px 1px black;
+            top: -4dvh;
+            margin: 0px 3px;
+            width: 50%;
+            position: absolute;
+        }
+
     </style>
 </head>
 <body class="flex items-center justify-center min-h-screen">

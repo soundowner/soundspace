@@ -31,9 +31,11 @@ public class AuthController {
             HttpServletRequest request
     ) throws IOException, java.io.IOException {
 
+        System.out.println("REFRESH_TOKEN RECEIVED: " + refreshToken);
+
         // 1. Если токена нет — отправляем логиниться
         if (refreshToken == null) {
-            String baseUrl = getBaseUrl(request);
+            String baseUrl =  getBaseUrl(request);
             response.sendRedirect(baseUrl + "/login.html");
             return;
         }

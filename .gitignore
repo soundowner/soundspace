@@ -1,4 +1,6 @@
 target/
+qobuz_response_json_examples/
+api-learning/
 *.class
 *.jar
 *.war
