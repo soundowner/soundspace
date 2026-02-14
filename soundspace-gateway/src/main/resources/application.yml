@@ -1,6 +1,11 @@
 spring:
   cloud:
     gateway:
+      x-forwarded:
+        proto-enabled: ${GATEWAY_X_FORWARDED_PROTO:true}
+        host-enabled: ${GATEWAY_X_FORWARDED_HOST:true}
+        port-enabled: ${GATEWAY_X_FORWARDED_PORT:true}
+        for-enabled: ${GATEWAY_X_FORWARDED_FOR:true}
       routes:
         - id: auth-server
           uri: http://auth-server:8081

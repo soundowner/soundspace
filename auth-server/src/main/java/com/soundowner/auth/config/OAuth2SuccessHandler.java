@@ -22,6 +22,9 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
     private final JwtService jwtService;
     private final UserRepository userRepository;
 
+    @org.springframework.beans.factory.annotation.Value("${app.frontend-url}")
+    private String frontendUrl;
+
     @Override
     public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response, Authentication authentication) throws IOException, ServletException {
         OAuth2User oAuth2User = (OAuth2User) authentication.getPrincipal();
@@ -56,8 +59,8 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
         sessionCookie.setMaxAge(0);
         response.addCookie(sessionCookie);
 
-        // Динамический редирект на основе заголовков прокси (Gateway)
-        String redirectUrl = getBaseUrl(request) + "/index.html";
+        // Динамический редирект на основе конфига
+        String redirectUrl = frontendUrl + "/index.html";
         
         getRedirectStrategy().sendRedirect(request, response, redirectUrl);
     }

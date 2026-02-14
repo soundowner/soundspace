@@ -1,6 +1,6 @@
 server:
   port: 8081
-  forward-headers-strategy: framework
+  forward-headers-strategy: ${FORWARD_HEADERS_STRATEGY:framework}
   servlet:
     session:
       cookie:
@@ -35,10 +35,13 @@ spring:
           google:
             client-id: ${GOOGLE_CLIENT_ID}
             client-secret: ${GOOGLE_CLIENT_SECRET}
-            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
+            redirect-uri: "${BASE_URL}/login/oauth2/code/{registrationId}"
             scope:
               - email
               - profile
+
+app:
+  frontend-url: ${FRONTEND_URL:http://localhost:8080}
 
 jwt:
   secret: ${JWT_SECRET:very-long-and-secure-secret-key-that-must-be-at-least-256-bits}

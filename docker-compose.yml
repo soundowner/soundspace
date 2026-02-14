@@ -25,6 +25,10 @@ services:
       - "8080:8080"
     environment:
       - JWT_SECRET=${JWT_SECRET}
+      - GATEWAY_X_FORWARDED_PROTO=${GATEWAY_X_FORWARDED_PROTO:-true}
+      - GATEWAY_X_FORWARDED_HOST=${GATEWAY_X_FORWARDED_HOST:-true}
+      - GATEWAY_X_FORWARDED_PORT=${GATEWAY_X_FORWARDED_PORT:-true}
+      - GATEWAY_X_FORWARDED_FOR=${GATEWAY_X_FORWARDED_FOR:-true}
     depends_on:
       - auth-server
       - qobuz-api-gateway
@@ -41,6 +45,9 @@ services:
       - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/soundspace_db
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - BASE_URL=${BASE_URL}
+      - FRONTEND_URL=${FRONTEND_URL}
+      - FORWARD_HEADERS_STRATEGY=${FORWARD_HEADERS_STRATEGY:-framework}
       - JWT_SECRET=${JWT_SECRET}
     depends_on:
       postgres:
