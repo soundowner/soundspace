@@ -448,11 +448,18 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
         const target = document.getElementById(panelId);
         if (target) {
+            const isAlreadyActive = target.classList.contains('active');
             target.classList.add('active');
             els.parentContainer.classList.add('content-scaled');
+            
             if (panelId === 'search-panel') {
                 els.topSearchPanel.classList.add('active');
-                els.searchInput.focus();
+                const hasResults = els.searchResults.children.length > 0;
+                
+                // Smart focus: only if already in search or if results are empty
+                if (isAlreadyActive || !hasResults) {
+                    els.searchInput.focus();
+                }
             }
             if (panelId === 'library-panel') {
                 // Show playlists by default
