@@ -89,13 +89,158 @@ document.addEventListener('DOMContentLoaded', () => {
         // Add to Playlist Modal
         addToPlaylistModal: document.getElementById('add-to-playlist-modal'),
         selectPlaylistList: document.getElementById('select-playlist-list'),
-        addToPlaylistCancel: document.getElementById('add-to-playlist-cancel')
+        addToPlaylistCancel: document.getElementById('add-to-playlist-cancel'),
+        
+        // New elements for expansion
+        playBottomPart: document.getElementById('now_play_bottom_panel_part'),
+        playBottomEdge: document.getElementById('now_play_bottom_panel_edge'),
+
+        // Library Add Buttons (Overlays)
+        addArtistToLibBtn: document.getElementById('add-artist-to-lib'),
+        addAlbumToLibBtn: document.getElementById('add-album-to-lib'),
+
+        // New Library Containers
+        artistsLibContainer: document.getElementById('artists-lib-container'),
+        albumsLibContainer: document.getElementById('albums-lib-container'),
+        libNavBtns: document.querySelectorAll('.lib-nav')
     };
+
+    let currentArtistData = null;
+    let currentAlbumData = null;
+
+    // --- EXPANSION LOGIC ---
+    if (els.playerPanel) {
+        els.playerPanel.addEventListener('transitionend', (e) => {
+            // Срабатывает только когда панель закончила выезжать (transform)
+            if (e.propertyName === 'transform' && els.playerPanel.classList.contains('active')) {
+                els.playBottomPart.classList.add('expanded');
+                // Небольшая задержка для последовательности, как вы просили
+                setTimeout(() => {
+                    els.playBottomEdge.classList.add('expanded');
+                }, 100);
+            }
+        });
+    }
 
     let libraryState = {
         playlists: JSON.parse(localStorage.getItem('ss_playlists') || '[]'),
+        artists: [],
+        albums: [],
+        artistIds: new Set(),
+        albumIds: new Set(),
         lastUpdated: localStorage.getItem('ss_library_updated')
     };
+
+    async function syncLibraryIds() {
+        try {
+            const [artRes, albRes] = await Promise.all([
+                fetch('/library/artists/ids'),
+                fetch('/library/albums/ids')
+            ]);
+            if (artRes.ok) {
+                const ids = await artRes.json();
+                libraryState.artistIds = new Set(ids.map(id => Number(id)));
+            }
+            if (albRes.ok) {
+                const ids = await albRes.json();
+                libraryState.albumIds = new Set(ids.map(id => String(id)));
+            }
+        } catch (e) { console.error('ID sync failed', e); }
+    }
+
+    async function fetchArtistsSS() {
+        if (!els.artistsLibContainer) return;
+        try {
+            const res = await fetch('/library/artists'); // Assuming this endpoint exists based on earlier context or standard naming
+            if (res.ok) {
+                libraryState.artists = await res.json();
+                renderArtistsSS(libraryState.artists);
+            }
+        } catch (e) { console.error('Artists sync failed', e); }
+    }
+
+    async function fetchAlbumsSS() {
+        if (!els.albumsLibContainer) return;
+        try {
+            const res = await fetch('/library/albums'); // Assuming this endpoint exists
+            if (res.ok) {
+                libraryState.albums = await res.json();
+                renderAlbumsSS(libraryState.albums);
+            }
+        } catch (e) { console.error('Albums sync failed', e); }
+    }
+
+    function renderArtistsSS(artists) {
+        if (!els.artistsLibContainer) return;
+        if (!artists || artists.length === 0) {
+            els.artistsLibContainer.innerHTML = '<div class="empty-state-ss">No artists yet</div>';
+            return;
+        }
+        els.artistsLibContainer.innerHTML = artists.map(art => {
+            const imgUrl = getImg(art);
+            return `
+                <div class="playlist-card-ss artist-card-lib" data-id="${art.id}">
+                    <div class="playlist-cover-ss" style="border-radius: 50%">
+                        ${imgUrl ? `<img src="${imgUrl}" style="border-radius: 50%; object-fit: cover;">` : '<span class="material-symbols-outlined" style="font-size: 2rem; color: rgba(255,255,255,0.1)">person</span>'}
+                    </div>
+                    <div class="playlist-info-ss">
+                        <h4>${escapeHtml(art.name)}</h4>
+                        <p>Artist</p>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    function renderAlbumsSS(albums) {
+        if (!els.albumsLibContainer) return;
+        if (!albums || albums.length === 0) {
+            els.albumsLibContainer.innerHTML = '<div class="empty-state-ss">No albums yet</div>';
+            return;
+        }
+        els.albumsLibContainer.innerHTML = albums.map(alb => `
+            <div class="playlist-card-ss album-card-lib" data-id="${alb.id}">
+                <div class="playlist-cover-ss">
+                    ${alb.image?.small ? `<img src="${alb.image.small}">` : '<span class="material-symbols-outlined">album</span>'}
+                </div>
+                <div class="playlist-info-ss">
+                    <h4>${escapeHtml(alb.title)}</h4>
+                    <p>${escapeHtml(alb.artist?.name || 'Unknown')}</p>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    // Tab switching logic for Library
+    if (els.libNavBtns) {
+        els.libNavBtns.forEach((btn, idx) => {
+            btn.addEventListener('click', () => {
+                // Remove active from all
+                els.libNavBtns.forEach(b => b.style.color = '');
+                btn.style.color = 'coral';
+
+                // Hide all
+                els.playlistsContainer.classList.add('hidden');
+                els.artistsLibContainer.classList.add('hidden');
+                els.albumsLibContainer.classList.add('hidden');
+                
+                // Show selected
+                if (idx === 0) {
+                    els.artistsLibContainer.classList.remove('hidden');
+                    fetchArtistsSS();
+                } else if (idx === 1) {
+                    els.albumsLibContainer.classList.remove('hidden');
+                    fetchAlbumsSS();
+                } else if (idx === 2) {
+                    els.playlistsContainer.classList.remove('hidden');
+                    fetchPlaylistsSS();
+                }
+            });
+        });
+    }
+
+    // Initial sync
+    syncLibraryIds();
 
     // --- MAPPING HELPERS ---
     
@@ -108,70 +253,72 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
+    function mapToArtistDto(qobuzArtist) {
+        if (!qobuzArtist) return null;
+        return {
+            id: Number(qobuzArtist.id),
+            name: qobuzArtist.name,
+            slug: qobuzArtist.slug,
+            albums_count: qobuzArtist.albums_count,
+            image: mapQobuzImageToDto(qobuzArtist.image),
+            biography: qobuzArtist.biography ? { content: qobuzArtist.biography.content } : null
+        };
+    }
+
+    function mapToAlbumDto(qobuzAlbum) {
+        if (!qobuzAlbum) return null;
+        return {
+            id: String(qobuzAlbum.id),
+            title: qobuzAlbum.title,
+            version: qobuzAlbum.version,
+            subtitle: qobuzAlbum.subtitle,
+            upc: qobuzAlbum.upc,
+            url: qobuzAlbum.url,
+            qobuz_id: qobuzAlbum.qobuz_id,
+            is_official: qobuzAlbum.is_official,
+            tracks_count: qobuzAlbum.tracks_count,
+            duration: qobuzAlbum.duration,
+            maximum_bit_depth: qobuzAlbum.maximum_bit_depth,
+            maximum_sampling_rate: qobuzAlbum.maximum_sampling_rate,
+            maximum_technical_specifications: qobuzAlbum.maximum_technical_specifications,
+            hires: qobuzAlbum.hires,
+            release_date_original: qobuzAlbum.release_date_original ? (typeof qobuzAlbum.release_date_original === 'number' ? new Date(qobuzAlbum.release_date_original * 1000).toISOString().split('T')[0] : qobuzAlbum.release_date_original) : null,
+            release_type: qobuzAlbum.release_type,
+            popularity: qobuzAlbum.popularity,
+            description: qobuzAlbum.description,
+            image: mapQobuzImageToDto(qobuzAlbum.image),
+            artist: mapToArtistDto(qobuzAlbum.artist),
+            tracks: qobuzAlbum.tracks
+        };
+    }
+
     function mapToTrackDto(qobuzTrack) {
         if (!qobuzTrack) return null;
         
-        // Deep copy to avoid mutating cache
-        const t = JSON.parse(JSON.stringify(qobuzTrack));
-        
-        // Ensure album structure
-        if (t.album) {
-            t.album.image = mapQobuzImageToDto(t.album.image);
-            if (t.album.artist) {
-                t.album.artist.image = mapQobuzImageToDto(t.album.artist.image);
-            }
-        }
-        
         // Ensure performers string (Backend uses this field)
-        if (!t.performers && t.performer) {
-            t.performers = t.performer.name;
-        } else if (!t.performers && t.artist) {
-            t.performers = t.artist.name;
+        let performers = qobuzTrack.performers;
+        if (!performers && qobuzTrack.performer) {
+            performers = qobuzTrack.performer.name;
+        } else if (!performers && qobuzTrack.artist) {
+            performers = qobuzTrack.artist.name;
         }
 
         // Return object matching TrackDto.java
         return {
-            id: Number(t.id),
-            title: t.title,
-            version: t.version,
-            isrc: t.isrc,
-            duration: t.duration,
-            track_number: t.track_number || t.position,
-            performers: t.performers,
-            parental_warning: t.parental_warning,
-            hires: t.hires,
-            maximum_bit_depth: t.maximum_bit_depth,
-            maximum_sampling_rate: t.maximum_sampling_rate,
-            maximum_technical_specifications: t.maximum_technical_specifications,
-            release_date_original: t.release_date_original,
-            album: t.album ? {
-                id: String(t.album.id),
-                title: t.album.title,
-                version: t.album.version,
-                subtitle: t.album.subtitle,
-                upc: t.album.upc,
-                url: t.album.url,
-                qobuz_id: t.album.qobuz_id,
-                is_official: t.album.is_official,
-                tracks_count: t.album.tracks_count,
-                duration: t.album.duration,
-                maximum_bit_depth: t.album.maximum_bit_depth,
-                maximum_sampling_rate: t.album.maximum_sampling_rate,
-                maximum_technical_specifications: t.album.maximum_technical_specifications,
-                hires: t.album.hires,
-                release_date_original: t.album.release_date_original,
-                release_type: t.album.release_type,
-                popularity: t.album.popularity,
-                description: t.album.description,
-                image: t.album.image, // Already mapped
-                artist: t.album.artist ? {
-                    id: Number(t.album.artist.id),
-                    name: t.album.artist.name,
-                    slug: t.album.artist.slug,
-                    albums_count: t.album.artist.albums_count,
-                    image: t.album.artist.image // Already mapped
-                } : null
-            } : null
+            id: Number(qobuzTrack.id),
+            title: qobuzTrack.title,
+            version: qobuzTrack.version,
+            isrc: qobuzTrack.isrc,
+            duration: qobuzTrack.duration,
+            track_number: qobuzTrack.track_number || qobuzTrack.position,
+            performers: performers,
+            parental_warning: qobuzTrack.parental_warning,
+            hires: qobuzTrack.hires,
+            maximum_bit_depth: qobuzTrack.maximum_bit_depth,
+            maximum_sampling_rate: qobuzTrack.maximum_sampling_rate,
+            maximum_technical_specifications: qobuzTrack.maximum_technical_specifications,
+            release_date_original: qobuzTrack.release_date_original ? (typeof qobuzTrack.release_date_original === 'number' ? new Date(qobuzTrack.release_date_original * 1000).toISOString().split('T')[0] : qobuzTrack.release_date_original) : null,
+            album: mapToAlbumDto(qobuzTrack.album)
         };
     }
 
@@ -287,6 +434,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const navBtn = e.target.closest('.nav-button');
         if (!navBtn) return;
         const panelId = navBtn.dataset.panel;
+
+        // Сбрасываем расширение плеера при любом переключении/закрытии
+        els.playBottomPart.classList.remove('expanded');
+        els.playBottomEdge.classList.remove('expanded');
+
         if (panelId === 'close-panel') {
             document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
             els.parentContainer.classList.remove('content-scaled');
@@ -303,6 +455,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 els.searchInput.focus();
             }
             if (panelId === 'library-panel') {
+                // Show playlists by default
+                els.playlistsContainer.classList.remove('hidden');
+                els.artistsLibContainer.classList.add('hidden');
+                els.albumsLibContainer.classList.add('hidden');
+                
+                // Highlight the playlist tab (3rd button)
+                if (els.libNavBtns && els.libNavBtns[2]) {
+                    els.libNavBtns.forEach(b => b.style.color = '');
+                    els.libNavBtns[2].style.color = 'coral';
+                }
+
                 fetchPlaylistsSS();
             }
         }
@@ -475,6 +638,84 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
+    if (els.addAlbumToLibBtn) {
+        els.addAlbumToLibBtn.addEventListener('click', async () => {
+            if (!currentAlbumData) return;
+            const albumId = String(currentAlbumData.id);
+            const isInLib = libraryState.albumIds.has(albumId);
+
+            if (isInLib) {
+                // Remove
+                try {
+                    const res = await fetch(`/library/albums/${albumId}`, { method: 'DELETE' });
+                    if (res.ok) {
+                        libraryState.albumIds.delete(albumId);
+                        libraryState.albums = libraryState.albums.filter(a => String(a.id) !== albumId);
+                        renderAlbumsSS(libraryState.albums);
+                        els.addAlbumToLibBtn.innerHTML = '<i data-lucide="plus"></i>';
+                        if (window.lucide) lucide.createIcons();
+                    }
+                } catch (e) { console.error(e); }
+            } else {
+                // Add
+                const payload = mapToAlbumDto(currentAlbumData);
+                try {
+                    const res = await fetch('/library/albums', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    if (res.ok) {
+                        libraryState.albumIds.add(albumId);
+                        libraryState.albums.unshift(payload);
+                        renderAlbumsSS(libraryState.albums);
+                        els.addAlbumToLibBtn.innerHTML = '<i data-lucide="check"></i>';
+                        if (window.lucide) lucide.createIcons();
+                    }
+                } catch (e) { console.error(e); }
+            }
+        });
+    }
+
+    if (els.addArtistToLibBtn) {
+        els.addArtistToLibBtn.addEventListener('click', async () => {
+            if (!currentArtistData) return;
+            const artistId = Number(currentArtistData.id);
+            const isInLib = libraryState.artistIds.has(artistId);
+
+            if (isInLib) {
+                // Remove
+                try {
+                    const res = await fetch(`/library/artists/${artistId}`, { method: 'DELETE' });
+                    if (res.ok) {
+                        libraryState.artistIds.delete(artistId);
+                        libraryState.artists = libraryState.artists.filter(a => Number(a.id) !== artistId);
+                        renderArtistsSS(libraryState.artists);
+                        els.addArtistToLibBtn.innerHTML = '<i data-lucide="plus"></i>';
+                        if (window.lucide) lucide.createIcons();
+                    }
+                } catch (e) { console.error(e); }
+            } else {
+                // Add
+                const payload = mapToArtistDto(currentArtistData);
+                try {
+                    const res = await fetch('/library/artists', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    if (res.ok) {
+                        libraryState.artistIds.add(artistId);
+                        libraryState.artists.unshift(payload);
+                        renderArtistsSS(libraryState.artists);
+                        els.addArtistToLibBtn.innerHTML = '<i data-lucide="check"></i>';
+                        if (window.lucide) lucide.createIcons();
+                    }
+                } catch (e) { console.error(e); }
+            }
+        });
+    }
+
     if (els.createPlaylistBtn) {
         els.createPlaylistBtn.addEventListener('click', () => {
             els.createPlaylistModal.classList.remove('hidden');
@@ -587,7 +828,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const playlistCard = e.target.closest('.playlist-card-ss');
         if (playlistCard) {
-            handlePlaylistClickSS(playlistCard.dataset.id);
+            if (playlistCard.classList.contains('artist-card-lib')) {
+                openOverlay('artist-panel');
+                loadArtist(playlistCard.dataset.id);
+            } else if (playlistCard.classList.contains('album-card-lib')) {
+                openOverlay('album-panel');
+                loadAlbum(playlistCard.dataset.id);
+            } else {
+                handlePlaylistClickSS(playlistCard.dataset.id);
+            }
         }
 
         const addBtn = e.target.closest('.slide-btn');
@@ -719,9 +968,18 @@ document.addEventListener('DOMContentLoaded', () => {
         if (els.artistContent.dataset.loadedId === id) return;
         els.artistContent.dataset.loadedId = id;
         els.artistContent.innerHTML = '<div style="padding:40px; text-align:center">Loading Frequency...</div>';
+        
+        // Reset button icon based on library state
+        if (els.addArtistToLibBtn) {
+            const isInLib = libraryState.artistIds.has(Number(id));
+            els.addArtistToLibBtn.innerHTML = isInLib ? '<i data-lucide="check"></i>' : '<i data-lucide="plus"></i>';
+            if (window.lucide) lucide.createIcons();
+        }
+
         try {
             const res = await fetch(`/data/audio/artist?artistId=${id}`);
             const data = await res.json();
+            currentArtistData = data;
             renderArtistPanel(data);
         } catch (e) { console.error(e); }
     }
@@ -730,9 +988,18 @@ document.addEventListener('DOMContentLoaded', () => {
         if (els.albumContent.dataset.loadedId === id) return;
         els.albumContent.dataset.loadedId = id;
         els.albumContent.innerHTML = '<div style="padding:40px; text-align:center">Loading Geometry...</div>';
+        
+        // Reset button icon based on library state
+        if (els.addAlbumToLibBtn) {
+            const isInLib = libraryState.albumIds.has(String(id));
+            els.addAlbumToLibBtn.innerHTML = isInLib ? '<i data-lucide="check"></i>' : '<i data-lucide="plus"></i>';
+            if (window.lucide) lucide.createIcons();
+        }
+
         try {
             const res = await fetch(`/data/audio/album?albumId=${id}`);
             const data = await res.json();
+            currentAlbumData = data;
             renderAlbumPanel(data);
         } catch (e) { console.error(e); }
     }

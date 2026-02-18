@@ -21,6 +21,47 @@ public class LibraryService {
     private final PlaylistRepository playlistRepository;
     private final PlaylistTrackRepository playlistTrackRepository;
     private final UserAlbumRepository userAlbumRepository;
+    private final UserArtistRepository userArtistRepository;
+
+    @Transactional(readOnly = true)
+    public List<String> getUserAlbumIds(UUID userId) {
+        return userAlbumRepository.findAllAlbumIdsByUserId(userId);
+    }
+
+    @Transactional(readOnly = true)
+    public List<Long> getUserArtistIds(UUID userId) {
+        return userArtistRepository.findAllArtistIdsByUserId(userId);
+    }
+
+    @Transactional(readOnly = true)
+    public List<UserArtist> getUserArtists(UUID userId) {
+        return userArtistRepository.findAllByUserIdWithArtists(userId);
+    }
+
+    @Transactional(readOnly = true)
+    public List<UserAlbum> getUserAlbums(UUID userId) {
+        return userAlbumRepository.findAllByUserIdWithAlbums(userId);
+    }
+
+    @Transactional
+    public void addArtistToLibrary(UUID userId, Artist artist) {
+        log.debug("Adding artist {} to library for user {}", artist.getId(), userId);
+        
+        Artist managedArtist = saveArtistIfNotExist(artist);
+
+        // Link user to artist
+        UserArtistId uaId = new UserArtistId(userId, managedArtist.getId());
+        if (!userArtistRepository.existsById(uaId)) {
+            int maxPos = userArtistRepository.findMaxPositionByUserId(userId);
+            UserArtist ua = new UserArtist();
+            ua.setId(uaId);
+            ua.setArtist(managedArtist);
+            ua.setPosition(maxPos + 1);
+            userArtistRepository.save(ua);
+        } else {
+            log.debug("Artist {} already in library for user {}", artist.getId(), userId);
+        }
+    }
 
     @Transactional
     public void addAlbumToLibrary(UUID userId, Album album, List<Track> tracks) {
@@ -50,6 +91,16 @@ public class LibraryService {
         } else {
             log.debug("Album {} already in library for user {}", album.getId(), userId);
         }
+    }
+
+    @Transactional
+    public void removeArtistFromLibrary(UUID userId, Long artistId) {
+        userArtistRepository.deleteById(new UserArtistId(userId, artistId));
+    }
+
+    @Transactional
+    public void removeAlbumFromLibrary(UUID userId, String albumId) {
+        userAlbumRepository.deleteById(new UserAlbumId(userId, albumId));
     }
 
     @Transactional
