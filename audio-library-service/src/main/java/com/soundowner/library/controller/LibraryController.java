@@ -1,9 +1,11 @@
 package com.soundowner.library.controller;
 
 import com.soundowner.library.dto.AlbumDto;
+import com.soundowner.library.dto.ArtistDto;
 import com.soundowner.library.dto.PlaylistDto;
 import com.soundowner.library.dto.TrackDto;
 import com.soundowner.library.entity.Album;
+import com.soundowner.library.entity.Artist;
 import com.soundowner.library.entity.Playlist;
 import com.soundowner.library.entity.Track;
 import com.soundowner.library.mapper.LibraryMapper;
@@ -16,13 +18,68 @@ import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-@RestController
+    @RestController
 @RequestMapping("/library")
 @RequiredArgsConstructor
 public class LibraryController {
 
     private final LibraryService libraryService;
     private final LibraryMapper libraryMapper;
+
+    @GetMapping("/artists/ids")
+    public ResponseEntity<List<Long>> getMyArtistIds(
+            @RequestHeader("X-User-Id") UUID userId) {
+        return ResponseEntity.ok(libraryService.getUserArtistIds(userId));
+    }
+
+    @GetMapping("/albums/ids")
+    public ResponseEntity<List<String>> getMyAlbumIds(
+            @RequestHeader("X-User-Id") UUID userId) {
+        return ResponseEntity.ok(libraryService.getUserAlbumIds(userId));
+    }
+
+    @GetMapping("/artists")
+    public ResponseEntity<List<ArtistDto>> getMyArtists(
+            @RequestHeader("X-User-Id") UUID userId) {
+        var entities = libraryService.getUserArtists(userId);
+        var dtos = entities.stream()
+                .map(ua -> libraryMapper.toArtistDto(ua.getArtist()))
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(dtos);
+    }
+
+    @GetMapping("/albums")
+    public ResponseEntity<List<AlbumDto>> getMyAlbums(
+            @RequestHeader("X-User-Id") UUID userId) {
+        var entities = libraryService.getUserAlbums(userId);
+        var dtos = entities.stream()
+                .map(ua -> libraryMapper.toAlbumDto(ua.getAlbum()))
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(dtos);
+    }
+
+    /**
+     * Добавить артиста в библиотеку пользователя.
+     */
+    @PostMapping("/artists")
+    public ResponseEntity<Void> addArtistToLibrary(
+            @RequestHeader("X-User-Id") UUID userId,
+            @RequestBody ArtistDto artistDto) {
+
+        Artist artist = libraryMapper.toArtist(artistDto);
+        libraryService.addArtistToLibrary(userId, artist);
+
+        return ResponseEntity.ok().build();
+    }
+
+    @DeleteMapping("/artists/{artistId}")
+    public ResponseEntity<Void> removeArtistFromLibrary(
+            @RequestHeader("X-User-Id") UUID userId,
+            @PathVariable Long artistId) {
+        
+        libraryService.removeArtistFromLibrary(userId, artistId);
+        return ResponseEntity.ok().build();
+    }
 
     /**
      * Добавить альбом в библиотеку пользователя.
@@ -47,6 +104,15 @@ public class LibraryController {
         // 3. Delegate to Service
         libraryService.addAlbumToLibrary(userId, album, tracks);
 
+        return ResponseEntity.ok().build();
+    }
+
+    @DeleteMapping("/albums/{albumId}")
+    public ResponseEntity<Void> removeAlbumFromLibrary(
+            @RequestHeader("X-User-Id") UUID userId,
+            @PathVariable String albumId) {
+        
+        libraryService.removeAlbumFromLibrary(userId, albumId);
         return ResponseEntity.ok().build();
     }
 

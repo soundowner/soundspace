@@ -105,8 +105,8 @@ body, html {
     position: absolute;
     top: 0;
     width: 100%;
-    z-index: 50;
-    /* pointer-events: none; REMOVED */
+    z-index: 100;
+    transform: translateZ(0); /* Force GPU paint */
 }
 
 /* Bottom Navbar Hiding Logic */
@@ -386,6 +386,46 @@ body, html {
     height: auto;
 }
 
+/* --- PLAYER PANEL EXPANDED STATES --- */
+#now_play_bottom_panel_part {
+    display: flex;
+    position: absolute;
+    width: 100dvw;
+    top: 0;
+    left: 0;
+    height: 100%;
+    background: #121212;
+    transform: translateY(58dvh);
+    transition: transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+    z-index: 5;
+}
+
+#now_play_bottom_panel_part.expanded {
+    transform: translateY(70dvh);
+}
+
+#now_play_bottom_panel_edge {
+    position: absolute;
+    height: 4.5vh;
+    width: 50%;
+    top: -4dvh;
+    background: #121212;
+    clip-path: polygon(10% 0%, 100% 0%, 100% 100%, 0% 100%);
+    box-shadow: 0px -5px 15px rgba(0,0,0,0.5);
+    transform: translateX(50dvh);
+    transition: transform 0.5s ease-out;
+}
+
+#now_play_bottom_panel_edge.expanded {
+    transform: translateX(80dvw);
+}
+
+/* Instant return when panel is closed */
+.panel:not(.active) #now_play_bottom_panel_part,
+.panel:not(.active) #now_play_bottom_panel_edge {
+    transition: none !important;
+}
+
 /* --- BOTTOM NAVBAR --- */
 .bottom-navbar {
     position: absolute;
@@ -394,8 +434,6 @@ body, html {
     width: 100dvw;
     height: 9dvh;
     background: #00000073;
-    backdrop-filter: blur(5px);
-    -webkit-backdrop-filter: blur(5px);
     display: flex;
     justify-content: space-around;
     align-items: center;
@@ -452,7 +490,6 @@ body, html {
     top: -3dvh;
     position: relative;
     height: 0.3dvh;
-    border: 1px solid;
     width: 80vw;
     box-shadow: 0 0 5px 1px black;
 }
@@ -521,7 +558,7 @@ body, html {
 #track-cover {
     position: relative;
     width: 100dvw;
-    height: 60dvh%;
+    height: 60dvh;
 }
 #player-panel-container-track-info {
     position: absolute;
@@ -534,10 +571,10 @@ body, html {
 }
 /* --- TOP TITLE & INFO CONTAINER --- */
 #track-title-container {
-    height: 140px;
+    height: 12vh;
     padding: 15px 25px 15px 20px;
     left: 0;
-    width: 65%; /* FIXED WIDTH (was fit-content) to freeze the shape/clip-path */
+    width: 102vw;
     top: 3%;
     position: absolute;
     text-align: left;
@@ -585,10 +622,10 @@ body, html {
 }
 
 .bar {
-    width: 4px;
-    background-color: var(--accent-primary);
+    width: 1.6dvw;
+    background-color: orangered;
     margin-right: 2px;
-    border-radius: 2px;
+    border-radius: 0px;
     animation: music-bounce 1s infinite ease-in-out;
 }
 
@@ -610,10 +647,10 @@ body, html {
     display: flex;
     flex-direction: column;
     position: relative;
-    height: 60px;
-    width: 100%;
-    left: -5%; /* REMOVED -5% to stop jumping relative to width */
-    margin-top: 2%;
+    height: 8dvh;
+    width: 55%;
+    left: -2%;
+    top: 87%;
 }
 
 #track-artist-container {
@@ -623,7 +660,7 @@ body, html {
     height: 50%; /* Adjusted to 50% */
     display: flex;
     align-items: center;
-    font-size: large;
+    font-size: medium;
     color: #fafafa;
     line-height: 1;
     overflow: hidden;
@@ -631,12 +668,13 @@ body, html {
 }
 
 #track-artist-icon {
-color: #00ffaf;}
+color: orangered;
+}
 
 #track-album-container {
     position: relative;
     width: 100%;
-    height: 28px; /* Fixed height */
+    height: 30%; /* Fixed height */
     display: flex;
     align-items: center;
     white-space: nowrap;
@@ -652,7 +690,7 @@ color: #00ffaf;}
     display: flex;
     position: absolute;
     width: 100dvw;
-    top: 58dvh;
+    transform: translateY(58dvh);
     overflow: visible;
     justify-content: space-between;
     flex-direction: row;
@@ -661,11 +699,11 @@ color: #00ffaf;}
     transition: 1s ease-out;
         }
 
-        #now_play_bottom_panel_edge {
-height: 5.5vh;
+#now_play_bottom_panel_edge {
+    height: 5.5vh;
     clip-path: polygon(10% 1%, 100% 0%, 100% 100%, 0% 100%);
     background: #121212;
-    left: 50%;
+    transform: translateX(50dvh);
     transition: 2s linear;
     box-shadow: 0px 0px 9px 1px black;
     top: -5dvh;
@@ -683,8 +721,8 @@ height: 5.5vh;
     left: auto;
     position: absolute;
     padding-top: 4%;
-    width: 50%;
-    height: 11%;
+    width: 40%;
+    height: 5dvh;
     display: flex;
     flex-direction: row;
     overflow: hidden;
@@ -809,7 +847,7 @@ height: 5.5vh;
     display: flex;
     align-items: center;
     white-space: nowrap;
-    font-size: medium;
+    font-size: large;
 }
 #player-controls-container {
     display: flex;
@@ -821,18 +859,17 @@ height: 5.5vh;
     gap: 31px;
     flex-direction: revert;
     align-items: initial;
-    background: red;
     width: 100vw;
-    top: 57vh;
+    top: 7vh;
     justify-content: center;
     position: absolute;
-    z-index: -1;
+    z-index: 12121;
 }
 
 #track-artist-icon .fa-solid,
 #track-album-icon .fa-solid {
     margin: 0 10px 0 15px;
-    color: #00ffaf;
+    color: orangered;
 }
 
 
@@ -1317,7 +1354,7 @@ height: 5.5vh;
 
 .ss-text-btn { background: transparent; border: none; color: #808080; font-weight: 600; cursor: pointer; }
 .ss-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.8); backdrop-filter: blur(8px); z-index: 9999; display: flex; align-items: center; justify-content: center; opacity: 1; pointer-events: auto; transition: opacity 0.3s, visibility 0.3s; visibility: visible; }
-.ss-modal-overlay.hidden { opacity: 0; pointer-events: none; visibility: hidden; }
+.ss-modal-overlay.hidden { opacity: 0; pointer-events: none; visibility: hidden; transition: opacity 0.3s linear}
 .ss-modal-window { width: 90%; max-width: 400px; background: #1E1E1E; border-radius: 20px; padding: 24px; box-shadow: 0 20px 50px rgba(0,0,0,0.5); transform: scale(1); transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); }
 .ss-modal-overlay.hidden .ss-modal-window { transform: scale(0.9); }
 .ss-modal-body { display: flex; gap: 16px; margin: 20px 0; }
@@ -1356,11 +1393,57 @@ height: 5.5vh;
     box-shadow: 0 0 20px rgba(255, 127, 80, 0.4);
 }
 
-.ss-playlist-list {
-    display: flex;
+.ss-playlist-list, #artists-lib-container, #albums-lib-container {
+    display: flex !important;
     flex-direction: column;
     gap: 12px;
-    padding-bottom: 100px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    height: 100%;
+    width: 100%;
+    position: absolute;
+    top: 0;
+    left: 0;
+    padding: 18% 2% 120px;
+    scrollbar-width: none;
+    box-sizing: border-box;
+    z-index: 1;
+    
+    /* Perfect CSS Transition */
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(20px);
+    transition: opacity 0.5s cubic-bezier(0.16, 1, 0.3, 1), 
+                transform 0.5s cubic-bezier(0.16, 1, 0.3, 1), 
+                visibility 0.5s;
+    will-change: opacity, transform;
+}
+
+/* Active state for ALL library tabs */
+#library-panel .active-lib-tab {
+    opacity: 1 !important;
+    visibility: visible !important;
+    transform: translateY(0) !important;
+    pointer-events: auto !important;
+    z-index: 5 !important;
+}
+
+.lib-nav {
+    width: 20%;
+    height: 100%;
+    position: relative;
+    color: rgba(255, 255, 255, 0.4); /* Default dimmed color */
+    transition: color 0.3s ease; /* Smooth color switch */
+    cursor: pointer;
+    background: transparent;
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.lib-nav.active {
+    color: coral;
 }
 
 .playlist-card-ss {
@@ -1374,7 +1457,7 @@ height: 5.5vh;
     cursor: pointer;
     transition: all 0.25s ease;
     position: relative;
-    overflow: hidden;
+    flex-shrink: 0;
 }
 
 .playlist-card-ss::before {

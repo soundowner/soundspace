@@ -13,7 +13,12 @@ import java.util.UUID;
 @Repository
 public interface PlaylistTrackRepository extends JpaRepository<PlaylistTrack, UUID> {
     
-    @Query("SELECT pt FROM PlaylistTrack pt JOIN FETCH pt.track WHERE pt.playlist.id = :playlistId ORDER BY pt.position ASC")
+    @Query("SELECT pt FROM PlaylistTrack pt " +
+           "JOIN FETCH pt.track t " +
+           "LEFT JOIN FETCH t.album a " +
+           "LEFT JOIN FETCH a.artist " +
+           "WHERE pt.playlist.id = :playlistId " +
+           "ORDER BY pt.position ASC")
     List<PlaylistTrack> findAllByPlaylistIdWithTracks(@Param("playlistId") UUID playlistId);
 
     @Query("SELECT COALESCE(MAX(pt.position), 0) FROM PlaylistTrack pt WHERE pt.playlist.id = :playlistId")

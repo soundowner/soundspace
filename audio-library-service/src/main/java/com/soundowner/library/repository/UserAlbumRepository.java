@@ -16,6 +16,9 @@ public interface UserAlbumRepository extends JpaRepository<UserAlbum, UserAlbumI
     @Query("SELECT ua FROM UserAlbum ua JOIN FETCH ua.album a JOIN FETCH a.artist WHERE ua.id.userId = :userId ORDER BY ua.position ASC")
     List<UserAlbum> findAllByUserIdWithAlbums(@Param("userId") UUID userId);
 
+    @Query("SELECT ua.id.albumId FROM UserAlbum ua WHERE ua.id.userId = :userId")
+    List<String> findAllAlbumIdsByUserId(@Param("userId") UUID userId);
+
     @Query("SELECT COALESCE(MAX(ua.position), 0) FROM UserAlbum ua WHERE ua.id.userId = :userId")
     int findMaxPositionByUserId(@Param("userId") UUID userId);
 }
