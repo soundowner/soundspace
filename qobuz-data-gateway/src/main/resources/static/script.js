@@ -102,6 +102,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // New Library Containers
         artistsLibContainer: document.getElementById('artists-lib-container'),
         albumsLibContainer: document.getElementById('albums-lib-container'),
+        playlistsContainer: document.getElementById('playlists-grid-ss'),
         libNavBtns: document.querySelectorAll('.lib-nav')
     };
 
@@ -128,7 +129,10 @@ document.addEventListener('DOMContentLoaded', () => {
         albums: [],
         artistIds: new Set(),
         albumIds: new Set(),
-        lastUpdated: localStorage.getItem('ss_library_updated')
+        lastUpdated: localStorage.getItem('ss_library_updated'),
+        needsArtistsSync: true,
+        needsAlbumsSync: true,
+        needsPlaylistsSync: true
     };
 
     async function syncLibraryIds() {
@@ -150,22 +154,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function fetchArtistsSS() {
         if (!els.artistsLibContainer) return;
+        if (!libraryState.needsArtistsSync && libraryState.artists.length > 0) return;
+
         try {
-            const res = await fetch('/library/artists'); // Assuming this endpoint exists based on earlier context or standard naming
+            const res = await fetch('/library/artists');
             if (res.ok) {
                 libraryState.artists = await res.json();
                 renderArtistsSS(libraryState.artists);
+                libraryState.needsArtistsSync = false;
             }
         } catch (e) { console.error('Artists sync failed', e); }
     }
 
     async function fetchAlbumsSS() {
         if (!els.albumsLibContainer) return;
+        if (!libraryState.needsAlbumsSync && libraryState.albums.length > 0) return;
+
         try {
-            const res = await fetch('/library/albums'); // Assuming this endpoint exists
+            const res = await fetch('/library/albums');
             if (res.ok) {
                 libraryState.albums = await res.json();
                 renderAlbumsSS(libraryState.albums);
+                libraryState.needsAlbumsSync = false;
             }
         } catch (e) { console.error('Albums sync failed', e); }
     }
@@ -211,34 +221,32 @@ document.addEventListener('DOMContentLoaded', () => {
         `).join('');
     }
 
-    // Tab switching logic for Library
-    if (els.libNavBtns) {
-        els.libNavBtns.forEach((btn, idx) => {
-            btn.addEventListener('click', () => {
-                // Remove active from all
-                els.libNavBtns.forEach(b => b.style.color = '');
-                btn.style.color = 'coral';
-
-                // Hide all
-                els.playlistsContainer.classList.add('hidden');
-                els.artistsLibContainer.classList.add('hidden');
-                els.albumsLibContainer.classList.add('hidden');
-                
-                // Show selected
-                if (idx === 0) {
-                    els.artistsLibContainer.classList.remove('hidden');
-                    fetchArtistsSS();
-                } else if (idx === 1) {
-                    els.albumsLibContainer.classList.remove('hidden');
-                    fetchAlbumsSS();
-                } else if (idx === 2) {
-                    els.playlistsContainer.classList.remove('hidden');
-                    fetchPlaylistsSS();
-                }
+        // Tab switching logic for Library
+        if (els.libNavBtns) {
+            els.libNavBtns.forEach((btn, idx) => {
+                btn.addEventListener('click', () => {
+                    // Update active state on buttons
+                    els.libNavBtns.forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+    
+                    // Update active state on containers
+                    const containers = [els.artistsLibContainer, els.albumsLibContainer, els.playlistsContainer];
+                    containers.forEach(c => c.classList.remove('active-lib-tab'));
+                    
+                    // Show selected container
+                    if (idx === 0) {
+                        els.artistsLibContainer.classList.add('active-lib-tab');
+                        fetchArtistsSS();
+                    } else if (idx === 1) {
+                        els.albumsLibContainer.classList.add('active-lib-tab');
+                        fetchAlbumsSS();
+                    } else if (idx === 2) {
+                        els.playlistsContainer.classList.add('active-lib-tab');
+                        fetchPlaylistsSS();
+                    }
+                });
             });
-        });
-    }
-
+        }
     // Initial sync
     syncLibraryIds();
 
@@ -415,6 +423,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     els.searchInput.addEventListener('search', async (e) => {
         const query = e.target.value.trim();
+        e.target.value = ''; // Clear text after search starts
         dismissSearch();
         if (query.length < 2) return;
         try {
@@ -445,37 +454,47 @@ document.addEventListener('DOMContentLoaded', () => {
             dismissSearch();
             return;
         }
-        document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
         const target = document.getElementById(panelId);
         if (target) {
             const isAlreadyActive = target.classList.contains('active');
+            
+            // Clear other panels but keep overlays if needed (or just clear all main panels)
+            document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+            
             target.classList.add('active');
             els.parentContainer.classList.add('content-scaled');
             
             if (panelId === 'search-panel') {
-                els.topSearchPanel.classList.add('active');
                 const hasResults = els.searchResults.children.length > 0;
                 
-                // Smart focus: only if already in search or if results are empty
-                if (isAlreadyActive || !hasResults) {
+                if (isAlreadyActive) {
+                    // Stage 2: Clicked while search was already active -> show input & focus
+                    els.topSearchPanel.classList.add('active');
                     els.searchInput.focus();
+                } else {
+                    // Stage 1: Switched to search from another tab
+                    if (hasResults) {
+                        els.topSearchPanel.classList.remove('active');
+                    } else {
+                        els.topSearchPanel.classList.add('active');
+                        els.searchInput.focus();
+                    }
                 }
             }
-            if (panelId === 'library-panel') {
-                // Show playlists by default
-                els.playlistsContainer.classList.remove('hidden');
-                els.artistsLibContainer.classList.add('hidden');
-                els.albumsLibContainer.classList.add('hidden');
-                
-                // Highlight the playlist tab (3rd button)
-                if (els.libNavBtns && els.libNavBtns[2]) {
-                    els.libNavBtns.forEach(b => b.style.color = '');
-                    els.libNavBtns[2].style.color = 'coral';
-                }
-
-                fetchPlaylistsSS();
-            }
-        }
+                        if (panelId === 'library-panel') {
+                            // Default to playlists tab (index 2)
+                            const containers = [els.artistsLibContainer, els.albumsLibContainer, els.playlistsContainer];
+                            containers.forEach(c => c.classList.remove('active-lib-tab'));
+                            els.playlistsContainer.classList.add('active-lib-tab');
+            
+                            // Highlight correct button
+                            if (els.libNavBtns && els.libNavBtns[2]) {
+                                els.libNavBtns.forEach(b => b.classList.remove('active'));
+                                els.libNavBtns[2].classList.add('active');
+                            }
+            
+                            fetchPlaylistsSS();
+                        }        }
     });
 
     // --- LIBRARY LOGIC ---
@@ -488,6 +507,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!els.playlistsContainer) return;
         renderPlaylistsSS(libraryState.playlists);
 
+        if (!libraryState.needsPlaylistsSync && libraryState.playlists.length > 0) return;
+
         try {
             const res = await fetch('/library/playlists');
             if (res.ok) {
@@ -498,6 +519,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 saveLibraryToLocal();
                 renderPlaylistsSS(libraryState.playlists);
+                libraryState.needsPlaylistsSync = false;
             }
         } catch (e) { console.error('Library sync failed', e); }
     }
@@ -659,6 +681,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         libraryState.albumIds.delete(albumId);
                         libraryState.albums = libraryState.albums.filter(a => String(a.id) !== albumId);
                         renderAlbumsSS(libraryState.albums);
+                        libraryState.needsAlbumsSync = true; // Mark as dirty
                         els.addAlbumToLibBtn.innerHTML = '<i data-lucide="plus"></i>';
                         if (window.lucide) lucide.createIcons();
                     }
@@ -676,6 +699,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         libraryState.albumIds.add(albumId);
                         libraryState.albums.unshift(payload);
                         renderAlbumsSS(libraryState.albums);
+                        libraryState.needsAlbumsSync = true; // Mark as dirty
                         els.addAlbumToLibBtn.innerHTML = '<i data-lucide="check"></i>';
                         if (window.lucide) lucide.createIcons();
                     }
@@ -698,6 +722,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         libraryState.artistIds.delete(artistId);
                         libraryState.artists = libraryState.artists.filter(a => Number(a.id) !== artistId);
                         renderArtistsSS(libraryState.artists);
+                        libraryState.needsArtistsSync = true;
                         els.addArtistToLibBtn.innerHTML = '<i data-lucide="plus"></i>';
                         if (window.lucide) lucide.createIcons();
                     }
@@ -715,6 +740,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         libraryState.artistIds.add(artistId);
                         libraryState.artists.unshift(payload);
                         renderArtistsSS(libraryState.artists);
+                        libraryState.needsArtistsSync = true;
                         els.addArtistToLibBtn.innerHTML = '<i data-lucide="check"></i>';
                         if (window.lucide) lucide.createIcons();
                     }

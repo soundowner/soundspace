@@ -1394,31 +1394,56 @@ color: orangered;
 }
 
 .ss-playlist-list, #artists-lib-container, #albums-lib-container {
+    display: flex !important;
     flex-direction: column;
     gap: 12px;
     overflow-y: auto;
     overflow-x: hidden;
-    height: 100%; /* Fill the wrapper */
+    height: 100%;
     width: 100%;
     position: absolute;
     top: 0;
     left: 0;
-    padding: 18% 2% 120px; /* Offset for header and bottom nav */
+    padding: 18% 2% 120px;
     scrollbar-width: none;
     box-sizing: border-box;
-    z-index: 0;
+    z-index: 1;
+    
+    /* Perfect CSS Transition */
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(20px);
+    transition: opacity 0.5s cubic-bezier(0.16, 1, 0.3, 1), 
+                transform 0.5s cubic-bezier(0.16, 1, 0.3, 1), 
+                visibility 0.5s;
+    will-change: opacity, transform;
 }
 
-/* Only show when NOT hidden, using higher specificity to override previous display: flex */
-#library-panel .ss-playlist-list:not(.hidden), 
-#library-panel #artists-lib-container:not(.hidden), 
-#library-panel #albums-lib-container:not(.hidden) {
+/* Active state for ALL library tabs */
+#library-panel .active-lib-tab {
+    opacity: 1 !important;
+    visibility: visible !important;
+    transform: translateY(0) !important;
+    pointer-events: auto !important;
+    z-index: 5 !important;
+}
+
+.lib-nav {
+    width: 20%;
+    height: 100%;
+    position: relative;
+    color: rgba(255, 255, 255, 0.4); /* Default dimmed color */
+    transition: color 0.3s ease; /* Smooth color switch */
+    cursor: pointer;
+    background: transparent;
+    border: none;
     display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
-/* Hide when has .hidden class */
-#library-panel .hidden {
-    display: none !important;
+.lib-nav.active {
+    color: coral;
 }
 
 .playlist-card-ss {
