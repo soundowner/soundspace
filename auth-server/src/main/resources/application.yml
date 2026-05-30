@@ -45,7 +45,7 @@ app:
 
 jwt:
   secret: ${JWT_SECRET:very-long-and-secure-secret-key-that-must-be-at-least-256-bits}
-  access-token-expiration: 30000     # 15 минут
+  access-token-expiration: 900000     # 15 минут
   refresh-token-expiration: 604800000  # 7 дней
 
 logging:
