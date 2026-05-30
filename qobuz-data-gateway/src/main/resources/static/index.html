@@ -21,40 +21,40 @@
         #library_navigation {
             position: absolute;
             width: 100%;
-            height: 100%;
+            height: 113%;
             pointer-events: none; /* Let clicks pass through to lists */
+            top: -10%;
             z-index: 10;
         }
 
         #library-bottom-nav {
-            position: relative;
+            position: absolute;
             width: 62%;
             height: 8%;
             clip-path: polygon(10% 0%, 90% 0%, 100% 100%, 0% 100%);
             background: #0000007d;
-            top: 80%;
-            backdrop-filter: blur(4px);
+            top: 92%;
             left: 18%;
             z-index: 1;
             display: flex;
             justify-content: center;
-            pointer-events: auto; /* Re-enable clicks for buttons */
+            pointer-events: auto;
         }
 
         #library-top-header {
             position: relative;
-            width: 100%;
-            height: 15%;
+            width: 104dvw;
+            height: 9%;
             box-shadow: 0 0 35px 1px white;
-            background: gray;
+            background: #000000de;
+            clip-path: polygon(4% 0%, 86% 0%, 75% 97%, 16% 100%);
             pointer-events: auto; /* Re-enable if header needs interactions */
         }
 
         .lib-nav {
-              width: 20%;
+            width: 20%;
             height: 100%;
             position: relative;
-}
         }
     </style>
 </head>
@@ -77,9 +77,9 @@
                         </div>
                         <div id="library-bottom-nav">
 
-                            <button class="lib-nav"><i class="fa-solid fa-user"></i></button>
-                            <button class="lib-nav"><i class="fa-solid fa-compact-disc"></i></button>
-                            <button class="lib-nav"><i class="fa-solid fa-list"></i> </button>
+                            <button class="lib-nav" data-lib-tab="playlists"><i class="fa-solid fa-list"></i></button>
+                            <button class="lib-nav" data-lib-tab="albums"><i class="fa-solid fa-compact-disc"></i></button>
+                            <button class="lib-nav" data-lib-tab="artists"><i class="fa-solid fa-user"></i></button>
 
                         </div>
                     </div>
@@ -118,12 +118,11 @@
                         </div>
                         <div class="ss-modal-inputs">
                             <input type="text" id="playlist_title" placeholder="Playlist Title" autocomplete="off">
-                            <textarea id="playlist_description" placeholder="Description (optional)" rows="3"></textarea>
                         </div>
                     </div>
                     <div class="ss-modal-actions">
                         <button id="create-playlist-cancel" class="ss-text-btn">Cancel</button>
-                        <button id="create-playlist-confirm" class="ss-primary-btn">Create</button>
+                        <button id="create-playlist-confirm" class="ss-text-btn ss-action-accent">Create</button>
                     </div>
                 </div>
             </div>
@@ -192,6 +191,13 @@
                                     <button class="action-btn" id="btn-share"><i class="fa-solid fa-share" style="color:#2cec9b;font-size:large;"></i></button>
                                 </div>
                             </div>
+
+                            <div id="playlist_select_container">
+
+
+
+                            </div>
+
                         </div>
                     </div>
 
@@ -229,31 +235,30 @@
 
             <!-- ARTIST OVERLAY -->
             <div id="artist-panel" class="panel overlay-panel">
-                <div class="overlay-header">
-                    <button class="back-btn" id="close-artist-panel"><i data-lucide="chevron-down"></i></button>
-                    <button id="add-artist-to-lib" class="ss-icon-btn-circle" style="margin-left: auto;">
-                        <i data-lucide="plus"></i>
-                    </button>
-                </div>
                 <div class="scroll-content" id="artist-content">
                     <!-- Content will be injected here -->
+                </div>
+                <div class="overlay-bottom-controls">
+                    <button class="overlay-bottom-btn" id="close-artist-panel"><i data-lucide="chevron-down"></i></button>
+                    <button id="add-artist-to-lib" class="overlay-bottom-btn accent">
+                        <i data-lucide="plus"></i>
+                    </button>
                 </div>
             </div>
 
             <!-- ALBUM OVERLAY -->
             <div id="album-panel" class="panel overlay-panel">
-                <div class="overlay-header">
-                    <button class="back-btn" id="close-album-panel"><i data-lucide="chevron-down"></i></button>
-                    <button id="add-album-to-lib" class="ss-icon-btn-circle" style="margin-left: auto;">
-                        <i data-lucide="plus"></i>
-                    </button>
-                </div>
                 <div class="scroll-content" id="album-content">
                     <!-- Content will be injected here -->
                 </div>
                 <button id="album-close-fab" class="close-fab">
-                    <i data-lucide="x"></i>
+                    <i data-lucide="chevron-down"></i>
                 </button>
+                <div class="overlay-bottom-controls">
+                    <button id="add-album-to-lib" class="overlay-bottom-btn accent">
+                        <i data-lucide="plus"></i>
+                    </button>
+                </div>
             </div>
 
             <!-- SELECTED PLAYLIST OVERLAY -->

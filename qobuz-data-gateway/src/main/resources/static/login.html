@@ -2,197 +2,429 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Soundspace | Entry</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <script src="tailwindcss.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Syncopate:wght@400;700&family=Plus+Jakarta+Sans:wght@300;400;600;800&display=swap" rel="stylesheet">
     <style>
-        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #050505; color: white; overflow: hidden; }
-        .neon-border { position: relative; }
-        .neon-border::after {
-            content: ''; position: absolute; inset: -1px;
-            background: linear-gradient(45deg, coral, transparent, #505050);
-            z-index: -1; border-radius: inherit; opacity: 0.3;
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-user-select: none;
+            user-select: none;
         }
-        .glass { background: rgba(20, 20, 20, 0.7); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.05); }
-        input:focus { outline: none; border-color: coral !important; box-shadow: 0 0 15px rgba(255, 127, 80, 0.2); }
-        .btn-primary { background: coral; color: black; transition: all 0.3s; }
-        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 5px 20px rgba(255, 127, 80, 0.4); }
-        .hidden { display: none; }
-        .form-container { transition: opacity 0.3s ease; }
 
-        #now_play_bottom_panel_part {
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: #010101;
+            color: white;
+            overflow: hidden;
+            height: 100dvh;
+            width: 100vw;
             display: flex;
-            position: absolute;
-            width: 100dvw;
-            top: 83dvh;
-            overflow: visible;
-            justify-content: right;
-            /* box-shadow: 0 0 5px 1px orangered; */
-            height: 51dvh;
-            background: #121212;
-            transition: 1s ease-out;
+            align-items: center;
+            justify-content: center;
+            touch-action: none;
         }
 
-        #now_play_bottom_panel_edge {
-            height: 4.5vh;
-            clip-path: polygon(10% 0%, 100% 0%, 100% 100%, 0% 100%);
-            background: #121212;
-            left: 50%;
-            transition: 2s linear;
-            box-shadow: 0px 0px 9px 1px black;
-            top: -4dvh;
-            margin: 0px 3px;
-            width: 50%;
-            position: absolute;
+        .brand-title {
+    position: absolute;
+    top: 2rem;
+    left: 26%;
+    font-family: 'Syncopate', sans-serif;
+    font-weight: 900;
+    font-size: 1.2rem;
+    letter-spacing: 0.4px;
+    color: rgb(255 255 255);
+    z-index: 100;
+    text-transform: uppercase;
+    text-align: center;
+    width: 100%;
         }
+
+        #brand-title-radio {
+    position: absolute;
+    top: 2%;
+    letter-spacing: 3px;
+    color: #00ffde;
+    font-size: small;
+    left: 85%;
+        }
+
+        /* Ambient Glow - More subtle, "breathing" */
+        .ambient-glow {
+            position: absolute;
+            inset: 0;
+            z-index: 0;
+            pointer-events: none;
+            transition: all 1.5s cubic-bezier(0.16, 1, 0.3, 1);
+            opacity: 0;
+        }
+        .active-ambient { opacity: 0.4; }
+        .ambient-cyan { background: radial-gradient(circle at 50% 50%, rgba(0, 255, 204, 0.08), transparent 70%); }
+        .ambient-pink { background: radial-gradient(circle at 50% 50%, rgba(255, 0, 85, 0.08), transparent 70%); }
+
+        /* Initial Choice Screen - "The Split Gate" */
+        .choice-wrapper {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            z-index: 10;
+            transition: all 1s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .choice-wrapper.hidden {
+            transform: scale(1.1);
+            opacity: 0;
+            pointer-events: none;
+            filter: blur(10px);
+        }
+
+        .split-line {
+            width: 1px;
+            height: 100px;
+            background: linear-gradient(to bottom, transparent, rgba(255,255,255,0.1), transparent);
+            margin: 2rem 0;
+            transition: all 0.6s ease;
+        }
+
+        .gate-btn {
+            font-family: 'Syncopate', sans-serif;
+            font-size: 2.5rem;
+            font-weight: 700;
+            letter-spacing: 0.3em;
+            background: none;
+            border: none;
+            color: rgba(255,255,255,0.15);
+            cursor: pointer;
+            transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+            position: relative;
+            padding: 10px 40px;
+        }
+
+        .gate-btn:hover {
+            color: white;
+            letter-spacing: 0.5em;
+        }
+
+        .btn-in:hover { text-shadow: 0 0 30px rgba(0, 255, 204, 0.6); }
+        .btn-up:hover { text-shadow: 0 0 30px rgba(255, 0, 85, 0.6); }
+
+        .gate-btn::after {
+            content: '';
+            position: absolute;
+            width: 0;
+            height: 1px;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            transition: width 0.5s ease;
+        }
+        .btn-in:hover::after { width: 100%; background: #00ffcc; box-shadow: 0 0 15px #00ffcc; }
+        .btn-up:hover::after { width: 100%; background: #ff0055; box-shadow: 0 0 15px #ff0055; }
+
+        /* Auth Screen */
+        #auth-screen {
+            position: absolute;
+            width: 100%;
+            max-width: 300px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            opacity: 0;
+            transform: translateY(30px);
+            transition: all 1s cubic-bezier(0.16, 1, 0.3, 1);
+            pointer-events: none;
+            z-index: 20;
+        }
+        #auth-screen.active {
+            opacity: 1;
+            transform: translateY(0);
+            pointer-events: auto;
+        }
+
+        .auth-header {
+            font-family: 'Syncopate', sans-serif;
+            font-size: 1.5rem;
+            font-weight: 700;
+            letter-spacing: 0.4em;
+            margin-bottom: 5rem;
+            text-align: center;
+            opacity: 0.8;
+        }
+        .cyan-theme .auth-header { color: #00ffcc; text-shadow: 0 0 20px rgba(0, 255, 204, 0.3); }
+        .pink-theme .auth-header { color: #ff0055; text-shadow: 0 0 20px rgba(255, 0, 85, 0.3); }
+
+        /* Forms */
+        .auth-form { width: 100%; display: none; }
+        .auth-form.active { display: block; }
+
+        .input-group {
+            position: relative;
+            margin-bottom: 3rem;
+            opacity: 0;
+            transform: translateY(10px);
+            transition: all 0.6s ease;
+        }
+        #auth-screen.active .input-group { opacity: 1; transform: translateY(0); }
+        #auth-screen.active .input-group:nth-child(1) { transition-delay: 0.3s; }
+        #auth-screen.active .input-group:nth-child(2) { transition-delay: 0.45s; }
+        #auth-screen.active .input-group:nth-child(3) { transition-delay: 0.6s; }
+
+        .data-input {
+            width: 100%;
+            background: transparent;
+            border: none;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            padding: 0.6rem 0;
+            font-size: 0.9rem;
+            color: white;
+            outline: none;
+            transition: all 0.4s ease;
+            font-family: inherit;
+        }
+        .cyan-theme .data-input:focus { border-bottom-color: #00ffcc; box-shadow: 0 1px 0 #00ffcc; }
+        .pink-theme .data-input:focus { border-bottom-color: #ff0055; box-shadow: 0 1px 0 #ff0055; }
+
+        .input-label {
+            position: absolute;
+            left: 0;
+            top: -1.2rem;
+            font-size: 0.55rem;
+            letter-spacing: 0.3em;
+            text-transform: uppercase;
+            color: rgba(255,255,255,0.2);
+            pointer-events: none;
+        }
+        .data-input:focus + .input-label { color: rgba(255,255,255,0.8); }
+
+        /* Centered Actions */
+        .actions-stack {
+            margin-top: 3rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4rem;
+            width: 100%;
+        }
+
+        .submit-btn {
+            background: none;
+            border: none;
+            font-family: 'Syncopate', sans-serif;
+            font-size: 0.7rem;
+            font-weight: 700;
+            letter-spacing: 0.5em;
+            cursor: pointer;
+            color: white;
+            opacity: 0.4;
+            transition: all 0.4s ease;
+        }
+        .submit-btn:hover { opacity: 1; letter-spacing: 0.7em; }
+
+        .google-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 3.2rem;
+            height: 3.2rem;
+            border-radius: 50%;
+            border: 1px solid rgba(255,255,255,0.05);
+            color: white;
+            text-decoration: none;
+            font-weight: 800;
+            font-size: 1.1rem;
+            background: rgba(255,255,255,0.02);
+            transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .google-btn:hover {
+            border-color: rgba(255,255,255,0.3);
+            transform: scale(1.1) rotate(5deg);
+            background: rgba(255,255,255,0.05);
+            box-shadow: 0 0 30px rgba(255,255,255,0.05);
+        }
+
+        /* Back */
+        .back-btn {
+            position: absolute;
+            bottom: 4rem;
+            font-family: 'Syncopate', sans-serif;
+            font-size: 0.5rem;
+            letter-spacing: 0.4em;
+            color: rgba(255,255,255,0.15);
+            background: none;
+            border: none;
+            cursor: pointer;
+            opacity: 0;
+            transition: all 0.5s ease;
+        }
+        .back-btn:hover { color: white; opacity: 1; }
+        #auth-screen.active ~ .back-btn { opacity: 1; pointer-events: auto; }
 
     </style>
 </head>
-<body class="flex items-center justify-center min-h-screen">
-    <div class="absolute inset-0 z-0">
-        <div class="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-orange-500/10 rounded-full blur-[120px]"></div>
-        <div class="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-500/5 rounded-full blur-[120px]"></div>
+<body id="body-container">
+
+    <div class="brand-title">Soundspace</div><span id="brand-title-radio">RADIO</span>
+
+    <div id="ambient-c" class="ambient-glow ambient-cyan"></div>
+    <div id="ambient-p" class="ambient-glow ambient-pink"></div>
+
+    <!-- CHOICE SCREEN -->
+    <div id="choice-screen" class="choice-wrapper">
+        <button id="btn-choice-signin" class="gate-btn btn-in">SIGN IN</button>
+        <div class="split-line"></div>
+        <button id="btn-choice-signup" class="gate-btn btn-up">SIGN UP</button>
     </div>
 
-    <div class="glass p-10 rounded-[32px] w-full max-w-md z-10 neon-border shadow-2xl">
-        <div class="mb-10 text-center">
-            <h1 class="text-4xl font-extrabold tracking-tighter mb-2 italic">SOUNDSPACE</h1>
-            <p id="form-subtitle" class="text-neutral-500 text-sm tracking-widest uppercase">Sonic Identity Gateway</p>
-        </div>
+    <!-- AUTH SCREEN -->
+    <div id="auth-screen">
+        <div id="auth-title" class="auth-header">SIGN IN</div>
 
-        <!-- LOGIN FORM -->
-        <form id="login-form" class="space-y-6 form-container">
-            <div>
-                <label class="block text-[10px] font-bold text-neutral-500 uppercase tracking-widest mb-2 ml-1">Email</label>
-                <input type="email" id="login-email" class="w-full bg-white/5 border border-white/10 p-4 rounded-2xl text-white transition-all" placeholder="Enter email" required>
+        <form id="login-form" class="auth-form">
+            <div class="input-group">
+                <input type="email" id="login-email" class="data-input" placeholder=" " required autocomplete="off">
+                <label class="input-label">[Email]</label>
             </div>
-            <div>
-                <label class="block text-[10px] font-bold text-neutral-500 uppercase tracking-widest mb-2 ml-1">Password</label>
-                <input type="password" id="login-password" class="w-full bg-white/5 border border-white/10 p-4 rounded-2xl text-white transition-all" placeholder="••••••••" required>
+            <div class="input-group">
+                <input type="password" id="login-password" class="data-input" placeholder=" " required>
+                <label class="input-label">[Passkey]</label>
             </div>
-            <button type="submit" class="w-full btn-primary font-bold py-4 rounded-2xl uppercase tracking-wider text-sm">Sign In</button>
+
+            <div class="actions-stack">
+                <button type="submit" class="submit-btn">PROCEED</button>
+                <a href="/auth/login/oauth2/google" class="google-btn">G</a>
+            </div>
         </form>
 
-        <!-- REGISTER FORM -->
-        <form id="register-form" class="space-y-6 form-container hidden">
-            <div>
-                <label class="block text-[10px] font-bold text-neutral-500 uppercase tracking-widest mb-2 ml-1">Display Name</label>
-                <input type="text" id="reg-name" class="w-full bg-white/5 border border-white/10 p-4 rounded-2xl text-white transition-all" placeholder="How should we call you?" required>
+        <form id="register-form" class="auth-form">
+            <div class="input-group">
+                <input type="text" id="reg-name" class="data-input" placeholder=" " required autocomplete="off">
+                <label class="input-label">[Name]</label>
             </div>
-            <div>
-                <label class="block text-[10px] font-bold text-neutral-500 uppercase tracking-widest mb-2 ml-1">Email</label>
-                <input type="email" id="reg-email" class="w-full bg-white/5 border border-white/10 p-4 rounded-2xl text-white transition-all" placeholder="your@email.com" required>
+            <div class="input-group">
+                <input type="email" id="reg-email" class="data-input" placeholder=" " required autocomplete="off">
+                <label class="input-label">[Email]</label>
             </div>
-            <div>
-                <label class="block text-[10px] font-bold text-neutral-500 uppercase tracking-widest mb-2 ml-1">Password</label>
-                <input type="password" id="reg-password" class="w-full bg-white/5 border border-white/10 p-4 rounded-2xl text-white transition-all" placeholder="Min 6 characters" required>
+            <div class="input-group">
+                <input type="password" id="reg-password" class="data-input" placeholder=" " required>
+                <label class="input-label">[Passkey]</label>
             </div>
-            <button type="submit" class="w-full btn-primary font-bold py-4 rounded-2xl uppercase tracking-wider text-sm">Initialize Identity</button>
+
+            <div class="actions-stack">
+                <button type="submit" class="submit-btn">INITIALIZE</button>
+                <a href="/auth/login/oauth2/google" class="google-btn">G</a>
+            </div>
         </form>
-
-        <div class="relative my-8">
-            <div class="absolute inset-0 flex items-center"><div class="w-full border-t border-white/10"></div></div>
-            <div class="relative flex justify-center text-[10px] uppercase tracking-widest"><span class="bg-[#0f0f0f] px-4 text-neutral-600">Or pulse with</span></div>
-        </div>
-
-        <button onclick="window.location.href='/auth/login/oauth2/google'" class="w-full bg-white text-black font-bold py-4 rounded-2xl flex items-center justify-center gap-3 hover:bg-neutral-200 transition-all text-sm">
-            <svg class="w-5 h-5" viewBox="0 0 24 24">
-                <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                <path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                <path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.27.81-.57z"/>
-                <path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-            </svg>
-            Continue with Google
-        </button>
-
-        <p class="mt-8 text-center text-neutral-600 text-[10px] tracking-widest uppercase">
-            <span id="toggle-text">Don't have an identity?</span> 
-            <a href="#" id="toggle-form" class="text-white hover:text-orange-400">Initialize</a>
-        </p>
     </div>
+
+    <button id="btn-back" class="back-btn">RETURN / ESC</button>
 
     <script>
+        const body = document.getElementById('body-container');
+        const choiceScreen = document.getElementById('choice-screen');
+        const authScreen = document.getElementById('auth-screen');
+        const authTitle = document.getElementById('auth-title');
         const loginForm = document.getElementById('login-form');
         const registerForm = document.getElementById('register-form');
-        const toggleBtn = document.getElementById('toggle-form');
-        const toggleText = document.getElementById('toggle-text');
-        const subtitle = document.getElementById('form-subtitle');
+        const ambC = document.getElementById('ambient-c');
+        const ambP = document.getElementById('ambient-p');
 
-        let isLogin = true;
+        const btnIn = document.getElementById('btn-choice-signin');
+        const btnUp = document.getElementById('btn-choice-signup');
+        const btnBack = document.getElementById('btn-back');
 
-        toggleBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            isLogin = !isLogin;
-            
-            if (isLogin) {
-                loginForm.classList.remove('hidden');
-                registerForm.classList.add('hidden');
-                toggleBtn.innerText = 'Initialize';
-                toggleText.innerText = "Don't have an identity?";
-                subtitle.innerText = 'Sonic Identity Gateway';
+        function showAuth(title, theme, ambientSide, form) {
+            authTitle.innerText = title;
+            body.className = theme;
+
+            if(ambientSide === 'cyan') {
+                ambC.classList.add('active-ambient');
+                ambP.classList.remove('active-ambient');
             } else {
-                loginForm.classList.add('hidden');
-                registerForm.classList.remove('hidden');
-                toggleBtn.innerText = 'Sign In';
-                toggleText.innerText = "Already synthesized?";
-                subtitle.innerText = 'Identity Initialization';
+                ambP.classList.add('active-ambient');
+                ambC.classList.remove('active-ambient');
+            }
+
+            form.classList.add('active');
+            (form === loginForm ? registerForm : loginForm).classList.remove('active');
+
+            choiceScreen.classList.add('hidden');
+            setTimeout(() => authScreen.classList.add('active'), 600);
+
+            setTimeout(() => form.querySelector('input').focus(), 1400);
+        }
+
+        btnIn.addEventListener('click', () => showAuth('SIGN IN', 'cyan-theme', 'cyan', loginForm));
+        btnUp.addEventListener('click', () => showAuth('SIGN UP', 'pink-theme', 'pink', registerForm));
+
+        btnBack.addEventListener('click', () => {
+            body.className = '';
+            ambC.classList.remove('active-ambient');
+            ambP.classList.remove('active-ambient');
+            authScreen.classList.remove('active');
+            setTimeout(() => {
+                choiceScreen.classList.remove('hidden');
+                document.querySelectorAll('input').forEach(i => i.value = '');
+            }, 600);
+        });
+
+        // ESC key back
+        window.addEventListener('keydown', (e) => {
+            if(e.key === 'Escape' && authScreen.classList.contains('active')) {
+                btnBack.click();
             }
         });
 
-        // Handle Login
+        // Request Logic
         loginForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const email = document.getElementById('login-email').value;
-            const password = document.getElementById('login-password').value;
-            await handleAuth('/auth/login', { email, password }, 'SYNCHRONIZING...');
+            await handleAuth('/auth/login', {
+                email: document.getElementById('login-email').value,
+                password: document.getElementById('login-password').value
+            }, true);
         });
 
-        // Handle Register
         registerForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const displayName = document.getElementById('reg-name').value;
-            const email = document.getElementById('reg-email').value;
-            const password = document.getElementById('reg-password').value;
-            
-            const success = await handleAuth('/auth/register', { displayName, email, password }, 'INITIALIZING...');
-            if (success) {
-                alert('IDENTITY CREATED. Please sign in.');
-                toggleBtn.click(); // Switch to login
-            }
+            const success = await handleAuth('/auth/register', {
+                displayName: document.getElementById('reg-name').value,
+                email: document.getElementById('reg-email').value,
+                password: document.getElementById('reg-password').value
+            }, false);
+            if (success) btnIn.click();
         });
 
-        async function handleAuth(url, body, loadingText) {
-            const activeForm = isLogin ? loginForm : registerForm;
-            const btn = activeForm.querySelector('button');
+        async function handleAuth(url, bodyData, isLogin) {
+            const form = isLogin ? loginForm : registerForm;
+            const btn = form.querySelector('.submit-btn');
             const originalText = btn.innerText;
-
-            btn.innerText = loadingText;
+            btn.innerText = 'PROCESSING';
             btn.disabled = true;
 
             try {
                 const response = await fetch(url, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(body)
+                    body: JSON.stringify(bodyData)
                 });
-
                 if (response.ok) {
                     if (isLogin) {
-                        window.location.href = '/index.html';
+                        btn.innerText = 'SUCCESS';
+                        setTimeout(() => window.location.href = '/index.html', 500);
                     }
                     return true;
                 } else {
-                    const error = await response.text();
-                    alert('ERROR: ' + error);
+                    btn.innerText = 'ACCESS DENIED';
+                    setTimeout(() => btn.innerText = originalText, 2000);
                     return false;
                 }
             } catch (err) {
-                console.error(err);
-                alert('CONNECTION FAILED');
+                btn.innerText = 'OFFLINE';
+                setTimeout(() => btn.innerText = originalText, 2000);
                 return false;
             } finally {
-                btn.innerText = originalText;
                 btn.disabled = false;
             }
         }
