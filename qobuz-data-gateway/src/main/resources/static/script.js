@@ -37,6 +37,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const player = new Audio();
     const trackCache = new Map();
+    let currentTrackId = null;
+    let currentQueue = [];
+    let currentQueueIndex = -1;
+    const cutMarkersByTrack = new Map();
+    let qualitySetting = { label: 'FLAC', formatId: 27, qualityCode: '9.0' };
     
     // --- ELEMENTS ---
     const els = {
@@ -79,7 +84,6 @@ document.addEventListener('DOMContentLoaded', () => {
         createPlaylistConfirm: document.getElementById('create-playlist-confirm'),
         createPlaylistCancel: document.getElementById('create-playlist-cancel'),
         playlistTitleInput: document.getElementById('playlist_title'),
-        playlistDescInput: document.getElementById('playlist_description'),
 
         // Playlist Detail
         playlistPanel: document.getElementById('playlist-panel'),
@@ -188,14 +192,15 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         els.artistsLibContainer.innerHTML = artists.map(art => {
             const imgUrl = getImg(art);
+            const initial = escapeHtml((art.name || '?').trim().charAt(0).toUpperCase() || '?');
             return `
                 <div class="playlist-card-ss artist-card-lib" data-id="${art.id}">
-                    <div class="playlist-cover-ss" style="border-radius: 50%">
-                        ${imgUrl ? `<img src="${imgUrl}" style="border-radius: 50%; object-fit: cover;">` : '<span class="material-symbols-outlined" style="font-size: 2rem; color: rgba(255,255,255,0.1)">person</span>'}
+                    <div class="artist-card-lib__avatar">
+                        ${imgUrl ? `<img src="${imgUrl}" alt="${escapeHtml(art.name)}">` : `<span class="artist-card-lib__initial">${initial}</span>`}
                     </div>
-                    <div class="playlist-info-ss">
+                    <div class="artist-card-lib__body">
                         <h4>${escapeHtml(art.name)}</h4>
-                        <p>Artist</p>
+                        <p>Artist Library</p>
                     </div>
                 </div>
             `;
@@ -221,32 +226,46 @@ document.addEventListener('DOMContentLoaded', () => {
         `).join('');
     }
 
-        // Tab switching logic for Library
-        if (els.libNavBtns) {
-            els.libNavBtns.forEach((btn, idx) => {
-                btn.addEventListener('click', () => {
-                    // Update active state on buttons
-                    els.libNavBtns.forEach(b => b.classList.remove('active'));
-                    btn.classList.add('active');
-    
-                    // Update active state on containers
-                    const containers = [els.artistsLibContainer, els.albumsLibContainer, els.playlistsContainer];
-                    containers.forEach(c => c.classList.remove('active-lib-tab'));
-                    
-                    // Show selected container
-                    if (idx === 0) {
-                        els.artistsLibContainer.classList.add('active-lib-tab');
-                        fetchArtistsSS();
-                    } else if (idx === 1) {
-                        els.albumsLibContainer.classList.add('active-lib-tab');
-                        fetchAlbumsSS();
-                    } else if (idx === 2) {
-                        els.playlistsContainer.classList.add('active-lib-tab');
-                        fetchPlaylistsSS();
-                    }
-                });
-            });
+    function setActiveLibraryTab(tabName) {
+        const containers = {
+            artists: els.artistsLibContainer,
+            albums: els.albumsLibContainer,
+            playlists: els.playlistsContainer
+        };
+
+        Object.values(containers).forEach(c => c && c.classList.remove('active-lib-tab'));
+        if (els.libNavBtns) els.libNavBtns.forEach(b => b.classList.remove('active'));
+
+        if (tabName === 'artists' && containers.artists) {
+            containers.artists.classList.add('active-lib-tab');
+            fetchArtistsSS();
+        } else if (tabName === 'albums' && containers.albums) {
+            containers.albums.classList.add('active-lib-tab');
+            fetchAlbumsSS();
+        } else {
+            containers.playlists && containers.playlists.classList.add('active-lib-tab');
+            fetchPlaylistsSS();
+            tabName = 'playlists';
         }
+
+        if (els.libNavBtns) {
+            const activeBtn = Array.from(els.libNavBtns).find(btn => btn.dataset.libTab === tabName);
+            if (activeBtn) activeBtn.classList.add('active');
+        }
+
+        if (els.createPlaylistBtn) {
+            els.createPlaylistBtn.style.display = tabName === 'playlists' ? 'flex' : 'none';
+        }
+    }
+
+    // Tab switching logic for Library
+    if (els.libNavBtns) {
+        els.libNavBtns.forEach((btn) => {
+            btn.addEventListener('click', () => {
+                setActiveLibraryTab(btn.dataset.libTab || 'playlists');
+            });
+        });
+    }
     // Initial sync
     syncLibraryIds();
 
@@ -254,10 +273,11 @@ document.addEventListener('DOMContentLoaded', () => {
     
     function mapQobuzImageToDto(qobuzImg) {
         if (!qobuzImg) return null;
+        const largeImg = qobuzImg.large || qobuzImg.medium || qobuzImg.small;
         return {
             small: qobuzImg.small,
-            medium: qobuzImg.thumbnail || qobuzImg.medium, // Qobuz uses 'thumbnail' for albums, 'medium' for artists
-            large: qobuzImg.large
+            medium: qobuzImg.thumbnail || qobuzImg.medium,
+            large: largeImg
         };
     }
 
@@ -358,13 +378,56 @@ document.addEventListener('DOMContentLoaded', () => {
         if (els.playingBars) isPlaying ? els.playingBars.classList.add('active') : els.playingBars.classList.remove('active');
     }
 
-    async function handleTrackClick(el, isAutoPlay = false) {
+    function getTrackNodesFromContext(context) {
+        const scope = {
+            search: els.searchResults,
+            artist: els.artistContent,
+            album: els.albumContent,
+            playlist: els.playlistContent
+        }[context];
+        if (!scope) return [];
+        return Array.from(scope.querySelectorAll('.search-result-track'));
+    }
+
+    function buildQueueFromNode(node) {
+        const contextRoot = node.closest('#search-results-container, #artist-content, #album-content, #playlist-content-ss');
+        const context = contextRoot?.id === 'artist-content' ? 'artist'
+            : contextRoot?.id === 'album-content' ? 'album'
+            : contextRoot?.id === 'playlist-content-ss' ? 'playlist'
+            : 'search';
+        const nodes = getTrackNodesFromContext(context);
+        currentQueue = nodes;
+        currentQueueIndex = nodes.findIndex(n => n.dataset.trackId === node.dataset.trackId);
+    }
+
+    function findCurrentTrackNodeInDom() {
+        if (!currentTrackId) return null;
+        const selectors = [
+            '#playlist-content-ss .search-result-track[data-track-id]',
+            '#album-content .search-result-track[data-track-id]',
+            '#artist-content .search-result-track[data-track-id]',
+            '#search-results-container .search-result-track[data-track-id]'
+        ];
+        for (const selector of selectors) {
+            const nodes = Array.from(document.querySelectorAll(selector));
+            const found = nodes.find(n => n.dataset.trackId === String(currentTrackId));
+            if (found) return found;
+        }
+        return null;
+    }
+
+    function syncPlayingHighlights() {
         document.querySelectorAll('.search-result-track').forEach(n => {
-            n.classList.remove('playing');
-            n.classList.remove('show-actions');
+            const isCurrent = currentTrackId && n.dataset.trackId === String(currentTrackId);
+            n.classList.toggle('playing', Boolean(isCurrent));
         });
-        
-        el.classList.add('playing');
+    }
+
+    async function handleTrackClick(el, isAutoPlay = false) {
+        document.querySelectorAll('.search-result-track').forEach(n => n.classList.remove('show-actions'));
+        currentTrackId = el.dataset.trackId;
+        buildQueueFromNode(el);
+        syncPlayingHighlights();
         
         if (isAutoPlay === false) {
             requestAnimationFrame(() => {
@@ -384,9 +447,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         playerState.currentTrack = meta;
         playerState.isPlaying = true;
+        renderCutMarkers();
 
         try {
-            const res = await fetch(`/data/audio/play?trackId=${meta.id}&formatId=6`);
+            const res = await fetch(`/data/audio/play?trackId=${meta.id}&formatId=${qualitySetting.formatId}&qualityCode=${encodeURIComponent(qualitySetting.qualityCode)}`);
             const data = await res.json();
             if (data.url) {
                 player.src = data.url;
@@ -404,13 +468,18 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function playAdjacent(direction) {
-        const current = document.querySelector('.search-result-track.playing');
-        if (!current) return;
-        
-        const sibling = direction === 'next' ? current.nextElementSibling : current.previousElementSibling;
-        if (sibling && sibling.classList.contains('search-result-track')) {
-            handleTrackClick(sibling, true);
+        if (!currentQueue.length || currentQueueIndex < 0 || !currentQueue[currentQueueIndex]?.isConnected) {
+            const currentNode = findCurrentTrackNodeInDom();
+            if (currentNode) {
+                buildQueueFromNode(currentNode);
+            }
         }
+        if (!currentQueue.length || currentQueueIndex < 0) return;
+        const nextIndex = direction === 'next' ? currentQueueIndex + 1 : currentQueueIndex - 1;
+        const nextNode = currentQueue[nextIndex];
+        if (!nextNode) return;
+        currentQueueIndex = nextIndex;
+        handleTrackClick(nextNode, true);
     }
 
     // --- 2. SEARCH & NAVIGATION LOGIC ---
@@ -462,7 +531,7 @@ document.addEventListener('DOMContentLoaded', () => {
             document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
             
             target.classList.add('active');
-            els.parentContainer.classList.add('content-scaled');
+
             
             if (panelId === 'search-panel') {
                 const hasResults = els.searchResults.children.length > 0;
@@ -481,20 +550,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
             }
-                        if (panelId === 'library-panel') {
-                            // Default to playlists tab (index 2)
-                            const containers = [els.artistsLibContainer, els.albumsLibContainer, els.playlistsContainer];
-                            containers.forEach(c => c.classList.remove('active-lib-tab'));
-                            els.playlistsContainer.classList.add('active-lib-tab');
-            
-                            // Highlight correct button
-                            if (els.libNavBtns && els.libNavBtns[2]) {
-                                els.libNavBtns.forEach(b => b.classList.remove('active'));
-                                els.libNavBtns[2].classList.add('active');
-                            }
-            
-                            fetchPlaylistsSS();
-                        }        }
+            if (panelId === 'library-panel') {
+                setActiveLibraryTab('playlists');
+            }
+        }
     });
 
     // --- LIBRARY LOGIC ---
@@ -614,20 +673,43 @@ document.addEventListener('DOMContentLoaded', () => {
                     </button>
                 `;
 
-                // Long Press Logic
-                let pressTimer;
-                const startPress = () => {
-                    pressTimer = setTimeout(() => {
+                // Swipe Left Logic (replaces long touch)
+                let startX = 0;
+                let swiping = false;
+                let pointerDown = false;
+                const applySwipe = (clientX) => {
+                    const deltaX = clientX - startX;
+                    if (deltaX < -40) {
                         row.classList.add('show-delete');
-                    }, 600);
+                    } else if (deltaX > -10) {
+                        row.classList.remove('show-delete');
+                    }
                 };
-                const endPress = () => clearTimeout(pressTimer);
-
-                row.addEventListener('mousedown', startPress);
-                row.addEventListener('touchstart', startPress, { passive: true });
-                row.addEventListener('mouseup', endPress);
-                row.addEventListener('mouseleave', endPress);
-                row.addEventListener('touchend', endPress);
+                row.addEventListener('touchstart', (ev) => {
+                    startX = ev.touches[0].clientX;
+                    swiping = true;
+                }, { passive: true });
+                row.addEventListener('touchmove', (ev) => {
+                    if (!swiping) return;
+                    applySwipe(ev.touches[0].clientX);
+                }, { passive: true });
+                row.addEventListener('touchend', () => {
+                    swiping = false;
+                });
+                row.addEventListener('pointerdown', (ev) => {
+                    pointerDown = true;
+                    startX = ev.clientX;
+                });
+                row.addEventListener('pointermove', (ev) => {
+                    if (!pointerDown) return;
+                    applySwipe(ev.clientX);
+                });
+                row.addEventListener('pointerup', () => {
+                    pointerDown = false;
+                });
+                row.addEventListener('pointercancel', () => {
+                    pointerDown = false;
+                });
 
                 // Delete Logic
                 row.querySelector('.ss-delete-track-btn').onclick = async (e) => {
@@ -635,9 +717,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     try {
                         const res = await fetch(`/library/playlists/${playlist.id}/tracks/${t.id}`, { method: 'DELETE' });
                         if (res.ok) {
-                            row.style.opacity = '0';
-                            row.style.transform = 'scale(0.9)';
-                            setTimeout(() => row.remove(), 300);
+                            const rowHeight = row.offsetHeight;
+                            row.style.maxHeight = `${rowHeight}px`;
+                            row.classList.add('is-removing');
+                            requestAnimationFrame(() => {
+                                row.style.maxHeight = '0px';
+                            });
+                            setTimeout(() => row.remove(), 360);
                             
                             const pl = libraryState.playlists.find(p => p.id === playlist.id);
                             if (pl && pl.tracks) {
@@ -665,6 +751,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const first = trackList.querySelector('.playable-track');
             if (first) handleTrackClick(first, false);
         };
+        syncPlayingHighlights();
     }
 
     if (els.addAlbumToLibBtn) {
@@ -765,14 +852,13 @@ document.addEventListener('DOMContentLoaded', () => {
     if (els.createPlaylistConfirm) {
         els.createPlaylistConfirm.addEventListener('click', async () => {
             const title = els.playlistTitleInput.value.trim();
-            const desc = els.playlistDescInput.value.trim();
             if (!title) return;
 
             try {
                 const res = await fetch('/library/playlists', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ title, description: desc })
+                    body: JSON.stringify({ title })
                 });
                 
                 if (res.ok) {
@@ -781,7 +867,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     saveLibraryToLocal();
                     els.createPlaylistModal.classList.add('hidden');
                     els.playlistTitleInput.value = '';
-                    els.playlistDescInput.value = '';
                     renderPlaylistsSS(libraryState.playlists);
                 }
             } catch (e) { console.error(e); }
@@ -793,6 +878,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function openAddToPlaylistModal(trackData) {
         trackToAdd = trackData;
+        if (!trackToAdd) return;
         els.addToPlaylistModal.classList.remove('hidden');
         els.selectPlaylistList.innerHTML = libraryState.playlists.map(pl => `
             <div class="ss-playlist-select-item" data-id="${pl.id}">
@@ -852,7 +938,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const panel = closeBtn.closest('.panel');
             if (panel) closeOverlay(panel.id);
         }
-        
+
         const actionBtn = e.target.closest('.action-btn');
         if (actionBtn) {
             actionBtn.classList.toggle('active');
@@ -873,20 +959,139 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const addBtn = e.target.closest('.slide-btn');
-        if (addBtn && addBtn.innerHTML.includes('plus')) {
+        if (addBtn) {
             const trackRow = addBtn.closest('.search-result-track');
-            if (trackRow) {
-                const trackId = trackRow.dataset.trackId;
-                const fullData = trackCache.get(String(trackId));
-                if (fullData) {
-                    openAddToPlaylistModal(fullData);
+            if (!trackRow) return;
+            const trackId = trackRow.dataset.trackId;
+            const fullData = trackCache.get(String(trackId));
+            if (!fullData) return;
+
+            if (addBtn.classList.contains('btn-add-artist-search')) {
+                const artistId = Number(trackRow.dataset.artistId);
+                const isInLib = libraryState.artistIds.has(artistId);
+                if (!isInLib) {
+                    // Fetch full artist data to get all images and biography
+                    fetch(`/data/audio/artist?artistId=${artistId}`)
+                        .then(res => res.json())
+                        .then(fullArtistData => {
+                            const payload = mapToArtistDto(fullArtistData);
+                            return fetch('/library/artists', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(payload)
+                            });
+                        })
+                        .then(res => {
+                            if (res.ok) {
+                                libraryState.artistIds.add(artistId);
+                                libraryState.needsArtistsSync = true;
+                                renderResults(Array.from(trackCache.values()).filter(t => els.searchResults.querySelector(`[data-track-id="${t.id}"]`)));
+                            }
+                        })
+                        .catch(err => console.error('Failed to add artist from search', err));
                 }
+            } else if (addBtn.classList.contains('btn-add-album-search')) {
+                const albumId = String(trackRow.dataset.albumId);
+                const isInLib = libraryState.albumIds.has(albumId);
+                if (!isInLib) {
+                    // Fetch full album data to get correct image URLs and metadata
+                    fetch(`/data/audio/album?albumId=${albumId}`)
+                        .then(res => res.json())
+                        .then(fullAlbumData => {
+                            const payload = mapToAlbumDto(fullAlbumData);
+                            return fetch('/library/albums', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(payload)
+                            });
+                        })
+                        .then(res => {
+                            if (res.ok) {
+                                libraryState.albumIds.add(albumId);
+                                libraryState.needsAlbumsSync = true;
+                                renderResults(Array.from(trackCache.values()).filter(t => els.searchResults.querySelector(`[data-track-id="${t.id}"]`)));
+                            }
+                        })
+                        .catch(err => console.error('Failed to add album from search', err));
+                }
+            } else if (addBtn.innerHTML.includes('plus')) {
+                openAddToPlaylistModal(fullData);
             }
             e.stopPropagation();
         }
     });
 
+    const closeSwipeActionsInScope = (scopeEl, exceptRow = null) => {
+        if (!scopeEl) return;
+        scopeEl.querySelectorAll('.search-result-track.show-actions').forEach((row) => {
+            if (!exceptRow || row !== exceptRow) row.classList.remove('show-actions');
+        });
+    };
+
+    const closeAllSwipeActions = (exceptRow = null) => {
+        closeSwipeActionsInScope(els.searchResults, exceptRow);
+        closeSwipeActionsInScope(els.artistContent, exceptRow);
+        closeSwipeActionsInScope(els.albumContent, exceptRow);
+    };
+
+    const initSwipeForTrackList = (container) => {
+        if (!container) return;
+        let swipeRow = null;
+        let swipeStartX = 0;
+        let swipeStartY = 0;
+        let swipeLocked = false;
+
+        container.addEventListener('touchstart', (e) => {
+            const row = e.target.closest('.search-result-track');
+            if (!row || e.target.closest('.track-actions-slide') || !e.touches?.[0]) return;
+            swipeRow = row;
+            swipeStartX = e.touches[0].clientX;
+            swipeStartY = e.touches[0].clientY;
+            swipeLocked = false;
+        }, { passive: true });
+
+        container.addEventListener('touchmove', (e) => {
+            if (!swipeRow || !e.touches?.[0] || swipeLocked) return;
+            const dx = e.touches[0].clientX - swipeStartX;
+            const dy = e.touches[0].clientY - swipeStartY;
+            if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 8) {
+                swipeLocked = true;
+                return;
+            }
+            if (dx < -35) {
+                closeAllSwipeActions(swipeRow);
+                swipeRow.classList.add('show-actions');
+            } else if (dx > 25) {
+                swipeRow.classList.remove('show-actions');
+            }
+        }, { passive: true });
+
+        const resetSwipe = () => {
+            swipeRow = null;
+            swipeStartX = 0;
+            swipeStartY = 0;
+            swipeLocked = false;
+        };
+        container.addEventListener('touchend', resetSwipe, { passive: true });
+        container.addEventListener('touchcancel', resetSwipe, { passive: true });
+    };
+
+    document.addEventListener('touchstart', (e) => {
+        const hasOpen = document.querySelector('#search-results-container .search-result-track.show-actions, #artist-content .search-result-track.show-actions, #album-content .search-result-track.show-actions');
+        if (!hasOpen) return;
+        if (e.target.closest('.track-actions-slide')) return;
+        closeAllSwipeActions();
+    }, { capture: true, passive: true });
+
+    document.addEventListener('pointerdown', (e) => {
+        const hasOpen = document.querySelector('#search-results-container .search-result-track.show-actions, #artist-content .search-result-track.show-actions, #album-content .search-result-track.show-actions');
+        if (!hasOpen) return;
+        if (e.target.closest('.track-actions-slide')) return;
+        closeAllSwipeActions();
+    }, { capture: true });
+
     if (els.searchResults) {
+        initSwipeForTrackList(els.searchResults);
         els.searchResults.addEventListener('click', (e) => {
             const trackCard = e.target.closest('.search-result-track');
             if (trackCard && !e.target.closest('.track-actions-slide')) {
@@ -894,6 +1099,8 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
+    initSwipeForTrackList(els.artistContent);
+    initSwipeForTrackList(els.albumContent);
 
     if (els.artistContent) {
         els.artistContent.addEventListener('click', (e) => {
@@ -947,11 +1154,57 @@ document.addEventListener('DOMContentLoaded', () => {
     if (els.backwardBtn) els.backwardBtn.addEventListener('click', () => playAdjacent('prev'));
 
     if (els.timeBarContainer) {
+        let suppressNextTimebarClick = false;
+        const addCutMarkerAtClientX = (clientX) => {
+            if (!player.duration || !currentTrackId) return;
+            const rect = els.timeBarContainer.getBoundingClientRect();
+            if (!rect.width) return;
+            const clickX = Math.max(0, Math.min(rect.width, clientX - rect.left));
+            const markerSec = (clickX / rect.width) * player.duration;
+            const key = String(currentTrackId);
+            const markers = (cutMarkersByTrack.get(key) || []).slice().sort((a, b) => a - b);
+            const hasNearMarker = markers.some(m => Math.abs(m - markerSec) < 0.35);
+            if (hasNearMarker) return;
+            if (markers.length >= 3) markers.shift();
+            markers.push(markerSec);
+            cutMarkersByTrack.set(key, markers.sort((a, b) => a - b));
+            renderCutMarkers();
+        };
+
         els.timeBarContainer.addEventListener('click', (e) => {
+            if (suppressNextTimebarClick) {
+                suppressNextTimebarClick = false;
+                e.preventDefault();
+                return;
+            }
             const width = els.timeBarContainer.offsetWidth;
             const clickX = e.offsetX;
             if (player.duration) player.currentTime = (clickX / width) * player.duration;
         });
+        els.timeBarContainer.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            addCutMarkerAtClientX(e.clientX);
+        });
+
+        let timebarPressTimer = null;
+        els.timeBarContainer.addEventListener('touchstart', (e) => {
+            if (!e.touches || !e.touches[0]) return;
+            const touchX = e.touches[0].clientX;
+            timebarPressTimer = setTimeout(() => {
+                addCutMarkerAtClientX(touchX);
+                suppressNextTimebarClick = true;
+                timebarPressTimer = null;
+            }, 550);
+        }, { passive: true });
+        const cancelTimebarLongPress = () => {
+            if (timebarPressTimer) {
+                clearTimeout(timebarPressTimer);
+                timebarPressTimer = null;
+            }
+        };
+        els.timeBarContainer.addEventListener('touchmove', cancelTimebarLongPress, { passive: true });
+        els.timeBarContainer.addEventListener('touchend', cancelTimebarLongPress);
+        els.timeBarContainer.addEventListener('touchcancel', cancelTimebarLongPress);
     }
 
     if (els.trackArtistContainer) {
@@ -974,26 +1227,38 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderResults(items) {
         items.forEach(item => trackCache.set(String(item.id), item));
-        els.searchResults.innerHTML = items.map(item => `
-            <div class="search-result-track"
-                 data-track-id="${item.id}"
-                 data-artist-id="${item.performer?.id || item.artist?.id}"
-                 data-album-id="${item.album?.id}"
-                 data-title="${escapeHtml(item.title)}"
-                 data-artist="${escapeHtml(item.performer?.name || item.artist?.name)}"
-                 data-album="${escapeHtml(item.album?.title)}"
-                 data-cover="${item.album?.image?.large || item.image?.large || ''}">
-                <img src="${item.album?.image?.small || item.image?.small}" class="search-result-track-cover" loading="lazy">
-                <div class="track-info">
-                    <p class="track-title">${escapeHtml(item.title)}</p>
-                    <p class="track-artist">${escapeHtml(item.performer?.name || item.artist?.name)}</p>
+        els.searchResults.innerHTML = items.map(item => {
+            const artistId = item.performer?.id || item.artist?.id;
+            const albumId = item.album?.id;
+            const isArtistInLib = libraryState.artistIds.has(Number(artistId));
+            const isAlbumInLib = libraryState.albumIds.has(String(albumId));
+
+            return `
+                <div class="search-result-track"
+                     data-track-id="${item.id}"
+                     data-artist-id="${artistId}"
+                     data-album-id="${albumId}"
+                     data-title="${escapeHtml(item.title)}"
+                     data-artist="${escapeHtml(item.performer?.name || item.artist?.name)}"
+                     data-album="${escapeHtml(item.album?.title)}"
+                     data-cover="${item.album?.image?.large || item.image?.large || ''}">
+                    <img src="${item.album?.image?.small || item.image?.small}" class="search-result-track-cover" loading="lazy">
+                    <div class="track-info">
+                        <p class="track-title">${escapeHtml(item.title)}</p>
+                        <p class="track-artist">${escapeHtml(item.performer?.name || item.artist?.name)}</p>
+                    </div>
+                    <div class="track-actions-slide">
+                        <button class="slide-btn btn-add-artist-search ${isArtistInLib ? 'active' : ''}" title="Add Artist">
+                            <i data-lucide="${isArtistInLib ? 'check' : 'user-plus'}"></i>
+                        </button>
+                        <button class="slide-btn btn-add-album-search ${isAlbumInLib ? 'active' : ''}" title="Add Album">
+                            <i data-lucide="${isAlbumInLib ? 'check' : 'plus'}"></i>
+                        </button>
+                    </div>
                 </div>
-                <div class="track-actions-slide">
-                    <button class="slide-btn"><i data-lucide="heart"></i></button>
-                    <button class="slide-btn"><i data-lucide="plus"></i></button>
-                </div>
-            </div>
-        `).join('');
+            `;
+        }).join('');
+        syncPlayingHighlights();
         if(window.lucide) lucide.createIcons();
     }
 
@@ -1070,7 +1335,7 @@ document.addEventListener('DOMContentLoaded', () => {
         list.className = 'flex flex-col w-full space-y-2 mb-12';
         trackList.forEach((t) => {
             const row = document.createElement('div');
-            row.className = 'group flex items-center justify-between py-4 px-6 border-b border-white/5 active:bg-white/10 transition-colors cursor-pointer playable-track search-result-track';
+            row.className = 'group flex items-center justify-between py-4 px-6 border-b border-white/5 active:bg-white/10 transition-colors cursor-pointer playable-track search-result-track AlbumElementsSS';
             row.dataset.trackId = t.id;
             row.dataset.artistId = data.id;
             row.dataset.albumId = t.album?.id;
@@ -1108,6 +1373,7 @@ document.addEventListener('DOMContentLoaded', () => {
             scrollArea.appendChild(grid);
         }
         content.appendChild(scrollArea);
+        syncPlayingHighlights();
         if(window.lucide) lucide.createIcons();
     }
 
@@ -1136,7 +1402,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 trackCache.set(String(t.id), t);
 
                 const row = document.createElement('div');
-                row.className = 'search-result-track playable-track track-row-3d';
+                row.className = 'search-result-track playable-track track-row-3d AlbumElementsSS';
                 row.dataset.trackId = t.id;
                 row.dataset.artistId = data.artist?.id;
                 row.dataset.albumId = data.id;
@@ -1160,15 +1426,45 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         content.appendChild(header);
         content.appendChild(scroll);
+        syncPlayingHighlights();
         if(window.lucide) lucide.createIcons();
     }
 
     function openOverlay(id) {
-        document.getElementById(id).classList.add('active');
+        const panel = document.getElementById(id);
+        if (!panel) return;
+        panel.classList.add('active');
+        // Добавляем состояние в историю
+        history.pushState({ panelId: id }, "", "");
     }
-    function closeOverlay(id) {
-        document.getElementById(id).classList.remove('active');
+
+    function closeOverlay(id, isPopState = false) {
+        const panel = document.getElementById(id);
+        if (!panel) return;
+        panel.classList.remove('active');
+        // Если закрыли вручную (не через кнопку назад), убираем из истории
+        if (!isPopState) {
+            // Если в истории был этот же панель, можно сделать history.back(), 
+            // но для простоты просто закрываем.
+        }
     }
+
+    // Обработка кнопки "Назад"
+    window.addEventListener('popstate', (event) => {
+        const activeOverlays = document.querySelectorAll('.panel.overlay-panel.active');
+        if (activeOverlays.length > 0) {
+            // Закрываем самый верхний оверлей
+            const topOverlay = activeOverlays[activeOverlays.length - 1];
+            closeOverlay(topOverlay.id, true);
+        } else {
+            // Если оверлеев нет, возможно закрыть главную панель
+            const activeMainPanels = document.querySelectorAll('.panel.active:not(.overlay-panel)');
+            if (activeMainPanels.length > 0) {
+                activeMainPanels.forEach(p => p.classList.remove('active'));
+                els.parentContainer.classList.remove('content-scaled');
+            }
+        }
+    });
     function formatTime(s) {
         if (!s) return '0:00';
         const m = Math.floor(s / 60);
@@ -1186,11 +1482,37 @@ document.addEventListener('DOMContentLoaded', () => {
         return '';
     }
 
+    function renderCutMarkers() {
+        if (!els.timeBarContainer) return;
+        els.timeBarContainer.querySelectorAll('.cut-marker').forEach(m => m.remove());
+        if (!player.duration || !currentTrackId) return;
+        const markers = cutMarkersByTrack.get(String(currentTrackId)) || [];
+        markers.forEach(sec => {
+            const marker = document.createElement('div');
+            marker.className = 'cut-marker';
+            marker.style.left = `${(sec / player.duration) * 100}%`;
+            els.timeBarContainer.appendChild(marker);
+        });
+    }
+
+    function maybeSkipCutRange() {
+        if (!currentTrackId || !player.duration) return;
+        const markers = cutMarkersByTrack.get(String(currentTrackId));
+        if (!markers || markers.length < 2) return;
+        const sorted = markers.slice().sort((a, b) => a - b);
+        const start = sorted[0];
+        const end = sorted[sorted.length - 1];
+        if (player.currentTime >= start && player.currentTime < end) {
+            player.currentTime = end;
+        }
+    }
+
     function loop() {
         if (!player.paused && player.duration) {
             const pct = (player.currentTime / player.duration) * 100;
             els.timeBarProgress.style.width = `${pct}%`;
             els.timeCurrent.textContent = formatTime(player.currentTime);
+            maybeSkipCutRange();
         }
         requestAnimationFrame(loop);
     }
@@ -1199,7 +1521,37 @@ document.addEventListener('DOMContentLoaded', () => {
     player.addEventListener('loadedmetadata', () => {
         playerState.duration = player.duration;
         els.timeDuration.textContent = formatTime(player.duration);
+        renderCutMarkers();
     });
     player.addEventListener('ended', () => playAdjacent('next'));
+
+    if (els.playerControls) {
+        const qualityWrap = document.createElement('div');
+        qualityWrap.id = 'quality-selector-wrap';
+        qualityWrap.innerHTML = `
+            <select id="quality-selector" title="Quality">
+                <option value="27|9.0">FLAC</option>
+                <option value="6|4.3">MP3</option>
+                <option value="5|3.1">AAC</option>
+            </select>
+            <button id="cut-reset-btn" title="Reset cut markers">CUT RESET</button>
+        `;
+        els.playerControls.appendChild(qualityWrap);
+        const qualitySelect = qualityWrap.querySelector('#quality-selector');
+        const cutResetBtn = qualityWrap.querySelector('#cut-reset-btn');
+        qualitySelect.addEventListener('change', (e) => {
+            const [formatId, qualityCode] = e.target.value.split('|');
+            qualitySetting = {
+                label: e.target.options[e.target.selectedIndex].text,
+                formatId: Number(formatId),
+                qualityCode
+            };
+        });
+        cutResetBtn.addEventListener('click', () => {
+            if (!currentTrackId) return;
+            cutMarkersByTrack.delete(String(currentTrackId));
+            renderCutMarkers();
+        });
+    }
     if(window.lucide) window.lucide.createIcons();
 });

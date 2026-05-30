@@ -49,12 +49,6 @@ body, html {
     z-index: 1;
 }
 
-.parent-container.content-scaled {
-    transform: scale(0.97); /* iOS depth effect */
-    border-radius: 32px;
-    opacity: 0.8;
-}
-
 .overlays-container {
     position: absolute;
     top: 0;
@@ -72,14 +66,11 @@ body, html {
 
 /* Specific Z-Indexes for Stacking */
 #library-panel {
-
-     z-index: 10;
-     position: relative;
-     height: 92%;
-     width: 100%;
-
-
- }
+    z-index: 10;
+    position: absolute;
+    height: 100%;
+    width: 100%;
+}
 #search-panel { z-index: 10; }
 #player-panel { z-index: 15; height: 100%; } /* Player is always full height */
 
@@ -417,7 +408,7 @@ body, html {
 }
 
 #now_play_bottom_panel_edge.expanded {
-    transform: translateX(80dvw);
+    transform: translateX(60dvw);
 }
 
 /* Instant return when panel is closed */
@@ -574,9 +565,9 @@ body, html {
     height: 12vh;
     padding: 15px 25px 15px 20px;
     left: 0;
-    width: 102vw;
+    width: 100vw;
     top: 3%;
-    position: absolute;
+    position: relative;
     text-align: left;
     clip-path: polygon(0% 0%, 100% 0%, 88% 100%, 0% 100%);
     z-index: 10;
@@ -650,7 +641,7 @@ body, html {
     height: 8dvh;
     width: 55%;
     left: -2%;
-    top: 87%;
+    top: 65%;
 }
 
 #track-artist-container {
@@ -1419,6 +1410,13 @@ color: orangered;
     will-change: opacity, transform;
 }
 
+#artists-lib-container {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-content: flex-start;
+    gap: 14px;
+}
+
 /* Active state for ALL library tabs */
 #library-panel .active-lib-tab {
     opacity: 1 !important;
@@ -1458,6 +1456,87 @@ color: orangered;
     transition: all 0.25s ease;
     position: relative;
     flex-shrink: 0;
+}
+
+.artist-card-lib {
+    width: clamp(150px, 31%, 210px);
+    min-height: 188px;
+    padding: 16px 14px 14px;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: flex-start;
+    gap: 14px;
+    background:
+        radial-gradient(circle at top right, rgba(255, 127, 80, 0.24), transparent 42%),
+        linear-gradient(160deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.03));
+    border-color: rgba(255, 255, 255, 0.08);
+    overflow: hidden;
+}
+
+.artist-card-lib::before {
+    width: 100%;
+    height: 3px;
+    top: auto;
+    bottom: 0;
+    background: linear-gradient(90deg, coral, rgba(255, 255, 255, 0));
+}
+
+.artist-card-lib:hover {
+    transform: translateY(-4px);
+    background:
+        radial-gradient(circle at top right, rgba(255, 127, 80, 0.34), transparent 48%),
+        linear-gradient(160deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.04));
+}
+
+.artist-card-lib__avatar {
+    width: 84px;
+    height: 84px;
+    border-radius: 50%;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, rgba(255, 127, 80, 0.8), rgba(255, 255, 255, 0.16));
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.28);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+.artist-card-lib__avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.artist-card-lib__initial {
+    font-size: 2rem;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: -0.04em;
+}
+
+.artist-card-lib__body {
+    width: 100%;
+    min-width: 0;
+}
+
+.artist-card-lib__body h4 {
+    margin: 0;
+    font-size: 1.02rem;
+    font-weight: 700;
+    line-height: 1.2;
+    color: #fff;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.artist-card-lib__body p {
+    margin: 8px 0 0;
+    font-size: 0.76rem;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    color: rgba(255, 255, 255, 0.52);
 }
 
 .playlist-card-ss::before {
@@ -1516,6 +1595,34 @@ color: orangered;
     overflow: hidden;
     text-overflow: ellipsis;
     letter-spacing: -0.01em;
+}
+
+@media (max-width: 720px) {
+    .artist-card-lib {
+        width: calc(50% - 7px);
+        min-height: 172px;
+    }
+}
+
+@media (max-width: 480px) {
+    #artists-lib-container {
+        gap: 12px;
+    }
+
+    .artist-card-lib {
+        width: 100%;
+        min-height: 112px;
+        padding: 12px;
+        flex-direction: row;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .artist-card-lib__avatar {
+        width: 64px;
+        height: 64px;
+        flex-shrink: 0;
+    }
 }
 
 .playlist-info-ss p {
@@ -1658,7 +1765,7 @@ color: orangered;
     background: rgba(0,0,0,0.1);
     border-radius: 12px;
     cursor: pointer;
-    transition: background 0.15s ease;
+    transition: background 0.15s ease, max-height 0.35s ease, opacity 0.3s ease, margin-bottom 0.35s ease;
     margin-bottom: 4px;
 }
 
@@ -1699,6 +1806,254 @@ color: orangered;
     background: rgba(0,0,0,0.2);
 }
 
+.ss-acid-row.is-removing {
+    opacity: 0;
+    margin-bottom: 0;
+    pointer-events: none;
+}
+
+/* --- Stage 2 Overrides: One-Handed UX + Cyberpunk Geometry --- */
+
+/* Library navigation geometry */
+#library_navigation {
+    position: absolute;
+    width: 100%;
+    height: 113%;
+    pointer-events: none;
+    top: -10%;
+    z-index: 10;
+}
+
+#library-top-header {
+    position: relative;
+    width: 104dvw;
+    height: 9%;
+    box-shadow: 0 0 35px 1px white;
+    background: #000000de;
+    clip-path: polygon(4% 0%, 86% 0%, 75% 97%, 16% 100%);
+    pointer-events: auto;
+}
+
+#library-bottom-nav {
+    backdrop-filter: none;
+}
+
+/* One-handed overlay controls */
+.overlay-bottom-controls {
+    position: absolute;
+    bottom: calc(9dvh + 14px);
+    left: 16px;
+    right: 16px;
+    z-index: 1200;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    pointer-events: none;
+}
+
+.overlay-bottom-btn {
+    pointer-events: auto;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    background: rgba(0, 0, 0, 0.72);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45);
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.overlay-bottom-btn.accent {
+    border-color: rgba(255, 127, 80, 0.45);
+    color: coral;
+}
+
+.overlay-bottom-btn:active {
+    transform: scale(0.94);
+}
+
+/* Replace legacy red close button with modern FAB above NavBot */
+#album-close-fab,
+#playlist-close-fab {
+    bottom: calc(9dvh + 14px);
+    left: 16px;
+    transform: none;
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.82);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #fff;
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+    z-index: 1300;
+}
+
+#album-close-fab:active,
+#playlist-close-fab:active {
+    transform: scale(0.94);
+}
+
+/* Select playlist overlay: no blur, 75% dark, 0.5s transition */
+.ss-modal-overlay {
+    background: rgba(0, 0, 0, 0.75);
+    backdrop-filter: none;
+    opacity: 1;
+    transition: opacity 0.5s ease-in, visibility 0.5s ease-in;
+}
+
+.ss-modal-overlay.hidden {
+    opacity: 0;
+    transition: opacity 0.5s ease-in, visibility 0.5s ease-in;
+}
+
+#create-playlist-modal .ss-modal-actions {
+    justify-content: flex-end;
+    gap: 18px;
+}
+
+#create-playlist-modal .ss-text-btn {
+    background: transparent;
+    border: none;
+    padding: 4px 0;
+    font-weight: 700;
+    font-size: 0.95rem;
+    letter-spacing: 0.01em;
+    color: rgba(255, 255, 255, 0.55);
+}
+
+#create-playlist-modal .ss-text-btn.ss-action-accent {
+    color: coral;
+}
+
+#create-playlist-modal {
+    opacity: 1;
+    visibility: visible;
+    transition: opacity 0.7s linear, visibility 0s linear 0s;
+}
+
+#create-playlist-modal.hidden {
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.7s linear, visibility 0s linear 0.7s;
+}
+
+#create-playlist-modal .ss-modal-window {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    transition: opacity 0.7s linear, transform 0.7s linear;
+}
+
+#create-playlist-modal.hidden .ss-modal-window {
+    opacity: 0;
+    transform: translateY(14px) scale(0.98);
+}
+
+/* Prevent flex squashing in playlist rows */
+.ss-acid-row-content {
+    min-width: 0;
+    flex: 1 1 auto;
+    display: flex;
+    align-items: center;
+}
+
+.ss-acid-title {
+    flex: 1 1 auto;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ss-acid-time {
+    flex-shrink: 0;
+    margin-left: 12px;
+}
+
+.ss-acid-row {
+    touch-action: pan-y;
+}
+
+/* Stage 4: playback helpers */
+#timebar-progress-container {
+    position: relative;
+}
+
+.cut-marker {
+    position: absolute;
+    top: -3px;
+    width: 2px;
+    height: 11px;
+    background: #ff7f50;
+    box-shadow: 0 0 8px rgba(255, 127, 80, 0.8);
+    transform: translateX(-1px);
+    pointer-events: none;
+    z-index: 5;
+}
+
+#quality-selector-wrap {
+    position: absolute;
+    right: 14px;
+    top: -34px;
+    z-index: 12;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(0, 0, 0, 0.45);
+    border: 1px solid rgba(255, 127, 80, 0.25);
+    border-radius: 12px;
+    padding: 4px 6px;
+    backdrop-filter: none;
+}
+
+#quality-selector {
+    background: rgba(0, 0, 0, 0.72);
+    color: #fff;
+    border: 1px solid rgba(255, 127, 80, 0.45);
+    border-radius: 10px;
+    font-size: 12px;
+    padding: 4px 8px;
+    outline: none;
+}
+
+#cut-reset-btn {
+    background: rgba(255, 127, 80, 0.18);
+    color: #ffd5c2;
+    border: 1px solid rgba(255, 127, 80, 0.45);
+    border-radius: 8px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    padding: 4px 7px;
+    cursor: pointer;
+    line-height: 1;
+}
+
+#cut-reset-btn:active {
+    transform: translateY(1px);
+}
+
+@media (max-width: 640px) {
+    #quality-selector-wrap {
+        right: 8px;
+        top: -32px;
+        gap: 5px;
+        padding: 3px 5px;
+    }
+
+    #quality-selector {
+        font-size: 11px;
+        padding: 3px 6px;
+    }
+
+    #cut-reset-btn {
+        font-size: 9px;
+        padding: 3px 6px;
+    }
+}
+
 .ss-acid-title {
     flex: 1;
     color: orangered;
@@ -1716,6 +2071,14 @@ color: orangered;
     margin-left: 20px;
 }
 
+#playlist_select_container {
+    position: absolute;
+    width: 98%;
+    height: 60%;
+    top: 39%;
+    border: 1px solid red;
+    background: linear-gradient(to top, black, transparent);
+}
 .empty-state-ss { grid-column: 1/-1; text-align: center; color: #555; margin-top: 40px; }
 
 /* Playlist Selection List */
