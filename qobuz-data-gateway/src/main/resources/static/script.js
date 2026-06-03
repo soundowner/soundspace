@@ -477,13 +477,13 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    async function handleTrackClick(el, isAutoPlay = false) {
+    async function handleTrackClick(el, isAutoPlay = false, skipShowActions = false) {
         document.querySelectorAll('.search-result-track').forEach(n => n.classList.remove('show-actions'));
         currentTrackId = el.dataset.trackId;
         buildQueueFromNode(el);
         syncPlayingHighlights();
         
-        if (isAutoPlay === false) {
+        if (isAutoPlay === false && !skipShowActions) {
             requestAnimationFrame(() => {
                 el.classList.add('show-actions');
             });
@@ -808,46 +808,6 @@ document.addEventListener('DOMContentLoaded', () => {
         syncPlayingHighlights();
     }
 
-    if (els.addAlbumToLibBtn) {
-        els.addAlbumToLibBtn.addEventListener('click', async () => {
-            if (!currentAlbumData) return;
-            const albumId = String(currentAlbumData.id);
-            const isInLib = libraryState.albumIds.has(albumId);
-
-            if (isInLib) {
-                // Remove
-                try {
-                    const res = await fetch(`/library/albums/${albumId}`, { method: 'DELETE' });
-                    if (res.ok) {
-                        libraryState.albumIds.delete(albumId);
-                        libraryState.albums = libraryState.albums.filter(a => String(a.id) !== albumId);
-                        renderAlbumsSS(libraryState.albums);
-                        libraryState.needsAlbumsSync = true; // Mark as dirty
-                        els.addAlbumToLibBtn.innerHTML = '<i data-lucide="plus"></i>';
-                        if (window.lucide) lucide.createIcons();
-                    }
-                } catch (e) { console.error(e); }
-            } else {
-                // Add
-                const payload = mapToAlbumDto(currentAlbumData);
-                try {
-                    const res = await fetch('/library/albums', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload)
-                    });
-                    if (res.ok) {
-                        libraryState.albumIds.add(albumId);
-                        libraryState.albums.unshift(payload);
-                        renderAlbumsSS(libraryState.albums);
-                        libraryState.needsAlbumsSync = true; // Mark as dirty
-                        els.addAlbumToLibBtn.innerHTML = '<i data-lucide="check"></i>';
-                        if (window.lucide) lucide.createIcons();
-                    }
-                } catch (e) { console.error(e); }
-            }
-        });
-    }
 
     if (els.addArtistToLibBtn) {
         els.addArtistToLibBtn.addEventListener('click', async () => {
@@ -1245,7 +1205,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             const trackRow = e.target.closest('.playable-track');
             if (trackRow && !e.target.closest('.track-actions-slide')) {
-                handleTrackClick(trackRow, false); 
+                handleTrackClick(trackRow, false, true); 
             }
         });
     }
@@ -1400,13 +1360,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (els.albumContent.dataset.loadedId === id) return;
         els.albumContent.dataset.loadedId = id;
         els.albumContent.innerHTML = '<div style="padding:40px; text-align:center">Loading Geometry...</div>';
-        
-        // Reset button icon based on library state
-        if (els.addAlbumToLibBtn) {
-            const isInLib = libraryState.albumIds.has(String(id));
-            els.addAlbumToLibBtn.innerHTML = isInLib ? '<i data-lucide="check"></i>' : '<i data-lucide="plus"></i>';
-            if (window.lucide) lucide.createIcons();
-        }
 
         try {
             const res = await fetch(`/data/audio/album?albumId=${id}`);
@@ -1498,18 +1451,31 @@ document.addEventListener('DOMContentLoaded', () => {
         const header = document.createElement('div');
         header.className = 'album-header-fixed';
         header.style.cssText = 'display:flex; flex-direction:row; align-items:flex-end; padding:40px 20px 20px; background:linear-gradient(180deg, #1e1e1e 0%, #0f0f0f 100%); gap:20px;';
+        
+        const isInLib = libraryState.albumIds.has(String(data.id));
         header.innerHTML = `
-            <img src="${getImg(data)}" style="width:120px; height:120px; border-radius:12px; box-shadow:0 5px 20px rgba(0,0,0,0.5); object-fit:cover">
+            <div style="display:flex; flex-direction:column; align-items:center; gap:8px; flex-shrink:0;">
+                <img src="${getImg(data)}" style="width:120px; height:120px; border-radius:12px; box-shadow:0 5px 20px rgba(0,0,0,0.5); object-fit:cover">
+                <div class="alb_panel_buttons_container">
+                    <button id="add-album-to-lib" class="alb-action-btn" title="Add to Library">
+                        <i data-lucide="${isInLib ? 'check' : 'plus'}"></i>
+                    </button>
+                    <button id="play-album-start" class="alb-action-btn accent" title="Play Album">
+                        <i data-lucide="play"></i>
+                    </button>
+                </div>
+            </div>
             <div class="album-header-info">
                 <h1 class="neon-text" style="font-size:1.2rem; margin:0 0 5px 0; lineHeight:1.1; color:#fff; text-shadow:0 0 12px rgba(255,255,255,0.5); font-weight:700;">${escapeHtml(data.title)}</h1>
                 <p style="color:coral; font-weight:600; margin:0">${escapeHtml(data.artist?.name)}</p>
                 <p style="color:rgba(255,255,255,0.6); font-size:0.8em; margin-top:5px">${new Date(data.released_at * 1000).getFullYear()} • ${escapeHtml(data.genre?.name || 'Music')}</p>
             </div>
         `;
+
         const scroll = document.createElement('div');
         scroll.className = 'track-list-scroll';
         if (data.tracks?.items) {
-            data.tracks.items.forEach((t, i) => {
+            data.tracks.items.forEach((t) => {
                 // Enrich with album and artist info for cache
                 t.album = JSON.parse(JSON.stringify(data));
                 delete t.album.tracks; // Avoid circular/heavy structure
@@ -1527,7 +1493,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 row.dataset.cover = getImg(data);
                 const isTrackLiked = libraryState.likedTrackIds.has(String(t.id));
                 row.innerHTML = `
-                     <div class="track-index-neon" style="width:25px; text-align:center; margin-right:15px; color:coral; font-weight:bold">${i+1}</div>
                      <div class="track-info">
                         <p class="track-title" style="color:#fff">${escapeHtml(t.title)}</p>
                         <p class="track-artist" style="opacity:0.7">${formatTime(t.duration)}</p>
@@ -1540,6 +1505,60 @@ document.addEventListener('DOMContentLoaded', () => {
                 scroll.appendChild(row);
             });
         }
+
+        // Add Listeners dynamically
+        const addBtn = header.querySelector('#add-album-to-lib');
+        if (addBtn) {
+            addBtn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const albumId = String(data.id);
+                const currentIsInLib = libraryState.albumIds.has(albumId);
+                if (currentIsInLib) {
+                    // Remove
+                    try {
+                        const res = await fetch(`/library/albums/${albumId}`, { method: 'DELETE' });
+                        if (res.ok) {
+                            libraryState.albumIds.delete(albumId);
+                            libraryState.albums = libraryState.albums.filter(a => String(a.id) !== albumId);
+                            renderAlbumsSS(libraryState.albums);
+                            libraryState.needsAlbumsSync = true;
+                            addBtn.innerHTML = '<i data-lucide="plus"></i>';
+                            if (window.lucide) lucide.createIcons();
+                        }
+                    } catch (e) { console.error(e); }
+                } else {
+                    // Add
+                    const payload = mapToAlbumDto(data);
+                    try {
+                        const res = await fetch('/library/albums', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                        });
+                        if (res.ok) {
+                            libraryState.albumIds.add(albumId);
+                            libraryState.albums.unshift(payload);
+                            renderAlbumsSS(libraryState.albums);
+                            libraryState.needsAlbumsSync = true;
+                            addBtn.innerHTML = '<i data-lucide="check"></i>';
+                            if (window.lucide) lucide.createIcons();
+                        }
+                    } catch (e) { console.error(e); }
+                }
+            });
+        }
+
+        const playBtn = header.querySelector('#play-album-start');
+        if (playBtn) {
+            playBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const firstTrack = scroll.querySelector('.playable-track');
+                if (firstTrack) {
+                    handleTrackClick(firstTrack, false, true);
+                }
+            });
+        }
+
         content.appendChild(header);
         content.appendChild(scroll);
         syncPlayingHighlights();
