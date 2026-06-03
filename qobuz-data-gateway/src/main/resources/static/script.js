@@ -139,14 +139,16 @@ document.addEventListener('DOMContentLoaded', () => {
         lastUpdated: localStorage.getItem('ss_library_updated'),
         needsArtistsSync: true,
         needsAlbumsSync: true,
-        needsPlaylistsSync: true
+        needsPlaylistsSync: true,
+        needsTracksSync: true
     };
 
     async function syncLibraryIds() {
         try {
-            const [artRes, albRes] = await Promise.all([
+            const [artRes, albRes, trkRes] = await Promise.all([
                 fetch('/library/artists/ids'),
-                fetch('/library/albums/ids')
+                fetch('/library/albums/ids'),
+                fetch('/library/tracks/ids')
             ]);
             if (artRes.ok) {
                 const ids = await artRes.json();
@@ -155,6 +157,10 @@ document.addEventListener('DOMContentLoaded', () => {
             if (albRes.ok) {
                 const ids = await albRes.json();
                 libraryState.albumIds = new Set(ids.map(id => String(id)));
+            }
+            if (trkRes.ok) {
+                const ids = await trkRes.json();
+                libraryState.likedTrackIds = new Set(ids.map(id => String(id)));
             }
         } catch (e) { console.error('ID sync failed', e); }
     }
@@ -229,6 +235,24 @@ document.addEventListener('DOMContentLoaded', () => {
         `).join('');
     }
 
+    async function fetchLikedTracksSS() {
+        if (!els.tracksLibContainer) return;
+        if (!libraryState.needsTracksSync && libraryState.likedTracks.length > 0) return;
+
+        try {
+            const res = await fetch('/library/tracks');
+            if (res.ok) {
+                const tracks = await res.json();
+                libraryState.likedTracks = tracks.map(t => {
+                    trackCache.set(String(t.id), t);
+                    return t;
+                });
+                renderLikedTracksSS();
+                libraryState.needsTracksSync = false;
+            }
+        } catch (e) { console.error('Tracks sync failed', e); }
+    }
+
     function renderLikedTracksSS() {
         if (!els.tracksLibContainer) return;
         const tracks = libraryState.likedTracks;
@@ -238,23 +262,26 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         els.tracksLibContainer.innerHTML = tracks.map(item => {
-            const artistId = item.performer?.id || item.artist?.id;
+            const artistId = item.performer?.id || item.artist?.id || item.album?.artist?.id;
             const albumId = item.album?.id;
             const isTrackLiked = true;
+            const artistName = item.performer?.name || item.artist?.name || item.album?.artist?.name || (item.performers ? item.performers.split(',')[0].split(' - ')[0].trim() : 'Unknown');
+            const coverUrl = item.album?.image?.large || item.image?.large || '';
+            const smallCoverUrl = item.album?.image?.small || item.image?.small || coverUrl;
 
             return `
-                <div class="search-result-track"
+                <div class="search-result-track playable-track"
                      data-track-id="${item.id}"
                      data-artist-id="${artistId}"
                      data-album-id="${albumId}"
                      data-title="${escapeHtml(item.title)}"
-                     data-artist="${escapeHtml(item.performer?.name || item.artist?.name)}"
+                     data-artist="${escapeHtml(artistName)}"
                      data-album="${escapeHtml(item.album?.title)}"
-                     data-cover="${item.album?.image?.large || item.image?.large || ''}">
-                    <img src="${item.album?.image?.small || item.image?.small}" class="search-result-track-cover" loading="lazy">
+                     data-cover="${coverUrl}">
+                    <img src="${smallCoverUrl}" class="search-result-track-cover" loading="lazy">
                     <div class="track-info">
                         <p class="track-title">${escapeHtml(item.title)}</p>
-                        <p class="track-artist">${escapeHtml(item.performer?.name || item.artist?.name)}<span class="track-title-sep"> | </span><span class="track-title-duration">${formatTime(item.duration)}</span></p>
+                        <p class="track-artist">${escapeHtml(artistName)}<span class="track-title-sep"> | </span><span class="track-title-duration">${formatTime(item.duration)}</span></p>
                     </div>
                     <div class="track-actions-slide">
                         <button class="slide-btn btn-like-track ${isTrackLiked ? 'active' : ''}" style="${isTrackLiked ? 'color: coral;' : ''}" title="Like Track">
@@ -286,7 +313,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (tabName === 'tracks' && containers.tracks) {
             containers.tracks.classList.add('active-lib-tab');
-            renderLikedTracksSS();
+            fetchLikedTracksSS();
         } else if (tabName === 'artists' && containers.artists) {
             containers.artists.classList.add('active-lib-tab');
             fetchArtistsSS();
@@ -334,12 +361,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function mapToArtistDto(qobuzArtist) {
         if (!qobuzArtist) return null;
+        let img = mapQobuzImageToDto(qobuzArtist.image);
+        if (!img && qobuzArtist.picture) {
+            img = {
+                small: qobuzArtist.picture,
+                medium: qobuzArtist.picture,
+                large: qobuzArtist.picture
+            };
+        }
+        if (!img && qobuzArtist.albums && qobuzArtist.albums.items && qobuzArtist.albums.items.length > 0) {
+            const firstAlbum = qobuzArtist.albums.items[0];
+            const albumImg = firstAlbum.image || (firstAlbum.picture ? { large: firstAlbum.picture, medium: firstAlbum.picture, small: firstAlbum.picture } : null);
+            img = mapQobuzImageToDto(albumImg);
+        }
         return {
             id: Number(qobuzArtist.id),
             name: qobuzArtist.name,
             slug: qobuzArtist.slug,
             albums_count: qobuzArtist.albums_count,
-            image: mapQobuzImageToDto(qobuzArtist.image),
+            image: img,
             biography: qobuzArtist.biography ? { content: qobuzArtist.biography.content } : null
         };
     }
@@ -1037,24 +1077,45 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    function toggleLikeTrack(track, buttonEl) {
+    async function toggleLikeTrack(track, buttonEl) {
         const trackId = String(track.id);
         const isLiked = libraryState.likedTrackIds.has(trackId);
         
         if (isLiked) {
-            libraryState.likedTrackIds.delete(trackId);
-            libraryState.likedTracks = libraryState.likedTracks.filter(t => String(t.id) !== trackId);
+            try {
+                const res = await fetch(`/library/tracks/${trackId}`, { method: 'DELETE' });
+                if (res.ok) {
+                    libraryState.likedTrackIds.delete(trackId);
+                    libraryState.likedTracks = libraryState.likedTracks.filter(t => String(t.id) !== trackId);
+                    updateHeartIcons(trackId, false);
+                    if (els.tracksLibContainer && els.tracksLibContainer.classList.contains('active-lib-tab')) {
+                        renderLikedTracksSS();
+                    }
+                }
+            } catch (e) { console.error('Failed to remove track from library', e); }
         } else {
-            libraryState.likedTrackIds.add(trackId);
-            libraryState.likedTracks.push(track);
+            const payload = mapToTrackDto(track);
+            try {
+                const res = await fetch('/library/tracks', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (res.ok) {
+                    libraryState.likedTrackIds.add(trackId);
+                    libraryState.likedTracks.unshift(payload);
+                    updateHeartIcons(trackId, true);
+                    if (els.tracksLibContainer && els.tracksLibContainer.classList.contains('active-lib-tab')) {
+                        renderLikedTracksSS();
+                    }
+                }
+            } catch (e) { console.error('Failed to add track to library', e); }
         }
-        
-        localStorage.setItem('ss_liked_tracks', JSON.stringify(libraryState.likedTracks));
-        
-        // Update all heart buttons for this track on the page
+    }
+
+    function updateHeartIcons(trackId, isLikedNow) {
         document.querySelectorAll(`.search-result-track[data-track-id="${trackId}"] .btn-like-track`).forEach(btn => {
-            const isNowLiked = libraryState.likedTrackIds.has(trackId);
-            if (isNowLiked) {
+            if (isLikedNow) {
                 btn.classList.add('active');
                 btn.style.color = 'coral';
                 const i = btn.querySelector('i');
@@ -1076,11 +1137,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
         });
-
-        // Also if we are on the liked tracks tab, re-render it
-        if (els.tracksLibContainer && els.tracksLibContainer.classList.contains('active-lib-tab')) {
-            renderLikedTracksSS();
-        }
     }
 
     const closeSwipeActionsInScope = (scopeEl, exceptRow = null) => {
@@ -1613,7 +1669,14 @@ document.addEventListener('DOMContentLoaded', () => {
     function getImg(item) {
         if (!item) return '';
         if (item.image) return item.image.large || item.image.medium || item.image.small || '';
+        if (item.picture) return item.picture;
         if (item.album && item.album.image) return item.album.image.large || item.album.image.medium || item.album.image.small || '';
+        if (item.album && item.album.picture) return item.album.picture;
+        if (item.albums && item.albums.items && item.albums.items.length > 0) {
+            const firstAlbum = item.albums.items[0];
+            if (firstAlbum.image) return firstAlbum.image.large || firstAlbum.image.medium || firstAlbum.image.small || '';
+            if (firstAlbum.picture) return firstAlbum.picture;
+        }
         return '';
     }
 
