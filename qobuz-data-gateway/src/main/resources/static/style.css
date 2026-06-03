@@ -287,6 +287,7 @@ body, html {
     padding: 10px 20px;
     position: relative; /* Context for slide actions */
     overflow: hidden; /* Hide the sliding buttons when retracted */
+    flex-shrink: 0;
 }
 
 /* --- TRACK SLIDE ACTIONS --- */
@@ -329,6 +330,10 @@ body, html {
 .slide-btn:active { transform: scale(0.9); }
 .slide-btn:hover { background: var(--accent-primary); color: black; }
 .slide-btn svg { width: 18px; height: 18px; }
+.slide-btn.btn-like-track.active svg {
+    fill: coral !important;
+    stroke: coral !important;
+}
 
 .search-result-track.playing {
     background-color: var(--search-bar-background);
@@ -347,12 +352,15 @@ body, html {
     font-family: 'Inter', sans-serif;
     text-shadow: none;
     font-size: 1em;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
 }
 
 #track-title {
     position: relative;
     width: 100%;
-    font-size: 1.8em;
+    font-size: 1.7em;
     white-space: nowrap;
     left: 1%;
     text-shadow: 0 0 1px white;
@@ -366,6 +374,30 @@ body, html {
     margin: 0 0 4px 0;
     text-transform: none; /* More elegant than all-caps */
     letter-spacing: normal;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.track-title-sep {
+    color: var(--text-secondary);
+    opacity: 0.5;
+    margin: 0 2px;
+    font-size: smaller;
+}
+
+.track-title-duration {
+    color: var(--text-secondary);
+    opacity: 0.7;
+    font-weight: normal;
+    font-size: 0.85em;
+}
+
+/* Highlight the active/playing track title across all panels */
+.search-result-track.playing .track-title,
+.search-result-track.playing h4,
+.search-result-track.playing .ss-acid-title {
+    color: #01ff69 !important;
 }
 
 .track-artist {
@@ -375,6 +407,9 @@ body, html {
     margin: 0;
     letter-spacing: normal;
     height: auto;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 /* --- PLAYER PANEL EXPANDED STATES --- */
@@ -1384,7 +1419,7 @@ color: orangered;
     box-shadow: 0 0 20px rgba(255, 127, 80, 0.4);
 }
 
-.ss-playlist-list, #artists-lib-container, #albums-lib-container {
+.ss-playlist-list, #tracks-lib-container, #artists-lib-container, #albums-lib-container {
     display: flex !important;
     flex-direction: column;
     gap: 12px;

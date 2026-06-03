@@ -104,6 +104,7 @@ document.addEventListener('DOMContentLoaded', () => {
         addAlbumToLibBtn: document.getElementById('add-album-to-lib'),
 
         // New Library Containers
+        tracksLibContainer: document.getElementById('tracks-lib-container'),
         artistsLibContainer: document.getElementById('artists-lib-container'),
         albumsLibContainer: document.getElementById('albums-lib-container'),
         playlistsContainer: document.getElementById('playlists-grid-ss'),
@@ -131,8 +132,10 @@ document.addEventListener('DOMContentLoaded', () => {
         playlists: JSON.parse(localStorage.getItem('ss_playlists') || '[]'),
         artists: [],
         albums: [],
+        likedTracks: JSON.parse(localStorage.getItem('ss_liked_tracks') || '[]'),
         artistIds: new Set(),
         albumIds: new Set(),
+        likedTrackIds: new Set(JSON.parse(localStorage.getItem('ss_liked_tracks') || '[]').map(t => String(t.id))),
         lastUpdated: localStorage.getItem('ss_library_updated'),
         needsArtistsSync: true,
         needsAlbumsSync: true,
@@ -226,8 +229,53 @@ document.addEventListener('DOMContentLoaded', () => {
         `).join('');
     }
 
+    function renderLikedTracksSS() {
+        if (!els.tracksLibContainer) return;
+        const tracks = libraryState.likedTracks;
+        if (!tracks || tracks.length === 0) {
+            els.tracksLibContainer.innerHTML = '<div class="empty-state-ss">No liked tracks yet</div>';
+            return;
+        }
+        
+        els.tracksLibContainer.innerHTML = tracks.map(item => {
+            const artistId = item.performer?.id || item.artist?.id;
+            const albumId = item.album?.id;
+            const isTrackLiked = true;
+
+            return `
+                <div class="search-result-track"
+                     data-track-id="${item.id}"
+                     data-artist-id="${artistId}"
+                     data-album-id="${albumId}"
+                     data-title="${escapeHtml(item.title)}"
+                     data-artist="${escapeHtml(item.performer?.name || item.artist?.name)}"
+                     data-album="${escapeHtml(item.album?.title)}"
+                     data-cover="${item.album?.image?.large || item.image?.large || ''}">
+                    <img src="${item.album?.image?.small || item.image?.small}" class="search-result-track-cover" loading="lazy">
+                    <div class="track-info">
+                        <p class="track-title">${escapeHtml(item.title)}</p>
+                        <p class="track-artist">${escapeHtml(item.performer?.name || item.artist?.name)}<span class="track-title-sep"> | </span><span class="track-title-duration">${formatTime(item.duration)}</span></p>
+                    </div>
+                    <div class="track-actions-slide">
+                        <button class="slide-btn btn-like-track ${isTrackLiked ? 'active' : ''}" style="${isTrackLiked ? 'color: coral;' : ''}" title="Like Track">
+                            <i data-lucide="heart" style="${isTrackLiked ? 'fill: coral;' : ''}"></i>
+                        </button>
+                        <button class="slide-btn btn-add-to-playlist" title="Add to Playlist">
+                            <i data-lucide="plus"></i>
+                        </button>
+                    </div>
+                </div>
+            `;
+        }).join('');
+        
+        initSwipeForTrackList(els.tracksLibContainer);
+        syncPlayingHighlights();
+        if (window.lucide) lucide.createIcons();
+    }
+
     function setActiveLibraryTab(tabName) {
         const containers = {
+            tracks: els.tracksLibContainer,
             artists: els.artistsLibContainer,
             albums: els.albumsLibContainer,
             playlists: els.playlistsContainer
@@ -236,7 +284,10 @@ document.addEventListener('DOMContentLoaded', () => {
         Object.values(containers).forEach(c => c && c.classList.remove('active-lib-tab'));
         if (els.libNavBtns) els.libNavBtns.forEach(b => b.classList.remove('active'));
 
-        if (tabName === 'artists' && containers.artists) {
+        if (tabName === 'tracks' && containers.tracks) {
+            containers.tracks.classList.add('active-lib-tab');
+            renderLikedTracksSS();
+        } else if (tabName === 'artists' && containers.artists) {
             containers.artists.classList.add('active-lib-tab');
             fetchArtistsSS();
         } else if (tabName === 'albums' && containers.albums) {
@@ -383,17 +434,19 @@ document.addEventListener('DOMContentLoaded', () => {
             search: els.searchResults,
             artist: els.artistContent,
             album: els.albumContent,
-            playlist: els.playlistContent
+            playlist: els.playlistContent,
+            tracks: els.tracksLibContainer
         }[context];
         if (!scope) return [];
         return Array.from(scope.querySelectorAll('.search-result-track'));
     }
 
     function buildQueueFromNode(node) {
-        const contextRoot = node.closest('#search-results-container, #artist-content, #album-content, #playlist-content-ss');
+        const contextRoot = node.closest('#search-results-container, #artist-content, #album-content, #playlist-content-ss, #tracks-lib-container');
         const context = contextRoot?.id === 'artist-content' ? 'artist'
             : contextRoot?.id === 'album-content' ? 'album'
             : contextRoot?.id === 'playlist-content-ss' ? 'playlist'
+            : contextRoot?.id === 'tracks-lib-container' ? 'tracks'
             : 'search';
         const nodes = getTrackNodesFromContext(context);
         currentQueue = nodes;
@@ -406,6 +459,7 @@ document.addEventListener('DOMContentLoaded', () => {
             '#playlist-content-ss .search-result-track[data-track-id]',
             '#album-content .search-result-track[data-track-id]',
             '#artist-content .search-result-track[data-track-id]',
+            '#tracks-lib-container .search-result-track[data-track-id]',
             '#search-results-container .search-result-track[data-track-id]'
         ];
         for (const selector of selectors) {
@@ -810,7 +864,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         libraryState.artists = libraryState.artists.filter(a => Number(a.id) !== artistId);
                         renderArtistsSS(libraryState.artists);
                         libraryState.needsArtistsSync = true;
-                        els.addArtistToLibBtn.innerHTML = '<i data-lucide="plus"></i>';
+                        els.addArtistToLibBtn.innerHTML = '<i data-lucide="user-plus"></i>';
                         if (window.lucide) lucide.createIcons();
                     }
                 } catch (e) { console.error(e); }
@@ -1014,12 +1068,60 @@ document.addEventListener('DOMContentLoaded', () => {
                         })
                         .catch(err => console.error('Failed to add album from search', err));
                 }
-            } else if (addBtn.innerHTML.includes('plus')) {
+            } else if (addBtn.classList.contains('btn-like-track') || addBtn.innerHTML.includes('heart') || (addBtn.querySelector('i') && addBtn.querySelector('i').dataset.lucide === 'heart')) {
+                toggleLikeTrack(fullData, addBtn);
+            } else if (addBtn.innerHTML.includes('plus') || addBtn.classList.contains('btn-add-to-playlist')) {
                 openAddToPlaylistModal(fullData);
             }
             e.stopPropagation();
         }
     });
+
+    function toggleLikeTrack(track, buttonEl) {
+        const trackId = String(track.id);
+        const isLiked = libraryState.likedTrackIds.has(trackId);
+        
+        if (isLiked) {
+            libraryState.likedTrackIds.delete(trackId);
+            libraryState.likedTracks = libraryState.likedTracks.filter(t => String(t.id) !== trackId);
+        } else {
+            libraryState.likedTrackIds.add(trackId);
+            libraryState.likedTracks.push(track);
+        }
+        
+        localStorage.setItem('ss_liked_tracks', JSON.stringify(libraryState.likedTracks));
+        
+        // Update all heart buttons for this track on the page
+        document.querySelectorAll(`.search-result-track[data-track-id="${trackId}"] .btn-like-track`).forEach(btn => {
+            const isNowLiked = libraryState.likedTrackIds.has(trackId);
+            if (isNowLiked) {
+                btn.classList.add('active');
+                btn.style.color = 'coral';
+                const i = btn.querySelector('i');
+                if (i) i.style.fill = 'coral';
+                const svg = btn.querySelector('svg');
+                if (svg) {
+                    svg.style.fill = 'coral';
+                    svg.style.stroke = 'coral';
+                }
+            } else {
+                btn.classList.remove('active');
+                btn.style.color = '';
+                const i = btn.querySelector('i');
+                if (i) i.style.fill = '';
+                const svg = btn.querySelector('svg');
+                if (svg) {
+                    svg.style.fill = 'none';
+                    svg.style.stroke = '';
+                }
+            }
+        });
+
+        // Also if we are on the liked tracks tab, re-render it
+        if (els.tracksLibContainer && els.tracksLibContainer.classList.contains('active-lib-tab')) {
+            renderLikedTracksSS();
+        }
+    }
 
     const closeSwipeActionsInScope = (scopeEl, exceptRow = null) => {
         if (!scopeEl) return;
@@ -1032,6 +1134,7 @@ document.addEventListener('DOMContentLoaded', () => {
         closeSwipeActionsInScope(els.searchResults, exceptRow);
         closeSwipeActionsInScope(els.artistContent, exceptRow);
         closeSwipeActionsInScope(els.albumContent, exceptRow);
+        closeSwipeActionsInScope(els.tracksLibContainer, exceptRow);
     };
 
     const initSwipeForTrackList = (container) => {
@@ -1077,14 +1180,14 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     document.addEventListener('touchstart', (e) => {
-        const hasOpen = document.querySelector('#search-results-container .search-result-track.show-actions, #artist-content .search-result-track.show-actions, #album-content .search-result-track.show-actions');
+        const hasOpen = document.querySelector('.search-result-track.show-actions');
         if (!hasOpen) return;
         if (e.target.closest('.track-actions-slide')) return;
         closeAllSwipeActions();
     }, { capture: true, passive: true });
 
     document.addEventListener('pointerdown', (e) => {
-        const hasOpen = document.querySelector('#search-results-container .search-result-track.show-actions, #artist-content .search-result-track.show-actions, #album-content .search-result-track.show-actions');
+        const hasOpen = document.querySelector('.search-result-track.show-actions');
         if (!hasOpen) return;
         if (e.target.closest('.track-actions-slide')) return;
         closeAllSwipeActions();
@@ -1099,6 +1202,17 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
+    
+    if (els.tracksLibContainer) {
+        initSwipeForTrackList(els.tracksLibContainer);
+        els.tracksLibContainer.addEventListener('click', (e) => {
+            const trackCard = e.target.closest('.search-result-track');
+            if (trackCard && !e.target.closest('.track-actions-slide')) {
+                handleTrackClick(trackCard, false);
+            }
+        });
+    }
+    
     initSwipeForTrackList(els.artistContent);
     initSwipeForTrackList(els.albumContent);
 
@@ -1231,7 +1345,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const artistId = item.performer?.id || item.artist?.id;
             const albumId = item.album?.id;
             const isArtistInLib = libraryState.artistIds.has(Number(artistId));
-            const isAlbumInLib = libraryState.albumIds.has(String(albumId));
+            const isTrackLiked = libraryState.likedTrackIds.has(String(item.id));
 
             return `
                 <div class="search-result-track"
@@ -1245,14 +1359,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     <img src="${item.album?.image?.small || item.image?.small}" class="search-result-track-cover" loading="lazy">
                     <div class="track-info">
                         <p class="track-title">${escapeHtml(item.title)}</p>
-                        <p class="track-artist">${escapeHtml(item.performer?.name || item.artist?.name)}</p>
+                        <p class="track-artist">${escapeHtml(item.performer?.name || item.artist?.name)}<span class="track-title-sep"> | </span><span class="track-title-duration">${formatTime(item.duration)}</span></p>
                     </div>
                     <div class="track-actions-slide">
-                        <button class="slide-btn btn-add-artist-search ${isArtistInLib ? 'active' : ''}" title="Add Artist">
-                            <i data-lucide="${isArtistInLib ? 'check' : 'user-plus'}"></i>
+                        <button class="slide-btn btn-like-track ${isTrackLiked ? 'active' : ''}" style="${isTrackLiked ? 'color: coral;' : ''}" title="Like Track">
+                            <i data-lucide="heart" style="${isTrackLiked ? 'fill: coral;' : ''}"></i>
                         </button>
-                        <button class="slide-btn btn-add-album-search ${isAlbumInLib ? 'active' : ''}" title="Add Album">
-                            <i data-lucide="${isAlbumInLib ? 'check' : 'plus'}"></i>
+                        <button class="slide-btn btn-add-to-playlist" title="Add to Playlist">
+                            <i data-lucide="plus"></i>
                         </button>
                     </div>
                 </div>
@@ -1270,7 +1384,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Reset button icon based on library state
         if (els.addArtistToLibBtn) {
             const isInLib = libraryState.artistIds.has(Number(id));
-            els.addArtistToLibBtn.innerHTML = isInLib ? '<i data-lucide="check"></i>' : '<i data-lucide="plus"></i>';
+            els.addArtistToLibBtn.innerHTML = isInLib ? '<i data-lucide="check"></i>' : '<i data-lucide="user-plus"></i>';
             if (window.lucide) lucide.createIcons();
         }
 
@@ -1343,14 +1457,15 @@ document.addEventListener('DOMContentLoaded', () => {
             row.dataset.artist = escapeHtml(data.name);
             row.dataset.album = escapeHtml(t.album?.title);
             row.dataset.cover = getImg(t.album);
+            const isTrackLiked = libraryState.likedTrackIds.has(String(t.id));
             row.innerHTML = `
                 <div class="flex-1 min-w-0 mr-4">
                     <h4 class="text-white font-medium text-[20px] truncate leading-tight group-hover:text-white/90">${escapeHtml(t.title)}</h4>
                 </div>
                 <div class="text-neutral-500 text-[13px] font-medium whitespace-nowrap">${formatTime(t.duration)}</div>
                 <div class="track-actions-slide">
-                    <button class="slide-btn"><i data-lucide="heart"></i></button>
-                    <button class="slide-btn"><i data-lucide="plus"></i></button>
+                    <button class="slide-btn btn-like-track ${isTrackLiked ? 'active' : ''}" style="${isTrackLiked ? 'color: coral;' : ''}"><i data-lucide="heart" style="${isTrackLiked ? 'fill: coral;' : ''}"></i></button>
+                    <button class="slide-btn btn-add-to-playlist"><i data-lucide="plus"></i></button>
                 </div>
             `;
             list.appendChild(row);
@@ -1410,6 +1525,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 row.dataset.artist = escapeHtml(data.artist?.name);
                 row.dataset.album = escapeHtml(data.title);
                 row.dataset.cover = getImg(data);
+                const isTrackLiked = libraryState.likedTrackIds.has(String(t.id));
                 row.innerHTML = `
                      <div class="track-index-neon" style="width:25px; text-align:center; margin-right:15px; color:coral; font-weight:bold">${i+1}</div>
                      <div class="track-info">
@@ -1417,8 +1533,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         <p class="track-artist" style="opacity:0.7">${formatTime(t.duration)}</p>
                      </div>
                      <div class="track-actions-slide">
-                        <button class="slide-btn"><i data-lucide="heart"></i></button>
-                        <button class="slide-btn"><i data-lucide="plus"></i></button>
+                        <button class="slide-btn btn-like-track ${isTrackLiked ? 'active' : ''}" style="${isTrackLiked ? 'color: coral;' : ''}"><i data-lucide="heart" style="${isTrackLiked ? 'fill: coral;' : ''}"></i></button>
+                        <button class="slide-btn btn-add-to-playlist"><i data-lucide="plus"></i></button>
                      </div>
                 `;
                 scroll.appendChild(row);
