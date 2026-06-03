@@ -47,7 +47,6 @@ public class LibraryController {
                 .collect(Collectors.toList());
         return ResponseEntity.ok(dtos);
     }
-
     @GetMapping("/albums")
     public ResponseEntity<List<AlbumDto>> getMyAlbums(
             @RequestHeader("X-User-Id") UUID userId) {
@@ -58,6 +57,21 @@ public class LibraryController {
         return ResponseEntity.ok(dtos);
     }
 
+    @GetMapping("/tracks/ids")
+    public ResponseEntity<List<Long>> getMyTrackIds(
+            @RequestHeader("X-User-Id") UUID userId) {
+        return ResponseEntity.ok(libraryService.getUserTrackIds(userId));
+    }
+
+    @GetMapping("/tracks")
+    public ResponseEntity<List<TrackDto>> getMyTracks(
+            @RequestHeader("X-User-Id") UUID userId) {
+        var entities = libraryService.getUserTracks(userId);
+        var dtos = entities.stream()
+                .map(ut -> libraryMapper.toTrack(ut.getTrack()))
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(dtos);
+    }
     /**
      * Добавить артиста в библиотеку пользователя.
      */
@@ -113,6 +127,25 @@ public class LibraryController {
             @PathVariable String albumId) {
         
         libraryService.removeAlbumFromLibrary(userId, albumId);
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/tracks")
+    public ResponseEntity<Void> addTrackToLibrary(
+            @RequestHeader("X-User-Id") UUID userId,
+            @RequestBody TrackDto trackDto) {
+        
+        Track track = libraryMapper.toTrack(trackDto);
+        libraryService.addTrackToLibrary(userId, track);
+        return ResponseEntity.ok().build();
+    }
+
+    @DeleteMapping("/tracks/{trackId}")
+    public ResponseEntity<Void> removeTrackFromLibrary(
+            @RequestHeader("X-User-Id") UUID userId,
+            @PathVariable Long trackId) {
+        
+        libraryService.removeTrackFromLibrary(userId, trackId);
         return ResponseEntity.ok().build();
     }
 

@@ -22,6 +22,7 @@ public class LibraryService {
     private final PlaylistTrackRepository playlistTrackRepository;
     private final UserAlbumRepository userAlbumRepository;
     private final UserArtistRepository userArtistRepository;
+    private final UserTrackRepository userTrackRepository;
 
     @Transactional(readOnly = true)
     public List<String> getUserAlbumIds(UUID userId) {
@@ -34,6 +35,11 @@ public class LibraryService {
     }
 
     @Transactional(readOnly = true)
+    public List<Long> getUserTrackIds(UUID userId) {
+        return userTrackRepository.findAllTrackIdsByUserId(userId);
+    }
+
+    @Transactional(readOnly = true)
     public List<UserArtist> getUserArtists(UUID userId) {
         return userArtistRepository.findAllByUserIdWithArtists(userId);
     }
@@ -41,6 +47,11 @@ public class LibraryService {
     @Transactional(readOnly = true)
     public List<UserAlbum> getUserAlbums(UUID userId) {
         return userAlbumRepository.findAllByUserIdWithAlbums(userId);
+    }
+
+    @Transactional(readOnly = true)
+    public List<UserTrack> getUserTracks(UUID userId) {
+        return userTrackRepository.findAllByUserIdWithTracks(userId);
     }
 
     @Transactional
@@ -94,6 +105,25 @@ public class LibraryService {
     }
 
     @Transactional
+    public void addTrackToLibrary(UUID userId, Track track) {
+        log.debug("Adding track {} to library for user {}", track.getId(), userId);
+
+        Track managedTrack = ensureTrackHierarchySaved(track);
+
+        UserTrackId utId = new UserTrackId(userId, managedTrack.getId());
+        if (!userTrackRepository.existsById(utId)) {
+            int maxPos = userTrackRepository.findMaxPositionByUserId(userId);
+            UserTrack ut = new UserTrack();
+            ut.setId(utId);
+            ut.setTrack(managedTrack);
+            ut.setPosition(maxPos + 1);
+            userTrackRepository.save(ut);
+        } else {
+            log.debug("Track {} already in library for user {}", track.getId(), userId);
+        }
+    }
+
+    @Transactional
     public void removeArtistFromLibrary(UUID userId, Long artistId) {
         userArtistRepository.deleteById(new UserArtistId(userId, artistId));
     }
@@ -101,6 +131,11 @@ public class LibraryService {
     @Transactional
     public void removeAlbumFromLibrary(UUID userId, String albumId) {
         userAlbumRepository.deleteById(new UserAlbumId(userId, albumId));
+    }
+
+    @Transactional
+    public void removeTrackFromLibrary(UUID userId, Long trackId) {
+        userTrackRepository.deleteById(new UserTrackId(userId, trackId));
     }
 
     @Transactional
