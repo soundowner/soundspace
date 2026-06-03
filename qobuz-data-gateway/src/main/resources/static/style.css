@@ -2125,4 +2125,57 @@ color: orangered;
 .ss-playlist-select-info h4 { margin: 0; font-size: 1rem; color: white; }
 .ss-playlist-select-info p { margin: 0; font-size: 0.8rem; color: #888; }
 
+/* Album Panel Buttons and Actions Styling */
+.alb_panel_buttons_container {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    margin-top: 8px;
+}
 
+.alb-action-btn {
+    background: rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: #fff;
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.3s, border-color 0.3s, transform 0.2s, box-shadow 0.3s;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.alb-action-btn:hover {
+    background: rgba(255, 255, 255, 0.18);
+    border-color: rgba(255, 255, 255, 0.35);
+    transform: translateY(-2px) scale(1.05);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+}
+
+.alb-action-btn:active {
+    transform: translateY(0) scale(0.95);
+    background: rgba(255, 255, 255, 0.12);
+}
+
+.alb-action-btn.accent {
+    background: var(--accent-primary, coral);
+    border-color: transparent;
+    color: #000;
+}
+
+.alb-action-btn.accent:hover {
+    background: #ff7f50;
+    color: #000;
+    box-shadow: 0 6px 20px rgba(255, 127, 80, 0.45);
+}
+
+.alb-action-btn.accent:active {
+    background: #e06d43;
+}
