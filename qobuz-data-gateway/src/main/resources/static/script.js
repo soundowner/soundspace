@@ -84,6 +84,7 @@ document.addEventListener('DOMContentLoaded', () => {
         createPlaylistConfirm: document.getElementById('create-playlist-confirm'),
         createPlaylistCancel: document.getElementById('create-playlist-cancel'),
         playlistTitleInput: document.getElementById('playlist_title'),
+        currentLibraryLabel: document.getElementById('current_library-label'),
 
         // Playlist Detail
         playlistPanel: document.getElementById('playlist-panel'),
@@ -209,7 +210,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                     <div class="artist-card-lib__body">
                         <h4>${escapeHtml(art.name)}</h4>
-                        <p>Artist Library</p>
+                        <p>${escapeHtml(art.genre || 'Music')}</p>
                     </div>
                 </div>
             `;
@@ -334,6 +335,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (els.createPlaylistBtn) {
             els.createPlaylistBtn.style.display = tabName === 'playlists' ? 'flex' : 'none';
         }
+
+        if (els.currentLibraryLabel) {
+            els.currentLibraryLabel.textContent = tabName;
+        }
     }
 
     // Tab switching logic for Library
@@ -374,12 +379,14 @@ document.addEventListener('DOMContentLoaded', () => {
             const albumImg = firstAlbum.image || (firstAlbum.picture ? { large: firstAlbum.picture, medium: firstAlbum.picture, small: firstAlbum.picture } : null);
             img = mapQobuzImageToDto(albumImg);
         }
+        const genreName = qobuzArtist.genre?.name || (qobuzArtist.albums?.items?.[0]?.genre?.name) || 'Music';
         return {
             id: Number(qobuzArtist.id),
             name: qobuzArtist.name,
             slug: qobuzArtist.slug,
             albums_count: qobuzArtist.albums_count,
             image: img,
+            genre: genreName,
             biography: qobuzArtist.biography ? { content: qobuzArtist.biography.content } : null
         };
     }
@@ -611,12 +618,19 @@ document.addEventListener('DOMContentLoaded', () => {
         els.playBottomPart.classList.remove('expanded');
         els.playBottomEdge.classList.remove('expanded');
 
+        // Снимаем класс active со всех нижних кнопок
+        els.bottomNavbar.querySelectorAll('.nav-button').forEach(btn => btn.classList.remove('active'));
+
         if (panelId === 'close-panel') {
             document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
             els.parentContainer.classList.remove('content-scaled');
             dismissSearch();
             return;
         }
+
+        // Подсвечиваем активную кнопку
+        navBtn.classList.add('active');
+
         const target = document.getElementById(panelId);
         if (target) {
             const isAlreadyActive = target.classList.contains('active');
