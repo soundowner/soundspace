@@ -456,39 +456,73 @@ body, html {
 .bottom-navbar {
     position: absolute;
     bottom: 0;
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
     left: 0;
     width: 100dvw;
-    height: 9dvh;
-    background: #00000073;
+    height: 10dvh;
+    background: #1818188f;
     display: flex;
-    justify-content: space-around;
+    justify-content: normal;
     align-items: center;
     box-shadow: none;
     z-index: 111111;
 }
 
+#bottom-nav-buttons-container {
+    position: relative;
+    width: 70%;
+    height: 70%;
+    clip-path: polygon(4% -4%, 95% -2%, 87% 100%, 11% 100%);
+    background: #101010;
+    top: -15%;
+    left: 14%;
+    z-index: 7;
+    display: flex;
+    /* box-shadow: #ff4308 0 0 12px; */
+    justify-content: center;
+    pointer-events: auto;
+}
+
 .nav-button {
     background: none;
     border: none;
-    padding: 10px;
+    padding: 0;
     cursor: pointer;
     outline: none;
     -webkit-tap-highlight-color: transparent;
-    transition: transform 0.2s ease;
+    transition: transform 0.2s ease, color 0.3s ease;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    width: 19%;
+    height: 100%;
+    color: var(--text-secondary);
 }
 
 .nav-button:active { transform: none; opacity: 0.7; }
 
 .nav-button .material-symbols-outlined {
-    font-size: 32px;
-    color: var(--text-secondary);
+    font-size: 28px;
+    color: inherit;
     transition: color 0.3s ease, text-shadow 0.3s ease;
     text-shadow: none;
 }
 
-.nav-button.active .material-symbols-outlined {
+.nav-button.active {
     color: var(--accent-primary);
-    text-shadow: 0 0 15px var(--accent-primary);
+}
+
+.nav-button-label {
+    font-size: 7px;
+    /* font-weight: 600; */
+    line-height: 1;
+    color: inherit;
+    text-align: center;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
 }
 
 .player-controls-button svg {
@@ -1379,10 +1413,10 @@ color: orangered;
  }
 
 .ss-text-btn { background: transparent; border: none; color: #808080; font-weight: 600; cursor: pointer; }
-.ss-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.8); backdrop-filter: blur(8px); z-index: 9999; display: flex; align-items: center; justify-content: center; opacity: 1; pointer-events: auto; transition: opacity 0.3s, visibility 0.3s; visibility: visible; }
-.ss-modal-overlay.hidden { opacity: 0; pointer-events: none; visibility: hidden; transition: opacity 0.3s linear}
-.ss-modal-window { width: 90%; max-width: 400px; background: #1E1E1E; border-radius: 20px; padding: 24px; box-shadow: 0 20px 50px rgba(0,0,0,0.5); transform: scale(1); transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); }
-.ss-modal-overlay.hidden .ss-modal-window { transform: scale(0.9); }
+.ss-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(5px); z-index: 9999; display: flex; align-items: center; justify-content: center; opacity: 1; pointer-events: auto; transition: opacity 0.5s linear, visibility 0s linear 0s; visibility: visible; }
+.ss-modal-overlay.hidden { display: flex !important; opacity: 0; pointer-events: none; visibility: hidden; transition: opacity 0.3s linear, visibility 0s linear 0.3s; }
+.ss-modal-window { width: 70%; max-width: 400px; backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px); background: #1e1e1e59; border-radius: 20px; padding: 24px; box-shadow: 0 20px 50px rgba(0,0,0,0.5); transform: scale(1); border: 1px solid rgba(255, 255, 255, 0.08); transition: transform 0.5s cubic-bezier(0.34, 1.3, 0.64, 1); }
+.ss-modal-overlay.hidden .ss-modal-window { transform: scale(0.92); transition: transform 0.3s cubic-bezier(0.34, 1.3, 0.64, 1); }
 .ss-modal-body { display: flex; gap: 16px; margin: 20px 0; }
 .ss-modal-cover { width: 80px; height: 80px; background: #333; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #555; flex-shrink: 0; }
 .ss-modal-inputs { flex: 1; display: flex; flex-direction: column; gap: 10px; }
@@ -1394,8 +1428,35 @@ color: orangered;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 20px 5px;
-    margin-bottom: 10px;
+    box-shadow: 0 0 6px 1px black;
+    background: #1414148f;
+    z-index: 111;
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+    border-bottom-left-radius: 11px;
+    /* padding: 20px 5px; */
+    height: 12dvh;
+    /* border: 1px solid; */
+}
+
+#current_library-label {
+    position: relative;
+    width: 62%;
+    height: 45%;
+    clip-path: polygon(10% 0%, 90% 0%, 100% 100%, 0% 100%);
+    background: #00000085;
+    top: 30%;
+    left: -43%;
+    z-index: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    pointer-events: auto;
+    color: coral;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
 }
 
 .ss-icon-btn-circle {
@@ -1471,8 +1532,24 @@ color: orangered;
     background: transparent;
     border: none;
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
+    gap: 4px;
+}
+
+.lib-nav i {
+    font-size: 22px; /* Slightly larger, but not too big */
+}
+
+.lib-nav-label {
+    font-size: 6.5px;
+    font-weight: 600;
+    line-height: 1;
+    color: inherit;
+    text-align: center;
+    letter-spacing: 0.04em;
+    text-transform: lowercase;
 }
 
 .lib-nav.active {
@@ -1501,9 +1578,6 @@ color: orangered;
     align-items: flex-start;
     justify-content: flex-start;
     gap: 14px;
-    background:
-        radial-gradient(circle at top right, rgba(255, 127, 80, 0.24), transparent 42%),
-        linear-gradient(160deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.03));
     border-color: rgba(255, 255, 255, 0.08);
     overflow: hidden;
 }
@@ -1518,14 +1592,11 @@ color: orangered;
 
 .artist-card-lib:hover {
     transform: translateY(-4px);
-    background:
-        radial-gradient(circle at top right, rgba(255, 127, 80, 0.34), transparent 48%),
-        linear-gradient(160deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.04));
 }
 
 .artist-card-lib__avatar {
-    width: 84px;
-    height: 84px;
+    width: 100px;
+    height: 100px;
     border-radius: 50%;
     overflow: hidden;
     display: flex;
@@ -1552,6 +1623,7 @@ color: orangered;
 .artist-card-lib__body {
     width: 100%;
     min-width: 0;
+    height: 85%;
 }
 
 .artist-card-lib__body h4 {
@@ -1571,7 +1643,7 @@ color: orangered;
     font-size: 0.76rem;
     text-transform: uppercase;
     letter-spacing: 0.16em;
-    color: rgba(255, 255, 255, 0.52);
+    color: var(--accent-primary, coral);
 }
 
 .playlist-card-ss::before {
@@ -1936,12 +2008,17 @@ color: orangered;
     background: rgba(0, 0, 0, 0.75);
     backdrop-filter: none;
     opacity: 1;
-    transition: opacity 0.5s ease-in, visibility 0.5s ease-in;
+    visibility: visible;
+    pointer-events: auto;
+    transition: opacity 0.5s linear, visibility 0s linear 0s;
 }
 
 .ss-modal-overlay.hidden {
+    display: flex !important;
     opacity: 0;
-    transition: opacity 0.5s ease-in, visibility 0.5s ease-in;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity 0.3s linear, visibility 0s linear 0.3s;
 }
 
 #create-playlist-modal .ss-modal-actions {
@@ -1966,24 +2043,26 @@ color: orangered;
 #create-playlist-modal {
     opacity: 1;
     visibility: visible;
-    transition: opacity 0.7s linear, visibility 0s linear 0s;
+    transition: opacity 0.5s linear, visibility 0s linear 0s;
 }
 
 #create-playlist-modal.hidden {
+    display: flex !important;
     opacity: 0;
     visibility: hidden;
-    transition: opacity 0.7s linear, visibility 0s linear 0.7s;
+    transition: opacity 0.3s linear, visibility 0s linear 0.3s;
 }
 
 #create-playlist-modal .ss-modal-window {
     opacity: 1;
     transform: translateY(0) scale(1);
-    transition: opacity 0.7s linear, transform 0.7s linear;
+    transition: opacity 0.5s cubic-bezier(0.34, 1.3, 0.64, 1), transform 0.5s cubic-bezier(0.34, 1.3, 0.64, 1);
 }
 
 #create-playlist-modal.hidden .ss-modal-window {
     opacity: 0;
     transform: translateY(14px) scale(0.98);
+    transition: opacity 0.3s cubic-bezier(0.34, 1.3, 0.64, 1), transform 0.3s cubic-bezier(0.34, 1.3, 0.64, 1);
 }
 
 /* Prevent flex squashing in playlist rows */

@@ -33,7 +33,7 @@
             height: 8%;
             clip-path: polygon(10% 0%, 90% 0%, 100% 100%, 0% 100%);
             background: #0000007d;
-            top: 92%;
+            top: 91%;
             left: 18%;
             z-index: 1;
             display: flex;
@@ -77,10 +77,22 @@
                         </div>
                         <div id="library-bottom-nav">
 
-                            <button class="lib-nav" data-lib-tab="tracks"><i class="fa-solid fa-music"></i></button>
-                            <button class="lib-nav" data-lib-tab="playlists"><i class="fa-solid fa-list"></i></button>
-                            <button class="lib-nav" data-lib-tab="albums"><i class="fa-solid fa-compact-disc"></i></button>
-                            <button class="lib-nav" data-lib-tab="artists"><i class="fa-solid fa-user"></i></button>
+                            <button class="lib-nav" data-lib-tab="tracks">
+                                <i class="fa-solid fa-music"></i>
+                                <span class="lib-nav-label">tracks</span>
+                            </button>
+                            <button class="lib-nav" data-lib-tab="playlists">
+                                <i class="fa-solid fa-list"></i>
+                                <span class="lib-nav-label">playlists</span>
+                            </button>
+                            <button class="lib-nav" data-lib-tab="albums">
+                                <i class="fa-solid fa-compact-disc"></i>
+                                <span class="lib-nav-label">albums</span>
+                            </button>
+                            <button class="lib-nav" data-lib-tab="artists">
+                                <i class="fa-solid fa-user"></i>
+                                <span class="lib-nav-label">artists</span>
+                            </button>
 
                         </div>
                     </div>
@@ -106,6 +118,7 @@
                 </div>
                 <div class="library-header-ss">
                     <h2 class="neon-text">My Library</h2>
+                    <div id="current_library-label"></div>
                     <button id="create_playlist_btn" class="ss-icon-btn-circle">
                         <i data-lucide="plus"></i>
                     </button>
@@ -273,10 +286,24 @@
         </div>
 
         <nav class="bottom-navbar">
-            <button class="nav-button" data-panel="library-panel"><span class="material-symbols-outlined">library_music</span></button>
-            <button id="search-button" class="nav-button" data-panel="search-panel"><span class="material-symbols-outlined">search</span></button>
-            <button class="nav-button" data-panel="player-panel"><span class="material-symbols-outlined">play_circle</span></button>
-            <button id="close-button" class="nav-button" data-panel="close-panel"><span class="material-symbols-outlined">close</span></button>
+            <div id="bottom-nav-buttons-container">
+                <button class="nav-button" data-panel="library-panel">
+                    <span class="material-symbols-outlined">library_music</span>
+                    <span class="nav-button-label">library</span>
+                </button>
+                <button id="search-button" class="nav-button" data-panel="search-panel">
+                    <span class="material-symbols-outlined">search</span>
+                    <span class="nav-button-label">search</span>
+                </button>
+                <button class="nav-button" data-panel="player-panel">
+                    <span class="material-symbols-outlined">play_circle</span>
+                    <span class="nav-button-label">player</span>
+                </button>
+                <button id="close-button" class="nav-button" data-panel="close-panel">
+                    <span class="material-symbols-outlined">close</span>
+                    <span class="nav-button-label">close</span>
+                </button>
+            </div>
         </nav>
     </div>
 </div>
