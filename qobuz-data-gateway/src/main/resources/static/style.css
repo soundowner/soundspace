@@ -1435,28 +1435,66 @@ color: orangered;
     -webkit-backdrop-filter: blur(5px);
     border-bottom-left-radius: 11px;
     /* padding: 20px 5px; */
-    height: 12dvh;
+    height: 8dvh;
     /* border: 1px solid; */
 }
 
-#current_library-label {
+.library-header-ss .neon-text {
     position: relative;
-    width: 62%;
-    height: 45%;
-    clip-path: polygon(10% 0%, 90% 0%, 100% 100%, 0% 100%);
+    left: 7%;
+    top: 14%;
+    font-size: 17px;
+    font-style: italic;
+    text-transform: uppercase;
+    font-family: sans-serif;
+    /* letter-spacing: 5px; */
+}
+
+#current_library-label-container {
+    position: relative;
+    width: 77%;
+    height: 57%;
+    clip-path: polygon(6% 0%, 100% 0%, 100% 100%, 0% 100%);
     background: #00000085;
-    top: 30%;
-    left: -43%;
+    top: 20%;
+    left: 6%;
     z-index: 1;
     display: flex;
-    justify-content: center;
+    border-bottom: 1px solid;
+    justify-content: left;
+    font-style: italic;
     align-items: center;
     pointer-events: auto;
     color: coral;
-    font-size: 10px;
+    font-size: 21px;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.05em;
+    overflow: hidden;
+}
+
+#current_library-label {
+    /* position: relative; */
+    width: 58%;
+    height: 57%;
+    /* clip-path: polygon(10% 0%, 90% 0%, 100% 100%, 0% 100%); */
+    /* background: #00000085; */
+    top: 20%;
+    left: 0%;
+    z-index: 1;
+    display: flex;
+    /* border-bottom: 1px solid; */
+    justify-content: center;
+    font-style: italic;
+    align-items: center;
+    pointer-events: auto;
+    color: coral;
+    font-size: 21px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    opacity: 1;
+    transition: opacity 0.35s ease;
 }
 
 .ss-icon-btn-circle {
