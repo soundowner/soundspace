@@ -42,6 +42,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentQueueIndex = -1;
     const cutMarkersByTrack = new Map();
     let qualitySetting = { label: 'FLAC', formatId: 27, qualityCode: '9.0' };
+    let libraryLabelTimeout = null;
     
     // --- ELEMENTS ---
     const els = {
@@ -141,7 +142,8 @@ document.addEventListener('DOMContentLoaded', () => {
         needsArtistsSync: true,
         needsAlbumsSync: true,
         needsPlaylistsSync: true,
-        needsTracksSync: true
+        needsTracksSync: true,
+        lastTab: localStorage.getItem('ss_last_library_tab') || 'playlists'
     };
 
     async function syncLibraryIds() {
@@ -238,13 +240,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function fetchLikedTracksSS() {
         if (!els.tracksLibContainer) return;
-        if (!libraryState.needsTracksSync && libraryState.likedTracks.length > 0) return;
+        if (!libraryState.needsTracksSync && libraryState.likedTracks.length > 0) {
+            renderLikedTracksSS();
+            return;
+        }
 
         try {
             const res = await fetch('/library/tracks');
             if (res.ok) {
                 const tracks = await res.json();
-                libraryState.likedTracks = tracks.map(t => {
+                libraryState.likedTracks = tracks.reverse().map(t => {
                     trackCache.set(String(t.id), t);
                     return t;
                 });
@@ -337,8 +342,27 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (els.currentLibraryLabel) {
-            els.currentLibraryLabel.textContent = tabName;
+            const currentText = els.currentLibraryLabel.textContent.trim();
+            if (!currentText) {
+                els.currentLibraryLabel.textContent = tabName;
+            } else if (currentText.toLowerCase() !== tabName.toLowerCase()) {
+                if (libraryLabelTimeout) {
+                    clearTimeout(libraryLabelTimeout);
+                }
+                
+                // Сбрасываем сдвиг, если он остался инлайново, и запускаем затухание
+                els.currentLibraryLabel.style.transform = '';
+                els.currentLibraryLabel.style.opacity = '0';
+                
+                libraryLabelTimeout = setTimeout(() => {
+                    els.currentLibraryLabel.textContent = tabName;
+                    els.currentLibraryLabel.style.opacity = '1';
+                    libraryLabelTimeout = null;
+                }, 350);
+            }
         }
+        libraryState.lastTab = tabName;
+        localStorage.setItem('ss_last_library_tab', tabName);
     }
 
     // Tab switching logic for Library
@@ -659,7 +683,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
             if (panelId === 'library-panel') {
-                setActiveLibraryTab('playlists');
+                setActiveLibraryTab(libraryState.lastTab);
             }
         }
     });
@@ -1102,7 +1126,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     libraryState.likedTrackIds.delete(trackId);
                     libraryState.likedTracks = libraryState.likedTracks.filter(t => String(t.id) !== trackId);
                     updateHeartIcons(trackId, false);
-                    if (els.tracksLibContainer && els.tracksLibContainer.classList.contains('active-lib-tab')) {
+                    if (els.tracksLibContainer) {
                         renderLikedTracksSS();
                     }
                 }
@@ -1119,7 +1143,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     libraryState.likedTrackIds.add(trackId);
                     libraryState.likedTracks.unshift(payload);
                     updateHeartIcons(trackId, true);
-                    if (els.tracksLibContainer && els.tracksLibContainer.classList.contains('active-lib-tab')) {
+                    if (els.tracksLibContainer) {
                         renderLikedTracksSS();
                     }
                 }
