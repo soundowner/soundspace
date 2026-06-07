@@ -240,10 +240,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function fetchLikedTracksSS() {
         if (!els.tracksLibContainer) return;
-        if (!libraryState.needsTracksSync && libraryState.likedTracks.length > 0) {
-            renderLikedTracksSS();
-            return;
-        }
+        if (!libraryState.needsTracksSync && libraryState.likedTracks.length > 0) return;
 
         try {
             const res = await fetch('/library/tracks');
