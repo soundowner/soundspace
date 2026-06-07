@@ -152,6 +152,9 @@
             </div>
 
             <div class="panel" id="player-panel">
+                <div id="player-panel-container-bg-container">
+                    <img src="" alt="bg"/>
+                </div>
                 <div id="player-panel-container">
                     <div id="track-cover-and-context-buttons-container">
                         <div id="track-cover-container">
@@ -194,15 +197,15 @@
                                 <div class="actions-view-static">
                                     <button class="action-btn" id="btn-like"><i class="fa-solid fa-heart" style="color:#2cec9b; font-size:large;"></i></button>
                                     <button class="action-btn" id="btn-add"><i class="fa-solid fa-plus" style="color:#2cec9b; font-size:large;"></i></button>
-                                    <button class="action-btn" id="btn-download"><i class="fa-solid fa-download" style="color:#2cec9b;font-size:large;"></i></button>
-                                    <button class="action-btn" id="btn-share"><i class="fa-solid fa-share" style="color:#2cec9b;font-size:large;"></i></button>
+                                    <div id="quality-selector-wrap">
+                                        <select id="quality-selector" title="Quality">
+                                            <option value="27|9.0">FLAC</option>
+                                            <option value="6|4.3">MP3</option>
+                                            <option value="5|3.1">AAC</option>
+                                        </select>
+                                        <button id="cut-reset-btn" title="Reset cut markers">CUT RESET</button>
+                                    </div>
                                 </div>
-                            </div>
-
-                            <div id="playlist_select_container">
-
-
-
                             </div>
 
                         </div>
@@ -220,12 +223,9 @@
                             </div>
                         </div>
 
-                        <div id="now_play_bottom_panel_edge">
-
-                            <div id="time-container">
-                                <span id="current-time">0:00</span>
-                                <span id="duration">0:00</span>
-                            </div>
+                        <div id="time-container">
+                            <span id="current-time">0:00</span>
+                            <span id="duration">0:00</span>
                         </div>
 
                         <div id="player-controls-container">
@@ -265,6 +265,7 @@
 
             <!-- SELECTED PLAYLIST OVERLAY -->
             <div id="playlist-panel" class="panel overlay-panel">
+                <div class="playlist-blur-bg" id="playlist-blur-bg-ss"></div>
                 <div class="scroll-content" id="playlist-content-ss">
                     <!-- Tracks will be injected here -->
                 </div>
