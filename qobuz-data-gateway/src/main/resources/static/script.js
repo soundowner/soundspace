@@ -115,15 +115,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentArtistData = null;
     let currentAlbumData = null;
 
-    // --- EXPANSION LOGIC ---
-    if (els.playerPanel) {
-        els.playerPanel.addEventListener('transitionend', (e) => {
-            // Срабатывает только когда панель закончила выезжать (transform)
-            if (e.propertyName === 'transform' && els.playerPanel.classList.contains('active')) {
-                els.playBottomPart.classList.add('expanded');
-            }
-        });
-    }
+
 
     let libraryState = {
         playlists: JSON.parse(localStorage.getItem('ss_playlists') || '[]'),
@@ -207,7 +199,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                     <div class="artist-card-lib__body">
                         <h4>${escapeHtml(art.name)}</h4>
-                        <p>${escapeHtml(art.genre || 'Music')}</p>
                     </div>
                 </div>
             `;
@@ -220,17 +211,21 @@ document.addEventListener('DOMContentLoaded', () => {
             els.albumsLibContainer.innerHTML = '<div class="empty-state-ss">No albums yet</div>';
             return;
         }
-        els.albumsLibContainer.innerHTML = albums.map(alb => `
-            <div class="playlist-card-ss album-card-lib" data-id="${alb.id}">
-                <div class="playlist-cover-ss">
-                    ${alb.image?.small ? `<img src="${alb.image.small}">` : '<span class="material-symbols-outlined">album</span>'}
+        els.albumsLibContainer.innerHTML = albums.map(alb => {
+            const imgUrl = alb.image?.large || alb.image?.small || '';
+            return `
+                <div class="playlist-card-ss album-card-lib" data-id="${alb.id}">
+                    <div class="album-cover-container">
+                        ${imgUrl ? `<div class="vinyl-disk" style="background-image: url('${imgUrl}')"></div>` : '<div class="vinyl-disk fallback-vinyl"><span class="material-symbols-outlined">album</span></div>'}
+                    </div>
+                    <div class="playlist-info-ss">
+                        <h4>${escapeHtml(alb.title)}</h4>
+                        <p>${escapeHtml(alb.artist?.name || 'Unknown')}</p>
+                        ${alb.tracks_count ? `<p class="album-tracks-count">${alb.tracks_count} ${alb.tracks_count === 1 ? 'track' : 'tracks'}</p>` : ''}
+                    </div>
                 </div>
-                <div class="playlist-info-ss">
-                    <h4>${escapeHtml(alb.title)}</h4>
-                    <p>${escapeHtml(alb.artist?.name || 'Unknown')}</p>
-                </div>
-            </div>
-        `).join('');
+            `;
+        }).join('');
     }
 
     async function fetchLikedTracksSS() {
@@ -653,8 +648,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!navBtn) return;
         const panelId = navBtn.dataset.panel;
 
-        // Сбрасываем расширение плеера при любом переключении/закрытии
-        els.playBottomPart.classList.remove('expanded');
+
 
         // Снимаем класс active со всех нижних кнопок
         els.bottomNavbar.querySelectorAll('.nav-button').forEach(btn => btn.classList.remove('active'));

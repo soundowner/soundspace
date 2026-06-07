@@ -9,3 +9,8 @@ api-learning/
 .idea/
 *.iml
 .env
+/qobuz-data-gateway/src/main/resources/static/STRUCTURE.md
+/GEMINI.md
+/liked_tracks_tasks.md
+/frontend_structure.md
+/backend_STRUCTURE.md
