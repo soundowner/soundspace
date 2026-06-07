@@ -99,7 +99,6 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // New elements for expansion
         playBottomPart: document.getElementById('now_play_bottom_panel_part'),
-        playBottomEdge: document.getElementById('now_play_bottom_panel_edge'),
 
         // Library Add Buttons (Overlays)
         addArtistToLibBtn: document.getElementById('add-artist-to-lib'),
@@ -122,10 +121,6 @@ document.addEventListener('DOMContentLoaded', () => {
             // Срабатывает только когда панель закончила выезжать (transform)
             if (e.propertyName === 'transform' && els.playerPanel.classList.contains('active')) {
                 els.playBottomPart.classList.add('expanded');
-                // Небольшая задержка для последовательности, как вы просили
-                setTimeout(() => {
-                    els.playBottomEdge.classList.add('expanded');
-                }, 100);
             }
         });
     }
@@ -481,6 +476,19 @@ document.addEventListener('DOMContentLoaded', () => {
             if (els.bgImage) els.bgImage.src = track.cover;
         }
 
+        const isLikedNow = libraryState.likedTrackIds.has(String(track.id));
+        const playerBtnLike = document.getElementById('btn-like');
+        if (playerBtnLike) {
+            const icon = playerBtnLike.querySelector('i');
+            if (isLikedNow) {
+                playerBtnLike.classList.add('active');
+                if (icon) icon.style.color = ''; // сброс инлайн-стиля, цвет берется из CSS
+            } else {
+                playerBtnLike.classList.remove('active');
+                if (icon) icon.style.color = ''; // сброс инлайн-стиля
+            }
+        }
+
         if (els.playerPanel && !els.playerPanel.classList.contains('active') && !document.querySelector('.overlay-panel.active')) {
             const openBtn = document.querySelector('[data-panel="player-panel"]');
             if (openBtn) openBtn.click(); 
@@ -489,11 +497,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function updatePlayPauseUI(isPlaying) {
         if (!els.playBtnContainer) return;
-        els.playBtnContainer.innerHTML = '';
-        const icon = document.createElement('i');
-        icon.setAttribute('data-lucide', isPlaying ? 'pause' : 'play');
-        els.playBtnContainer.appendChild(icon);
-        if (window.lucide) window.lucide.createIcons();
+        let icon = els.playBtnContainer.querySelector('i');
+        if (!icon) {
+            icon = document.createElement('i');
+            icon.className = isPlaying ? 'fa-solid fa-pause' : 'fa-solid fa-play';
+            els.playBtnContainer.appendChild(icon);
+        } else {
+            // Плавное исчезновение и проявление за 0.3s (0.15s угасание + 0.15s появление)
+            icon.style.transition = 'opacity 0.15s linear';
+            icon.style.opacity = '0';
+            
+            setTimeout(() => {
+                icon.className = isPlaying ? 'fa-solid fa-pause' : 'fa-solid fa-play';
+                icon.style.opacity = '1';
+            }, 150);
+        }
         if (els.playingBars) isPlaying ? els.playingBars.classList.add('active') : els.playingBars.classList.remove('active');
     }
 
@@ -637,7 +655,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Сбрасываем расширение плеера при любом переключении/закрытии
         els.playBottomPart.classList.remove('expanded');
-        els.playBottomEdge.classList.remove('expanded');
 
         // Снимаем класс active со всех нижних кнопок
         els.bottomNavbar.querySelectorAll('.nav-button').forEach(btn => btn.classList.remove('active'));
@@ -759,6 +776,17 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const coverUrl = playlist.coverImage || (playlist.tracks?.length ? getImg(playlist.tracks[0]) : '');
         
+        const blurBg = document.getElementById('playlist-blur-bg-ss');
+        if (blurBg) {
+            if (coverUrl) {
+                blurBg.style.backgroundImage = `url('${coverUrl}')`;
+                blurBg.style.display = 'block';
+            } else {
+                blurBg.style.backgroundImage = 'none';
+                blurBg.style.display = 'none';
+            }
+        }
+        
         const headerWrapper = document.createElement('div');
         headerWrapper.className = 'ss-playlist-header-wrapper';
         headerWrapper.innerHTML = `
@@ -783,66 +811,48 @@ document.addEventListener('DOMContentLoaded', () => {
         if (playlist.tracks) {
             playlist.tracks.forEach((t) => {
                 const row = document.createElement('div');
-                row.className = 'ss-acid-row search-result-track'; 
+                row.className = 'ss-acid-row search-result-track playable-track'; 
+                
+                const artistId = t.performer?.id || t.artist?.id || t.album?.artist?.id || '';
+                const albumId = t.album?.id || '';
+                const artistName = t.performers || t.performer?.name || t.artist?.name || t.album?.artist?.name || 'Unknown';
+                const coverUrl = getImg(t);
+
+                row.setAttribute('data-track-id', t.id);
+                row.setAttribute('data-artist-id', artistId);
+                row.setAttribute('data-album-id', albumId);
+                row.setAttribute('data-title', t.title);
+                row.setAttribute('data-artist', artistName);
+                row.setAttribute('data-album', t.album?.title || '');
+                row.setAttribute('data-cover', coverUrl);
                 
                 row.innerHTML = `
-                    <div class="ss-acid-row-content playable-track" 
-                         data-track-id="${t.id}"
-                         data-title="${escapeHtml(t.title)}"
-                         data-artist="${escapeHtml(t.performers || t.album?.artist?.name || 'Unknown')}"
-                         data-artist-id="${t.album?.artist?.id || ''}"
-                         data-album="${escapeHtml(t.album?.title || '')}"
-                         data-album-id="${t.album?.id || ''}"
-                         data-cover="${getImg(t)}">
-                        <div class="ss-acid-title">${escapeHtml(t.title)}</div>
-                        <div class="ss-acid-time">${formatTime(t.duration)}</div>
+                    <img src="${coverUrl}" class="search-result-track-cover" loading="lazy">
+                    <div class="track-info">
+                        <p class="track-title">${escapeHtml(t.title)}</p>
+                        <p class="track-artist">${escapeHtml(artistName)}<span class="track-title-sep"> | </span><span class="track-title-duration">${formatTime(t.duration)}</span></p>
                     </div>
-                    <button class="ss-delete-track-btn">
-                        <span class="material-symbols-outlined">close</span>
-                    </button>
+                    <div class="track-actions-slide">
+                        <button class="slide-btn btn-add-to-playlist" title="Add to Playlist">
+                            <i data-lucide="plus"></i>
+                        </button>
+                        <button class="slide-btn btn-delete-track" title="Remove from Playlist" style="color: #ff4a4a;">
+                            <i data-lucide="trash-2"></i>
+                        </button>
+                    </div>
                 `;
 
-                // Swipe Left Logic (replaces long touch)
-                let startX = 0;
-                let swiping = false;
-                let pointerDown = false;
-                const applySwipe = (clientX) => {
-                    const deltaX = clientX - startX;
-                    if (deltaX < -40) {
-                        row.classList.add('show-delete');
-                    } else if (deltaX > -10) {
-                        row.classList.remove('show-delete');
-                    }
+                // Add to Playlist Button
+                row.querySelector('.btn-add-to-playlist').onclick = (e) => {
+                    e.stopPropagation();
+                    row.classList.remove('show-actions');
+                    openAddToPlaylistModal(t);
                 };
-                row.addEventListener('touchstart', (ev) => {
-                    startX = ev.touches[0].clientX;
-                    swiping = true;
-                }, { passive: true });
-                row.addEventListener('touchmove', (ev) => {
-                    if (!swiping) return;
-                    applySwipe(ev.touches[0].clientX);
-                }, { passive: true });
-                row.addEventListener('touchend', () => {
-                    swiping = false;
-                });
-                row.addEventListener('pointerdown', (ev) => {
-                    pointerDown = true;
-                    startX = ev.clientX;
-                });
-                row.addEventListener('pointermove', (ev) => {
-                    if (!pointerDown) return;
-                    applySwipe(ev.clientX);
-                });
-                row.addEventListener('pointerup', () => {
-                    pointerDown = false;
-                });
-                row.addEventListener('pointercancel', () => {
-                    pointerDown = false;
-                });
 
                 // Delete Logic
-                row.querySelector('.ss-delete-track-btn').onclick = async (e) => {
+                row.querySelector('.btn-delete-track').onclick = async (e) => {
                     e.stopPropagation();
+                    row.classList.remove('show-actions');
                     try {
                         const res = await fetch(`/library/playlists/${playlist.id}/tracks/${t.id}`, { method: 'DELETE' });
                         if (res.ok) {
@@ -874,6 +884,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         content.appendChild(headerWrapper);
         content.appendChild(trackList);
+
+        // Initialize standard swipe actions for the playlist track list
+        initSwipeForTrackList(trackList);
+        if (window.lucide) window.lucide.createIcons();
 
         // Play All Logic
         headerWrapper.querySelector('.ss-play-mini-btn').onclick = () => {
@@ -1149,25 +1163,35 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function updateHeartIcons(trackId, isLikedNow) {
+        const playerBtnLike = document.getElementById('btn-like');
+        if (playerBtnLike && playerState.currentTrack && String(playerState.currentTrack.id) === String(trackId)) {
+            const icon = playerBtnLike.querySelector('i');
+            if (isLikedNow) {
+                playerBtnLike.classList.add('active');
+                if (icon) icon.style.color = ''; // сброс инлайн-стиля, цвет берется из CSS
+            } else {
+                playerBtnLike.classList.remove('active');
+                if (icon) icon.style.color = ''; // сброс инлайн-стиля
+            }
+        }
+
         document.querySelectorAll(`.search-result-track[data-track-id="${trackId}"] .btn-like-track`).forEach(btn => {
+            const i = btn.querySelector('i');
+            const svg = btn.querySelector('svg');
             if (isLikedNow) {
                 btn.classList.add('active');
-                btn.style.color = 'coral';
-                const i = btn.querySelector('i');
-                if (i) i.style.fill = 'coral';
-                const svg = btn.querySelector('svg');
+                btn.style.color = '';
+                if (i) i.style.fill = '';
                 if (svg) {
-                    svg.style.fill = 'coral';
-                    svg.style.stroke = 'coral';
+                    svg.style.fill = '';
+                    svg.style.stroke = '';
                 }
             } else {
                 btn.classList.remove('active');
                 btn.style.color = '';
-                const i = btn.querySelector('i');
                 if (i) i.style.fill = '';
-                const svg = btn.querySelector('svg');
                 if (svg) {
-                    svg.style.fill = 'none';
+                    svg.style.fill = '';
                     svg.style.stroke = '';
                 }
             }
@@ -1186,6 +1210,7 @@ document.addEventListener('DOMContentLoaded', () => {
         closeSwipeActionsInScope(els.artistContent, exceptRow);
         closeSwipeActionsInScope(els.albumContent, exceptRow);
         closeSwipeActionsInScope(els.tracksLibContainer, exceptRow);
+        closeSwipeActionsInScope(els.playlistContent, exceptRow);
     };
 
     const initSwipeForTrackList = (container) => {
@@ -1304,8 +1329,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (els.playlistContent) {
         els.playlistContent.addEventListener('click', (e) => {
             const trackRow = e.target.closest('.playable-track');
-            if (trackRow) {
-                handleTrackClick(trackRow, false);
+            if (trackRow && !e.target.closest('.track-actions-slide')) {
+                handleTrackClick(trackRow, false, true);
             }
         });
     }
@@ -1317,6 +1342,40 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (els.forwardBtn) els.forwardBtn.addEventListener('click', () => playAdjacent('next'));
     if (els.backwardBtn) els.backwardBtn.addEventListener('click', () => playAdjacent('prev'));
+
+    // Обработчики статических кнопок Like и Add на плеере
+    const playerBtnLike = document.getElementById('btn-like');
+    if (playerBtnLike) {
+        playerBtnLike.addEventListener('click', () => {
+            if (playerState.currentTrack) {
+                const trackIdStr = String(playerState.currentTrack.id);
+                const cachedTrack = trackCache.get(trackIdStr);
+                const trackToLike = cachedTrack || {
+                    id: playerState.currentTrack.id,
+                    title: playerState.currentTrack.title,
+                    artist: { name: playerState.currentTrack.artist },
+                    album: { title: playerState.currentTrack.album, image: { large: playerState.currentTrack.cover } }
+                };
+                toggleLikeTrack(trackToLike, playerBtnLike);
+            }
+        });
+    }
+    const playerBtnAdd = document.getElementById('btn-add');
+    if (playerBtnAdd) {
+        playerBtnAdd.addEventListener('click', () => {
+            if (playerState.currentTrack) {
+                const trackIdStr = String(playerState.currentTrack.id);
+                const cachedTrack = trackCache.get(trackIdStr);
+                const trackToAdd = cachedTrack || {
+                    id: playerState.currentTrack.id,
+                    title: playerState.currentTrack.title,
+                    artist: { name: playerState.currentTrack.artist },
+                    album: { title: playerState.currentTrack.album, image: { large: playerState.currentTrack.cover } }
+                };
+                openAddToPlaylistModal(trackToAdd);
+            }
+        });
+    }
 
     if (els.timeBarContainer) {
         let suppressNextTimebarClick = false;
@@ -1757,21 +1816,12 @@ document.addEventListener('DOMContentLoaded', () => {
         renderCutMarkers();
     });
     player.addEventListener('ended', () => playAdjacent('next'));
+    player.addEventListener('play', () => { playerState.isPlaying = true; });
+    player.addEventListener('pause', () => { playerState.isPlaying = false; });
 
-    if (els.playerControls) {
-        const qualityWrap = document.createElement('div');
-        qualityWrap.id = 'quality-selector-wrap';
-        qualityWrap.innerHTML = `
-            <select id="quality-selector" title="Quality">
-                <option value="27|9.0">FLAC</option>
-                <option value="6|4.3">MP3</option>
-                <option value="5|3.1">AAC</option>
-            </select>
-            <button id="cut-reset-btn" title="Reset cut markers">CUT RESET</button>
-        `;
-        els.playerControls.appendChild(qualityWrap);
-        const qualitySelect = qualityWrap.querySelector('#quality-selector');
-        const cutResetBtn = qualityWrap.querySelector('#cut-reset-btn');
+    const qualitySelect = document.getElementById('quality-selector');
+    const cutResetBtn = document.getElementById('cut-reset-btn');
+    if (qualitySelect) {
         qualitySelect.addEventListener('change', (e) => {
             const [formatId, qualityCode] = e.target.value.split('|');
             qualitySetting = {
@@ -1780,6 +1830,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 qualityCode
             };
         });
+    }
+    if (cutResetBtn) {
         cutResetBtn.addEventListener('click', () => {
             if (!currentTrackId) return;
             cutMarkersByTrack.delete(String(currentTrackId));
