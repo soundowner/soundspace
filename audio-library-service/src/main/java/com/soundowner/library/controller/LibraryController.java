@@ -188,10 +188,12 @@ public class LibraryController {
         var playlists = libraryService.getUserPlaylists(userId);
         var dtos = libraryMapper.toPlaylistDtoList(playlists);
         
-        // Populate trackCount for each DTO
+        // Populate trackCount and trackCovers for each DTO
         for (var dto : dtos) {
             int count = libraryService.getPlaylistTracksCount(dto.getId());
             dto.setTrackCount(count);
+            var covers = libraryService.getFirst4TrackCovers(dto.getId());
+            dto.setTrackCovers(covers);
         }
         
         return ResponseEntity.ok(dtos);

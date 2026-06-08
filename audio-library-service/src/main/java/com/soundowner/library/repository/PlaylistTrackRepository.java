@@ -7,11 +7,17 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import org.springframework.data.domain.Pageable;
 import java.util.List;
 import java.util.UUID;
 
 @Repository
 public interface PlaylistTrackRepository extends JpaRepository<PlaylistTrack, UUID> {
+    
+    @Query("SELECT pt.track.album.imageSmall FROM PlaylistTrack pt " +
+           "WHERE pt.playlist.id = :playlistId " +
+           "ORDER BY pt.position ASC")
+    List<String> findFirst4TrackCovers(@Param("playlistId") UUID playlistId, Pageable pageable);
     
     @Query("SELECT pt FROM PlaylistTrack pt " +
            "JOIN FETCH pt.track t " +

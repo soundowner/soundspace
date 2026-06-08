@@ -702,6 +702,72 @@ document.addEventListener('DOMContentLoaded', () => {
         localStorage.setItem('ss_library_updated', new Date().toISOString());
     }
 
+    function updatePlaylistCovers(pl, newTrack = null) {
+        if (!pl) return;
+        if (pl.tracks) {
+            const covers = pl.tracks
+                .map(t => t.album?.image?.small || t.image?.small || t.album?.image?.large || t.image?.large || '')
+                .filter(Boolean);
+            pl.track_covers = covers.slice(0, 4);
+        } else if (newTrack) {
+            if (!pl.track_covers) pl.track_covers = [];
+            if (pl.track_covers.length < 4) {
+                const cover = newTrack.album?.image?.small || newTrack.image?.small || newTrack.album?.image?.large || newTrack.image?.large || '';
+                if (cover && !pl.track_covers.includes(cover)) {
+                    pl.track_covers.push(cover);
+                }
+            }
+        }
+    }
+
+    function updateDetailHeaderCover(playlist) {
+        const blurBg = document.getElementById('playlist-blur-bg-ss');
+        if (!blurBg) return;
+        
+        const tracks = playlist.tracks || [];
+        const covers = playlist.track_covers || tracks.map(t => getImg(t)).filter(Boolean);
+        const coverUrl = playlist.coverImage || (covers.length ? covers[0] : '');
+        
+        if (coverUrl) {
+            blurBg.style.backgroundImage = `url('${coverUrl}')`;
+            blurBg.style.display = 'block';
+        } else {
+            blurBg.style.backgroundImage = 'none';
+            blurBg.style.display = 'none';
+        }
+
+        const coverArtWrapper = document.querySelector('.ss-playlist-cover-art-wrapper');
+        if (coverArtWrapper) {
+            let coverHtml = '';
+            if (covers.length >= 4) {
+                coverHtml = `
+                    <div class="playlist-cover-collage cols-4">
+                        ${covers.slice(0, 4).map(src => `<img src="${src}" alt="cover">`).join('')}
+                    </div>
+                `;
+            } else if (covers.length === 3) {
+                coverHtml = `
+                    <div class="playlist-cover-collage cols-3">
+                        ${covers.slice(0, 3).map(src => `<img src="${src}" alt="cover">`).join('')}
+                    </div>
+                `;
+            } else if (covers.length === 2) {
+                coverHtml = `
+                    <div class="playlist-cover-collage cols-2">
+                        ${covers.slice(0, 2).map(src => `<img src="${src}" alt="cover">`).join('')}
+                    </div>
+                `;
+            } else if (covers.length === 1) {
+                coverHtml = `<img src="${covers[0]}" alt="cover">`;
+            } else if (playlist.coverImage) {
+                coverHtml = `<img src="${playlist.coverImage}" alt="cover">`;
+            } else {
+                coverHtml = `<span class="material-symbols-outlined" style="font-size:2rem; color:rgba(255,255,255,0.1)">music_note</span>`;
+            }
+            coverArtWrapper.innerHTML = coverHtml;
+        }
+    }
+
     async function fetchPlaylistsSS() {
         if (!els.playlistsContainer) return;
         renderPlaylistsSS(libraryState.playlists);
@@ -729,165 +795,279 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         
-        els.playlistsContainer.innerHTML = playlists.map(pl => `
-            <div class="playlist-card-ss" data-id="${pl.id}">
-                <div class="playlist-cover-ss">
-                    ${pl.coverImage ? `<img src="${pl.coverImage}" loading="lazy">` : '<span class="material-symbols-outlined" style="font-size:2rem; color:rgba(255,255,255,0.1)">music_note</span>'}
+        els.playlistsContainer.innerHTML = playlists.map(pl => {
+            const tracks = pl.tracks || [];
+            const covers = pl.track_covers || tracks.map(t => getImg(t)).filter(Boolean);
+            let coverHtml = '';
+
+            if (covers.length >= 4) {
+                coverHtml = `
+                    <div class="playlist-cover-collage cols-4">
+                        ${covers.slice(0, 4).map(src => `<img src="${src}" loading="lazy" alt="cover">`).join('')}
+                    </div>
+                `;
+            } else if (covers.length === 3) {
+                coverHtml = `
+                    <div class="playlist-cover-collage cols-3">
+                        ${covers.slice(0, 3).map(src => `<img src="${src}" loading="lazy" alt="cover">`).join('')}
+                    </div>
+                `;
+            } else if (covers.length === 2) {
+                coverHtml = `
+                    <div class="playlist-cover-collage cols-2">
+                        ${covers.slice(0, 2).map(src => `<img src="${src}" loading="lazy" alt="cover">`).join('')}
+                    </div>
+                `;
+            } else if (covers.length === 1) {
+                coverHtml = `<img src="${covers[0]}" loading="lazy" alt="cover">`;
+            } else if (pl.coverImage) {
+                coverHtml = `<img src="${pl.coverImage}" loading="lazy" alt="cover">`;
+            } else {
+                coverHtml = `<span class="material-symbols-outlined" style="font-size:2rem; color:rgba(255,255,255,0.1)">music_note</span>`;
+            }
+
+            return `
+                <div class="playlist-card-ss" data-id="${pl.id}">
+                    <div class="playlist-cover-ss">
+                        ${coverHtml}
+                        <div class="playlist-overlay-info-ss">
+                            <h4>${escapeHtml(pl.title)}</h4>
+                            <p>${pl.trackCount || pl.tracks?.length || 0} tracks</p>
+                        </div>
+                    </div>
                 </div>
-                <div class="playlist-info-ss">
-                    <h4>${escapeHtml(pl.title)}</h4>
-                    <p>${pl.trackCount || pl.tracks?.length || 0} tracks</p>
-                </div>
-                <div class="ss-playlist-arrow">
-                    <span class="material-symbols-outlined">chevron_right</span>
-                </div>
-            </div>
-        `).join('');
+            `;
+        }).join('');
     }
 
     async function handlePlaylistClickSS(id) {
+        const pl = libraryState.playlists.find(p => p.id === id);
+        
+        if (pl) {
+            // Мгновенная предзагрузка обложек перед открытием
+            const tracks = pl.tracks || [];
+            const covers = pl.track_covers || tracks.map(t => getImg(t)).filter(Boolean);
+            if (covers && covers.length > 0) {
+                covers.slice(0, 4).forEach(src => {
+                    const img = new Image();
+                    img.src = src;
+                });
+            }
+            renderPlaylistDetailSS(pl);
+        } else {
+            els.playlistContent.innerHTML = '<div style="padding:40px; text-align:center">Loading Spirits...</div>';
+        }
+
         openOverlay('playlist-panel');
-        els.playlistContent.innerHTML = '<div style="padding:40px; text-align:center">Loading Spirits...</div>';
 
         try {
             const res = await fetch(`/library/playlists/${id}/tracks`);
             if (res.ok) {
                 const tracks = await res.json();
-                const pl = libraryState.playlists.find(p => p.id === id);
-                if (pl) {
-                    pl.tracks = tracks;
+                const currentPl = libraryState.playlists.find(p => p.id === id);
+                if (currentPl) {
+                    currentPl.tracks = tracks;
                     saveLibraryToLocal();
+                    renderPlaylistDetailSS(currentPl);
+                } else {
+                    renderPlaylistDetailSS({ title: 'Playlist', tracks });
                 }
-                renderPlaylistDetailSS(pl || { title: 'Playlist', tracks });
             }
         } catch (e) { console.error(e); }
     }
 
     function renderPlaylistDetailSS(playlist) {
         const content = els.playlistContent;
-        content.replaceChildren();
-        content.className = 'ss-playlist-view'; 
+        const tracks = playlist.tracks || [];
+        const covers = playlist.track_covers || tracks.map(t => getImg(t)).filter(Boolean);
+        const coverUrl = playlist.coverImage || (covers.length ? covers[0] : '');
         
-        const coverUrl = playlist.coverImage || (playlist.tracks?.length ? getImg(playlist.tracks[0]) : '');
+        const isSamePlaylist = content.dataset.loadedId === String(playlist.id);
         
-        const blurBg = document.getElementById('playlist-blur-bg-ss');
-        if (blurBg) {
-            if (coverUrl) {
-                blurBg.style.backgroundImage = `url('${coverUrl}')`;
-                blurBg.style.display = 'block';
-            } else {
-                blurBg.style.backgroundImage = 'none';
-                blurBg.style.display = 'none';
-            }
-        }
-        
-        const headerWrapper = document.createElement('div');
-        headerWrapper.className = 'ss-playlist-header-wrapper';
-        headerWrapper.innerHTML = `
-            <div class="ss-label-header">PLAYLIST</div>
-            <div class="ss-playlist-header">
-                <div class="ss-cover-container">
-                    ${coverUrl ? `<img src="${coverUrl}" class="ss-main-cover-mini">` : '<div class="ss-main-cover-mini" style="background:#222; display:flex; align-items:center; justify-content:center;"><span class="material-symbols-outlined" style="font-size:3rem; color:#444">music_note</span></div>'}
-                    <button class="ss-play-mini-btn">
+        if (!isSamePlaylist) {
+            content.replaceChildren();
+            content.className = 'ss-playlist-view'; 
+            content.dataset.loadedId = playlist.id;
+            content.dataset.renderedCovers = '';
+            
+            const headerWrapper = document.createElement('div');
+            headerWrapper.className = 'ss-playlist-header-wrapper';
+            headerWrapper.innerHTML = `
+                <div class="ss-playlist-header">
+                    <div class="ss-playlist-cover-art-wrapper"></div>
+                    <div class="ss-header-text-block">
+                        <div class="ss-label-header">PLAYLIST</div>
+                        <h1 class="ss-title-huge">${escapeHtml(playlist.title)}</h1>
+                        <div class="ss-label-header-count ss-label-header" style="margin-top:8px;">0 TRACKS</div>
+                    </div>
+                    <button class="ss-play-mini-btn ss-play-header-btn">
                         <span class="material-symbols-outlined">play_arrow</span>
                     </button>
                 </div>
-                <div class="ss-header-text-block">
-                    <h1 class="ss-title-huge">${escapeHtml(playlist.title)}</h1>
-                    <div class="ss-label-header" style="margin-top:8px; color:rgba(255,255,255,0.2);">${playlist.trackCount || playlist.tracks?.length || 0} TRACKS</div>
-                </div>
-            </div>
-        `;
+            `;
 
-        const trackList = document.createElement('div');
-        trackList.className = 'ss-acid-list no-scrollbar';
-        
-        if (playlist.tracks) {
-            playlist.tracks.forEach((t) => {
-                const row = document.createElement('div');
-                row.className = 'ss-acid-row search-result-track playable-track'; 
-                
-                const artistId = t.performer?.id || t.artist?.id || t.album?.artist?.id || '';
-                const albumId = t.album?.id || '';
-                const artistName = t.performers || t.performer?.name || t.artist?.name || t.album?.artist?.name || 'Unknown';
-                const coverUrl = getImg(t);
-
-                row.setAttribute('data-track-id', t.id);
-                row.setAttribute('data-artist-id', artistId);
-                row.setAttribute('data-album-id', albumId);
-                row.setAttribute('data-title', t.title);
-                row.setAttribute('data-artist', artistName);
-                row.setAttribute('data-album', t.album?.title || '');
-                row.setAttribute('data-cover', coverUrl);
-                
-                row.innerHTML = `
-                    <img src="${coverUrl}" class="search-result-track-cover" loading="lazy">
-                    <div class="track-info">
-                        <p class="track-title">${escapeHtml(t.title)}</p>
-                        <p class="track-artist">${escapeHtml(artistName)}<span class="track-title-sep"> | </span><span class="track-title-duration">${formatTime(t.duration)}</span></p>
-                    </div>
-                    <div class="track-actions-slide">
-                        <button class="slide-btn btn-add-to-playlist" title="Add to Playlist">
-                            <i data-lucide="plus"></i>
-                        </button>
-                        <button class="slide-btn btn-delete-track" title="Remove from Playlist" style="color: #ff4a4a;">
-                            <i data-lucide="trash-2"></i>
-                        </button>
-                    </div>
-                `;
-
-                // Add to Playlist Button
-                row.querySelector('.btn-add-to-playlist').onclick = (e) => {
-                    e.stopPropagation();
-                    row.classList.remove('show-actions');
-                    openAddToPlaylistModal(t);
-                };
-
-                // Delete Logic
-                row.querySelector('.btn-delete-track').onclick = async (e) => {
-                    e.stopPropagation();
-                    row.classList.remove('show-actions');
-                    try {
-                        const res = await fetch(`/library/playlists/${playlist.id}/tracks/${t.id}`, { method: 'DELETE' });
-                        if (res.ok) {
-                            const rowHeight = row.offsetHeight;
-                            row.style.maxHeight = `${rowHeight}px`;
-                            row.classList.add('is-removing');
-                            requestAnimationFrame(() => {
-                                row.style.maxHeight = '0px';
-                            });
-                            setTimeout(() => row.remove(), 360);
-                            
-                            const pl = libraryState.playlists.find(p => p.id === playlist.id);
-                            if (pl && pl.tracks) {
-                                pl.tracks = pl.tracks.filter(track => track.id !== t.id);
-                                pl.trackCount = Math.max(0, pl.trackCount - 1);
-                                saveLibraryToLocal();
-                                
-                                const countEl = headerWrapper.querySelector('.ss-label-header[style*="margin-top:8px"]');
-                                if (countEl) countEl.textContent = `${pl.trackCount} TRACKS`;
-                                renderPlaylistsSS(libraryState.playlists);
-                            }
-                        }
-                    } catch (err) { console.error(err); }
-                };
-
-                trackList.appendChild(row);
-            });
+            const trackList = document.createElement('div');
+            trackList.className = 'ss-acid-list no-scrollbar';
+            
+            content.appendChild(headerWrapper);
+            content.appendChild(trackList);
+            
+            // Play All Logic
+            headerWrapper.querySelector('.ss-play-mini-btn').onclick = () => {
+                const first = trackList.querySelector('.playable-track');
+                if (first) handleTrackClick(first, false);
+            };
         }
 
-        content.appendChild(headerWrapper);
-        content.appendChild(trackList);
+        // Обновляем количество треков в шапке
+        const countEl = content.querySelector('.ss-label-header-count');
+        if (countEl) {
+            countEl.textContent = `${playlist.trackCount || tracks.length} TRACKS`;
+        }
 
-        // Initialize standard swipe actions for the playlist track list
-        initSwipeForTrackList(trackList);
+        // Обновляем обложку, если она изменилась
+        const coversJson = JSON.stringify(covers.slice(0, 4)) + '||' + coverUrl;
+        if (content.dataset.renderedCovers !== coversJson) {
+            content.dataset.renderedCovers = coversJson;
+            
+            const blurBg = document.getElementById('playlist-blur-bg-ss');
+            if (blurBg) {
+                if (coverUrl) {
+                    blurBg.style.backgroundImage = `url('${coverUrl}')`;
+                    blurBg.style.display = 'block';
+                } else {
+                    blurBg.style.backgroundImage = 'none';
+                    blurBg.style.display = 'none';
+                }
+            }
+
+            const coverArtWrapper = content.querySelector('.ss-playlist-cover-art-wrapper');
+            if (coverArtWrapper) {
+                let coverHtml = '';
+                if (covers.length >= 4) {
+                    coverHtml = `
+                        <div class="playlist-cover-collage cols-4">
+                            ${covers.slice(0, 4).map(src => `<img src="${src}" alt="cover">`).join('')}
+                        </div>
+                    `;
+                } else if (covers.length === 3) {
+                    coverHtml = `
+                        <div class="playlist-cover-collage cols-3">
+                            ${covers.slice(0, 3).map(src => `<img src="${src}" alt="cover">`).join('')}
+                        </div>
+                    `;
+                } else if (covers.length === 2) {
+                    coverHtml = `
+                        <div class="playlist-cover-collage cols-2">
+                            ${covers.slice(0, 2).map(src => `<img src="${src}" alt="cover">`).join('')}
+                        </div>
+                    `;
+                } else if (covers.length === 1) {
+                    coverHtml = `<img src="${covers[0]}" alt="cover">`;
+                } else if (playlist.coverImage) {
+                    coverHtml = `<img src="${playlist.coverImage}" alt="cover">`;
+                } else {
+                    coverHtml = `<span class="material-symbols-outlined" style="font-size:2rem; color:rgba(255,255,255,0.1)">music_note</span>`;
+                }
+                coverArtWrapper.innerHTML = coverHtml;
+            }
+        }
+
+        // Обновляем список треков
+        const trackList = content.querySelector('.ss-acid-list');
+        if (trackList) {
+            trackList.replaceChildren();
+            
+            if (!playlist.tracks) {
+                const loader = document.createElement('div');
+                loader.className = 'loading-tracks-indicator';
+                loader.style.cssText = 'padding: 40px; text-align: center; opacity: 0.6; font-size: 0.9rem;';
+                loader.textContent = 'Loading playlist tracks...';
+                trackList.appendChild(loader);
+            } else if (tracks.length === 0) {
+                const empty = document.createElement('div');
+                empty.className = 'empty-state-ss';
+                empty.style.cssText = 'padding: 40px; text-align: center; opacity: 0.5;';
+                empty.textContent = 'Playlist is empty';
+                trackList.appendChild(empty);
+            } else {
+                tracks.forEach((t) => {
+                    const row = document.createElement('div');
+                    row.className = 'ss-acid-row search-result-track playable-track'; 
+                    
+                    const artistId = t.performer?.id || t.artist?.id || t.album?.artist?.id || '';
+                    const albumId = t.album?.id || '';
+                    const artistName = t.performers || t.performer?.name || t.artist?.name || t.album?.artist?.name || 'Unknown';
+                    const coverUrl = getImg(t);
+
+                    row.setAttribute('data-track-id', t.id);
+                    row.setAttribute('data-artist-id', artistId);
+                    row.setAttribute('data-album-id', albumId);
+                    row.setAttribute('data-title', t.title);
+                    row.setAttribute('data-artist', artistName);
+                    row.setAttribute('data-album', t.album?.title || '');
+                    row.setAttribute('data-cover', coverUrl);
+                    
+                    row.innerHTML = `
+                        <img src="${coverUrl}" class="search-result-track-cover" loading="lazy">
+                        <div class="track-info">
+                            <p class="track-title">${escapeHtml(t.title)}</p>
+                            <p class="track-artist">${escapeHtml(artistName)}<span class="track-title-sep"> | </span><span class="track-title-duration">${formatTime(t.duration)}</span></p>
+                        </div>
+                        <div class="track-actions-slide">
+                            <button class="slide-btn btn-add-to-playlist" title="Add to Playlist">
+                                <i data-lucide="plus"></i>
+                            </button>
+                            <button class="slide-btn btn-delete-track" title="Remove from Playlist" style="color: #ff4a4a;">
+                                <i data-lucide="trash-2"></i>
+                            </button>
+                        </div>
+                    `;
+
+                    // Add to Playlist Button
+                    row.querySelector('.btn-add-to-playlist').onclick = (e) => {
+                        e.stopPropagation();
+                        row.classList.remove('show-actions');
+                        openAddToPlaylistModal(t);
+                    };
+
+                    // Delete Logic
+                    row.querySelector('.btn-delete-track').onclick = async (e) => {
+                        e.stopPropagation();
+                        row.classList.remove('show-actions');
+                        try {
+                            const res = await fetch(`/library/playlists/${playlist.id}/tracks/${t.id}`, { method: 'DELETE' });
+                            if (res.ok) {
+                                const rowHeight = row.offsetHeight;
+                                row.style.maxHeight = `${rowHeight}px`;
+                                row.classList.add('is-removing');
+                                requestAnimationFrame(() => {
+                                    row.style.maxHeight = '0px';
+                                });
+                                setTimeout(() => row.remove(), 360);
+                                
+                                const pl = libraryState.playlists.find(p => p.id === playlist.id);
+                                if (pl && pl.tracks) {
+                                    pl.tracks = pl.tracks.filter(track => track.id !== t.id);
+                                    pl.trackCount = Math.max(0, pl.trackCount - 1);
+                                    updatePlaylistCovers(pl);
+                                    saveLibraryToLocal();
+                                    
+                                    renderPlaylistDetailSS(pl);
+                                    renderPlaylistsSS(libraryState.playlists);
+                                }
+                            }
+                        } catch (err) { console.error(err); }
+                    };
+
+                    trackList.appendChild(row);
+                });
+            }
+
+            initSwipeForTrackList(trackList);
+        }
+
         if (window.lucide) window.lucide.createIcons();
-
-        // Play All Logic
-        headerWrapper.querySelector('.ss-play-mini-btn').onclick = () => {
-            const first = trackList.querySelector('.playable-track');
-            if (first) handleTrackClick(first, false);
-        };
         syncPlayingHighlights();
     }
 
@@ -1021,8 +1201,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (!pl.tracks) pl.tracks = [];
                         pl.tracks.push(trackPayload);
                         pl.trackCount = (pl.trackCount || 0) + 1; // Increment count
+                        updatePlaylistCovers(pl, trackPayload);
                         saveLibraryToLocal();
                         renderPlaylistsSS(libraryState.playlists);
+                        if (els.playlistContent.dataset.loadedId === String(playlistId)) {
+                            renderPlaylistDetailSS(pl);
+                        }
                     }
                 }
             } catch (e) { console.error(e); }
@@ -1224,20 +1408,34 @@ document.addEventListener('DOMContentLoaded', () => {
         }, { passive: true });
 
         container.addEventListener('touchmove', (e) => {
-            if (!swipeRow || !e.touches?.[0] || swipeLocked) return;
+            if (!swipeRow || !e.touches?.[0]) return;
+            if (swipeLocked) return;
+
             const dx = e.touches[0].clientX - swipeStartX;
             const dy = e.touches[0].clientY - swipeStartY;
-            if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 8) {
-                swipeLocked = true;
-                return;
+            const absX = Math.abs(dx);
+            const absY = Math.abs(dy);
+
+            if (absX > 4 || absY > 4) {
+                if (absY > absX) {
+                    // Vertical drag -> lock swipe detection so list can scroll normally
+                    swipeLocked = true;
+                    return;
+                } else {
+                    // Horizontal drag -> prevent default vertical scroll
+                    if (e.cancelable) e.preventDefault();
+
+                    if (dx < -30) {
+                        closeAllSwipeActions(swipeRow);
+                        swipeRow.classList.add('show-actions');
+                        swipeLocked = true;
+                    } else if (dx > 20) {
+                        swipeRow.classList.remove('show-actions');
+                        swipeLocked = true;
+                    }
+                }
             }
-            if (dx < -35) {
-                closeAllSwipeActions(swipeRow);
-                swipeRow.classList.add('show-actions');
-            } else if (dx > 25) {
-                swipeRow.classList.remove('show-actions');
-            }
-        }, { passive: true });
+        }, { passive: false });
 
         const resetSwipe = () => {
             swipeRow = null;
@@ -1592,14 +1790,29 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderAlbumPanel(data) {
         const content = els.albumContent;
         content.replaceChildren();
+        
+        const imgUrl = getImg(data);
+        const blurBg = document.getElementById('album-blur-bg-ss');
+        if (blurBg) {
+            if (imgUrl) {
+                blurBg.style.backgroundImage = `url('${imgUrl}')`;
+                blurBg.style.display = 'block';
+            } else {
+                blurBg.style.backgroundImage = 'none';
+                blurBg.style.display = 'none';
+            }
+        }
+
         const header = document.createElement('div');
         header.className = 'album-header-fixed';
-        header.style.cssText = 'display:flex; flex-direction:row; align-items:flex-end; padding:40px 20px 20px; background:linear-gradient(180deg, #1e1e1e 0%, #0f0f0f 100%); gap:20px;';
+        header.style.cssText = 'display:flex; flex-direction:row; align-items:flex-end; padding:40px 20px 20px; background:rgba(15, 15, 15, 0.65); backdrop-filter:blur(24px); -webkit-backdrop-filter:blur(24px); gap:20px;';
         
         const isInLib = libraryState.albumIds.has(String(data.id));
         header.innerHTML = `
             <div style="display:flex; flex-direction:column; align-items:center; gap:8px; flex-shrink:0;">
-                <img src="${getImg(data)}" style="width:120px; height:120px; border-radius:12px; box-shadow:0 5px 20px rgba(0,0,0,0.5); object-fit:cover">
+                <div class="album-cover-container" style="width:120px; height:120px;">
+                    ${imgUrl ? `<div class="vinyl-disk" style="background-image: url('${imgUrl}')"></div>` : '<div class="vinyl-disk fallback-vinyl"><span class="material-symbols-outlined">album</span></div>'}
+                </div>
                 <div class="alb_panel_buttons_container">
                     <button id="add-album-to-lib" class="alb-action-btn" title="Add to Library">
                         <i data-lucide="${isInLib ? 'check' : 'plus'}"></i>

@@ -178,6 +178,11 @@ public class LibraryService {
         return (int) playlistTrackRepository.countByPlaylistId(playlistId);
     }
 
+    @Transactional(readOnly = true)
+    public List<String> getFirst4TrackCovers(UUID playlistId) {
+        return playlistTrackRepository.findFirst4TrackCovers(playlistId, org.springframework.data.domain.PageRequest.of(0, 4));
+    }
+
     @Transactional
     public void removeTrackFromPlaylist(UUID playlistId, Long trackId) {
         playlistTrackRepository.deleteByPlaylistIdAndTrackId(playlistId, trackId);
