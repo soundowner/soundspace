@@ -23,6 +23,7 @@ public class LibraryService {
     private final UserAlbumRepository userAlbumRepository;
     private final UserArtistRepository userArtistRepository;
     private final UserTrackRepository userTrackRepository;
+    private final TrackCutRepository trackCutRepository;
 
     @Transactional(readOnly = true)
     public List<String> getUserAlbumIds(UUID userId) {
@@ -216,5 +217,20 @@ public class LibraryService {
         if (track == null) return null;
         return trackRepository.findById(track.getId())
                 .orElseGet(() -> trackRepository.save(track));
+    }
+
+    @Transactional(readOnly = true)
+    public List<TrackCut> getTrackCuts(UUID userId, String trackId) {
+        return trackCutRepository.findByUserIdAndTrackIdOrderByStartTimeAsc(userId, trackId);
+    }
+
+    @Transactional
+    public void saveTrackCuts(UUID userId, String trackId, List<TrackCut> cuts) {
+        trackCutRepository.deleteByUserIdAndTrackId(userId, trackId);
+        for (TrackCut cut : cuts) {
+            cut.setUserId(userId);
+            cut.setTrackId(trackId);
+            trackCutRepository.save(cut);
+        }
     }
 }

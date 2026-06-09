@@ -41,6 +41,14 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentQueue = [];
     let currentQueueIndex = -1;
     const cutMarkersByTrack = new Map();
+    try {
+        const localCuts = JSON.parse(localStorage.getItem('ss_cut_markers') || '{}');
+        for (const [tid, markers] of Object.entries(localCuts)) {
+            cutMarkersByTrack.set(String(tid), markers);
+        }
+    } catch (e) {
+        console.error('Failed to load cut markers from localStorage', e);
+    }
     let qualitySetting = { label: 'FLAC', formatId: 27, qualityCode: '9.0' };
     let libraryLabelTimeout = null;
     
@@ -59,6 +67,11 @@ document.addEventListener('DOMContentLoaded', () => {
         
         timeBarProgress: document.getElementById('timebar-progress'),
         timeBarContainer: document.getElementById('timebar-progress-container'),
+        timeBarWaveform: document.getElementById('timebar-waveform'),
+        waveformClipRect: document.getElementById('waveform-clip-rect'),
+        waveformBackground: document.getElementById('waveform-background'),
+        waveformForeground: document.getElementById('waveform-foreground'),
+        waveformPlayheads: document.querySelectorAll('.waveform-playhead'),
         timeCurrent: document.getElementById('current-time'),
         timeDuration: document.getElementById('duration'),
         
@@ -462,9 +475,16 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- 1. CORE PLAYER LOGIC ---
     function updatePlayerUI(track) {
         if (!track) return;
-        if (els.trackTitle) els.trackTitle.textContent = track.title;
-        if (els.trackArtist) els.trackArtist.textContent = track.artist;
-        if (els.trackAlbum) els.trackAlbum.textContent = track.album;
+        
+        const fadeElements = [els.trackTitle, els.trackArtist, els.trackAlbum].filter(Boolean);
+        fadeElements.forEach(el => el.style.opacity = '0');
+        
+        setTimeout(() => {
+            if (els.trackTitle) els.trackTitle.textContent = track.title;
+            if (els.trackArtist) els.trackArtist.textContent = track.artist;
+            if (els.trackAlbum) els.trackAlbum.textContent = track.album;
+            fadeElements.forEach(el => el.style.opacity = '1');
+        }, 250);
 
         if (track.cover) {
             if (els.trackCover) els.trackCover.src = track.cover;
@@ -487,6 +507,72 @@ document.addEventListener('DOMContentLoaded', () => {
         if (els.playerPanel && !els.playerPanel.classList.contains('active') && !document.querySelector('.overlay-panel.active')) {
             const openBtn = document.querySelector('[data-panel="player-panel"]');
             if (openBtn) openBtn.click(); 
+        }
+
+        if (isFrequencyMode) {
+            generateAndRenderWaveform();
+            updateWaveformProgress();
+        }
+    }
+
+    function saveCutsToLocalStorage() {
+        const obj = {};
+        for (const [tid, markers] of cutMarkersByTrack.entries()) {
+            obj[tid] = markers;
+        }
+        localStorage.setItem('ss_cut_markers', JSON.stringify(obj));
+    }
+
+    async function loadCutsForTrack(trackId) {
+        if (!trackId) return;
+        try {
+            const res = await fetch(`/library/cuts?trackId=${encodeURIComponent(trackId)}`);
+            if (res.ok) {
+                const cuts = await res.json();
+                if (cuts && cuts.length > 0) {
+                    const cut = cuts[0];
+                    const marker = Number(cut.endTime);
+                    cutMarkersByTrack.set(String(trackId), [marker]);
+                } else {
+                    cutMarkersByTrack.delete(String(trackId));
+                }
+                saveCutsToLocalStorage();
+                if (String(currentTrackId) === String(trackId)) {
+                    renderCutMarkers();
+                    const markers = cutMarkersByTrack.get(String(trackId));
+                    if (markers && markers.length >= 1 && player.currentTime < markers[0]) {
+                        player.currentTime = markers[0];
+                    }
+                }
+            }
+        } catch (e) {
+            console.error('Failed to load cuts from backend', e);
+        }
+    }
+
+    async function saveCutsToBackend(trackId) {
+        if (!trackId) return;
+        const markers = cutMarkersByTrack.get(String(trackId)) || [];
+        saveCutsToLocalStorage();
+        
+        let bodyPayload = [];
+        if (markers.length >= 1) {
+            bodyPayload = [{
+                startTime: 0,
+                endTime: markers[0]
+            }];
+        }
+        
+        try {
+            await fetch(`/library/cuts?trackId=${encodeURIComponent(trackId)}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(bodyPayload)
+            });
+        } catch (e) {
+            console.error('Failed to save cuts to backend', e);
         }
     }
 
@@ -561,8 +647,13 @@ document.addEventListener('DOMContentLoaded', () => {
     async function handleTrackClick(el, isAutoPlay = false, skipShowActions = false) {
         document.querySelectorAll('.search-result-track').forEach(n => n.classList.remove('show-actions'));
         currentTrackId = el.dataset.trackId;
+        loadCutsForTrack(currentTrackId);
         buildQueueFromNode(el);
         syncPlayingHighlights();
+        
+        if (!isAutoPlay) {
+            isManualSwitch = true;
+        }
         
         if (isAutoPlay === false && !skipShowActions) {
             requestAnimationFrame(() => {
@@ -588,8 +679,17 @@ document.addEventListener('DOMContentLoaded', () => {
             const res = await fetch(`/data/audio/play?trackId=${meta.id}&formatId=${qualitySetting.formatId}&qualityCode=${encodeURIComponent(qualitySetting.qualityCode)}`);
             const data = await res.json();
             if (data.url) {
+                if (fadeInterval) clearInterval(fadeInterval);
                 player.src = data.url;
+                wasFadeOutStarted = false;
+                
+                const fadeInDuration = 3000;
+                isManualSwitch = false;
+                
+                player.volume = 0;
                 const playPromise = player.play();
+                fadeIn(fadeInDuration);
+                
                 if (playPromise !== undefined) {
                     playPromise.catch(error => {
                         if (error.name !== 'AbortError') console.error('Playback error:', error);
@@ -1532,8 +1632,14 @@ document.addEventListener('DOMContentLoaded', () => {
             player.paused ? player.play() : player.pause();
         });
     }
-    if (els.forwardBtn) els.forwardBtn.addEventListener('click', () => playAdjacent('next'));
-    if (els.backwardBtn) els.backwardBtn.addEventListener('click', () => playAdjacent('prev'));
+    if (els.forwardBtn) els.forwardBtn.addEventListener('click', () => {
+        isManualSwitch = true;
+        playAdjacent('next');
+    });
+    if (els.backwardBtn) els.backwardBtn.addEventListener('click', () => {
+        isManualSwitch = true;
+        playAdjacent('prev');
+    });
 
     // Обработчики статических кнопок Like и Add на плеере
     const playerBtnLike = document.getElementById('btn-like');
@@ -1569,8 +1675,185 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    let fadeInterval = null;
+    const TARGET_VOLUME = 1.0;
+    let isManualSwitch = false;
+    let wasFadeOutStarted = false;
+    let isIntroAnimating = false;
+    let introAnimationStart = 0;
+    let introAnimationDuration = 800;
+    let introAnimationTarget = 0;
+    let showPlayheads = false;
+    let playheadDelayTimeout = null;
+
+    function triggerPlayheadDelay() {
+        showPlayheads = false;
+        if (els.waveformPlayheads) {
+            els.waveformPlayheads.forEach(playhead => playhead.style.display = 'none');
+        }
+        if (playheadDelayTimeout) clearTimeout(playheadDelayTimeout);
+        playheadDelayTimeout = setTimeout(() => {
+            showPlayheads = true;
+        }, 200);
+    }
+
+    function fadeIn(durationMs) {
+        console.log(`[SoundSpace Audio] Starting fadeIn over ${durationMs}ms...`);
+        if (fadeInterval) clearInterval(fadeInterval);
+        player.volume = 0;
+        const startTime = performance.now();
+        const startVolume = 0;
+        
+        fadeInterval = setInterval(() => {
+            const elapsed = performance.now() - startTime;
+            const pct = Math.min(1, elapsed / durationMs);
+            player.volume = startVolume + (TARGET_VOLUME - startVolume) * pct;
+            
+            console.log(`[SoundSpace Audio] fadeIn: elapsed: ${elapsed.toFixed(0)}ms, volume: ${player.volume.toFixed(2)}`);
+            
+            if (pct >= 1) {
+                clearInterval(fadeInterval);
+                fadeInterval = null;
+                player.volume = TARGET_VOLUME;
+                console.log(`[SoundSpace Audio] fadeIn finished! Target volume reached: ${player.volume}`);
+            }
+        }, 50);
+    }
+
+    function fadeOut(durationMs) {
+        console.log(`[SoundSpace Audio] Starting fadeOut over ${durationMs}ms...`);
+        if (fadeInterval) clearInterval(fadeInterval);
+        const startTime = performance.now();
+        const startVolume = player.volume;
+        
+        fadeInterval = setInterval(() => {
+            const elapsed = performance.now() - startTime;
+            const pct = Math.min(1, elapsed / durationMs);
+            player.volume = startVolume * (1 - pct);
+            
+            console.log(`[SoundSpace Audio] fadeOut: elapsed: ${elapsed.toFixed(0)}ms, volume: ${player.volume.toFixed(2)}`);
+            
+            if (pct >= 1) {
+                clearInterval(fadeInterval);
+                fadeInterval = null;
+                player.volume = 0;
+                console.log(`[SoundSpace Audio] fadeOut finished! Volume is 0`);
+            }
+        }, 50);
+    }
+
+    let isFrequencyMode = false;
+
+    function getSeed(str) {
+        let hash = 0;
+        if (!str) return hash;
+        for (let i = 0; i < str.length; i++) {
+            hash = str.charCodeAt(i) + ((hash << 5) - hash);
+        }
+        return Math.abs(hash);
+    }
+
+    function seededRandom(seed) {
+        const x = Math.sin(seed) * 10000;
+        return x - Math.floor(x);
+    }
+
+    let waveformBars = [];
+
+    function generateAndRenderWaveform() {
+        if (!els.waveformBackground || !els.waveformForeground) return;
+        
+        const N = 120; // Количество полос
+        const barWidth = 5;
+        const gap = 3;
+        const step = barWidth + gap; // 8
+        const maxH = 85; // Максимальная высота
+        const viewH = 100; // Высота viewBox
+        
+        let seed = getSeed(String(currentTrackId || "default"));
+        
+        let htmlBackground = '';
+        let htmlForeground = '';
+        waveformBars = [];
+        
+        for (let i = 0; i < N; i++) {
+            const x = i * step + 2;
+            
+            // Огибающая затухания
+            const progress = i / (N - 1);
+            let envelope = Math.sin(Math.PI * progress);
+            
+            // Затухание к краям
+            if (progress < 0.1) {
+                envelope = envelope * (progress / 0.1);
+            } else if (progress > 0.9) {
+                envelope = envelope * ((1 - progress) / 0.1);
+            }
+            
+            const rand = seededRandom(seed + i);
+            let h = 4 + maxH * (0.15 + 0.85 * rand) * envelope;
+            
+            if (h < 5) h = 5;
+            
+            const y = (viewH - h) / 2;
+            
+            const rectStr = `<rect x="${x}" y="${y}" width="${barWidth}" height="${h}" rx="${barWidth/2}" ry="${barWidth/2}" />`;
+            htmlBackground += rectStr;
+            htmlForeground += rectStr;
+            waveformBars.push({ x, y, h });
+        }
+        
+        els.waveformBackground.innerHTML = htmlBackground;
+        els.waveformForeground.innerHTML = htmlForeground;
+    }
+
+    function updateWaveformProgress() {
+        if (!player.duration || !els.waveformClipRect) return;
+        const pct = (player.currentTime / player.duration) * 100;
+        els.waveformClipRect.setAttribute('width', (pct * 10).toString());
+        
+        if (waveformBars.length > 0 && els.waveformPlayheads && els.waveformPlayheads.length > 0) {
+            const activeIndex = Math.min(waveformBars.length - 1, Math.floor((pct / 100) * waveformBars.length));
+            
+            els.waveformPlayheads.forEach((playhead, i) => {
+                const targetIndex = activeIndex - i;
+                if (targetIndex >= 0 && targetIndex < waveformBars.length && showPlayheads) {
+                    const bar = waveformBars[targetIndex];
+                    const playheadX = ((pct / 100) * 1000 - 4) - (i * 8);
+                    playhead.setAttribute('x', playheadX.toString());
+                    playhead.setAttribute('y', bar.y.toString());
+                    playhead.setAttribute('height', bar.h.toString());
+                    playhead.style.display = 'block';
+                } else {
+                    playhead.style.display = 'none';
+                }
+            });
+        }
+    }
+
+    function toggleFrequencyMode() {
+        isFrequencyMode = !isFrequencyMode;
+        if (isFrequencyMode) {
+            els.timeBarContainer.classList.add('frequency-mode');
+            generateAndRenderWaveform();
+            triggerPlayheadDelay();
+            updateWaveformProgress();
+        } else {
+            els.timeBarContainer.classList.remove('frequency-mode');
+            if (playheadDelayTimeout) clearTimeout(playheadDelayTimeout);
+            showPlayheads = false;
+            if (els.waveformPlayheads) {
+                els.waveformPlayheads.forEach(playhead => playhead.style.display = 'none');
+            }
+        }
+    }
+
     if (els.timeBarContainer) {
         let suppressNextTimebarClick = false;
+        let clickTimeout = null;
+        let lastTapTime = 0;
+        let timebarPressTimer = null;
+
         const addCutMarkerAtClientX = (clientX) => {
             if (!player.duration || !currentTrackId) return;
             const rect = els.timeBarContainer.getBoundingClientRect();
@@ -1578,13 +1861,31 @@ document.addEventListener('DOMContentLoaded', () => {
             const clickX = Math.max(0, Math.min(rect.width, clientX - rect.left));
             const markerSec = (clickX / rect.width) * player.duration;
             const key = String(currentTrackId);
-            const markers = (cutMarkersByTrack.get(key) || []).slice().sort((a, b) => a - b);
+            const markers = (cutMarkersByTrack.get(key) || []).slice();
             const hasNearMarker = markers.some(m => Math.abs(m - markerSec) < 0.35);
             if (hasNearMarker) return;
-            if (markers.length >= 3) markers.shift();
+            if (markers.length >= 1) markers.shift();
             markers.push(markerSec);
-            cutMarkersByTrack.set(key, markers.sort((a, b) => a - b));
+            cutMarkersByTrack.set(key, markers);
             renderCutMarkers();
+            saveCutsToBackend(key);
+        };
+
+        const handleTimebarSingleClick = (clientX, offsetX) => {
+            const width = els.timeBarContainer.offsetWidth;
+            let finalX = offsetX;
+            if (finalX === undefined || finalX === null) {
+                const rect = els.timeBarContainer.getBoundingClientRect();
+                finalX = Math.max(0, Math.min(rect.width, clientX - rect.left));
+            }
+            isIntroAnimating = false;
+            if (player.duration) {
+                player.currentTime = (finalX / width) * player.duration;
+                if (isFrequencyMode) {
+                    triggerPlayheadDelay();
+                    updateWaveformProgress();
+                }
+            }
         };
 
         els.timeBarContainer.addEventListener('click', (e) => {
@@ -1593,31 +1894,57 @@ document.addEventListener('DOMContentLoaded', () => {
                 e.preventDefault();
                 return;
             }
-            const width = els.timeBarContainer.offsetWidth;
-            const clickX = e.offsetX;
-            if (player.duration) player.currentTime = (clickX / width) * player.duration;
+            if (e.button === 2) return;
+
+            if (clickTimeout) {
+                clearTimeout(clickTimeout);
+                clickTimeout = null;
+                toggleFrequencyMode();
+            } else {
+                const clientX = e.clientX;
+                const offsetX = e.offsetX;
+                clickTimeout = setTimeout(() => {
+                    handleTimebarSingleClick(clientX, offsetX);
+                    clickTimeout = null;
+                }, 250);
+            }
         });
+
         els.timeBarContainer.addEventListener('contextmenu', (e) => {
             e.preventDefault();
             addCutMarkerAtClientX(e.clientX);
         });
 
-        let timebarPressTimer = null;
         els.timeBarContainer.addEventListener('touchstart', (e) => {
             if (!e.touches || !e.touches[0]) return;
             const touchX = e.touches[0].clientX;
+            const currentTimeTime = new Date().getTime();
+            const tapLength = currentTimeTime - lastTapTime;
+
+            if (tapLength < 300 && tapLength > 0) {
+                e.preventDefault();
+                cancelTimebarLongPress();
+                suppressNextTimebarClick = true;
+                toggleFrequencyMode();
+                lastTapTime = 0;
+                return;
+            }
+            lastTapTime = currentTimeTime;
+
             timebarPressTimer = setTimeout(() => {
                 addCutMarkerAtClientX(touchX);
                 suppressNextTimebarClick = true;
                 timebarPressTimer = null;
             }, 550);
-        }, { passive: true });
+        }, { passive: false });
+
         const cancelTimebarLongPress = () => {
             if (timebarPressTimer) {
                 clearTimeout(timebarPressTimer);
                 timebarPressTimer = null;
             }
         };
+
         els.timeBarContainer.addEventListener('touchmove', cancelTimebarLongPress, { passive: true });
         els.timeBarContainer.addEventListener('touchend', cancelTimebarLongPress);
         els.timeBarContainer.addEventListener('touchcancel', cancelTimebarLongPress);
@@ -1983,35 +2310,102 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderCutMarkers() {
         if (!els.timeBarContainer) return;
-        els.timeBarContainer.querySelectorAll('.cut-marker').forEach(m => m.remove());
+        els.timeBarContainer.querySelectorAll('.cut-marker-node').forEach(m => m.remove());
         if (!player.duration || !currentTrackId) return;
         const markers = cutMarkersByTrack.get(String(currentTrackId)) || [];
         markers.forEach(sec => {
-            const marker = document.createElement('div');
-            marker.className = 'cut-marker';
-            marker.style.left = `${(sec / player.duration) * 100}%`;
-            els.timeBarContainer.appendChild(marker);
+            const markerContainer = document.createElement('div');
+            markerContainer.className = 'cut-marker-node';
+            markerContainer.style.left = `${(sec / player.duration) * 100}%`;
+            
+            const dot = document.createElement('div');
+            dot.className = 'cut-marker-dot';
+            
+            const tooltip = document.createElement('div');
+            tooltip.className = 'cut-marker-tooltip';
+            
+            const timeLabel = document.createElement('span');
+            timeLabel.className = 'cut-marker-time';
+            timeLabel.textContent = formatTime(sec);
+            
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'cut-marker-delete-btn';
+            deleteBtn.innerHTML = '<i class="fa-solid fa-trash"></i>';
+            deleteBtn.title = "Delete marker";
+            
+            deleteBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const key = String(currentTrackId);
+                const currentMarkers = cutMarkersByTrack.get(key) || [];
+                const updated = currentMarkers.filter(m => Math.abs(m - sec) > 0.01);
+                cutMarkersByTrack.set(key, updated);
+                renderCutMarkers();
+                saveCutsToBackend(key);
+            });
+            
+            tooltip.addEventListener('click', (e) => {
+                e.stopPropagation();
+            });
+            
+            tooltip.appendChild(timeLabel);
+            tooltip.appendChild(deleteBtn);
+            
+            markerContainer.appendChild(dot);
+            markerContainer.appendChild(tooltip);
+            els.timeBarContainer.appendChild(markerContainer);
         });
     }
 
-    function maybeSkipCutRange() {
-        if (!currentTrackId || !player.duration) return;
-        const markers = cutMarkersByTrack.get(String(currentTrackId));
-        if (!markers || markers.length < 2) return;
-        const sorted = markers.slice().sort((a, b) => a - b);
-        const start = sorted[0];
-        const end = sorted[sorted.length - 1];
-        if (player.currentTime >= start && player.currentTime < end) {
-            player.currentTime = end;
-        }
-    }
-
     function loop() {
-        if (!player.paused && player.duration) {
-            const pct = (player.currentTime / player.duration) * 100;
-            els.timeBarProgress.style.width = `${pct}%`;
-            els.timeCurrent.textContent = formatTime(player.currentTime);
-            maybeSkipCutRange();
+        if (player.duration) {
+            if (isIntroAnimating) {
+                const elapsed = performance.now() - introAnimationStart;
+                const progress = Math.min(1, elapsed / introAnimationDuration);
+                const eased = 1 - Math.pow(1 - progress, 3); // easeOutCubic
+                const visualSec = introAnimationTarget * eased;
+                const pct = (visualSec / player.duration) * 100;
+                
+                els.timeBarProgress.style.width = `${pct}%`;
+                els.timeCurrent.textContent = formatTime(visualSec);
+                
+                if (isFrequencyMode) {
+                    els.waveformClipRect.setAttribute('width', (pct * 10).toString());
+                    if (waveformBars.length > 0 && els.waveformPlayheads && els.waveformPlayheads.length > 0) {
+                        const activeIndex = Math.min(waveformBars.length - 1, Math.floor((pct / 100) * waveformBars.length));
+                        els.waveformPlayheads.forEach((playhead, i) => {
+                            const targetIndex = activeIndex - i;
+                            if (targetIndex >= 0 && targetIndex < waveformBars.length && showPlayheads) {
+                                const bar = waveformBars[targetIndex];
+                                const playheadX = ((pct / 100) * 1000 - 4) - (i * 8);
+                                playhead.setAttribute('x', playheadX.toString());
+                                playhead.setAttribute('y', bar.y.toString());
+                                playhead.setAttribute('height', bar.h.toString());
+                                playhead.style.display = 'block';
+                            } else {
+                                playhead.style.display = 'none';
+                            }
+                        });
+                    }
+                }
+                
+                if (progress >= 1) {
+                    isIntroAnimating = false;
+                }
+            } else {
+                const pct = (player.currentTime / player.duration) * 100;
+                els.timeBarProgress.style.width = `${pct}%`;
+                els.timeCurrent.textContent = formatTime(player.currentTime);
+
+                if (!player.paused) {
+                    if (player.duration > 8 && player.duration - player.currentTime <= 4.0 && !wasFadeOutStarted) {
+                        wasFadeOutStarted = true;
+                        fadeOut(4000);
+                    }
+                }
+                if (isFrequencyMode) {
+                    updateWaveformProgress();
+                }
+            }
         }
         requestAnimationFrame(loop);
     }
@@ -2021,6 +2415,20 @@ document.addEventListener('DOMContentLoaded', () => {
         playerState.duration = player.duration;
         els.timeDuration.textContent = formatTime(player.duration);
         renderCutMarkers();
+        triggerPlayheadDelay();
+        
+        // Auto-start from cut point on load with animation
+        const markers = cutMarkersByTrack.get(String(currentTrackId));
+        if (markers && markers.length >= 1) {
+            const markerTime = markers[0];
+            player.currentTime = markerTime;
+            
+            isIntroAnimating = true;
+            introAnimationStart = performance.now();
+            introAnimationTarget = markerTime;
+        } else {
+            isIntroAnimating = false;
+        }
     });
     player.addEventListener('ended', () => playAdjacent('next'));
     player.addEventListener('play', () => { playerState.isPlaying = true; });
@@ -2043,6 +2451,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!currentTrackId) return;
             cutMarkersByTrack.delete(String(currentTrackId));
             renderCutMarkers();
+            saveCutsToBackend(String(currentTrackId));
         });
     }
     if(window.lucide) window.lucide.createIcons();

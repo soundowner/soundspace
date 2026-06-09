@@ -2779,3 +2779,131 @@ color: coral;
 .ss-playlist-cover-art-wrapper .playlist-cover-collage {
     border-radius: 0 !important;
 }
+
+/* Frequency View mode styles */
+#timebar-waveform {
+    display: block !important;
+    opacity: 0;
+    transform: scaleY(0);
+    transform-origin: center;
+    transition: opacity 1s ease-out, transform 1s ease-out;
+}
+#timebar-progress-container.frequency-mode #timebar-waveform {
+    opacity: 1;
+    transform: scaleY(1);
+}
+
+#waveform-clip-rect {
+    transition: width 0.2s linear;
+}
+.waveform-playhead {
+    transition: x 0.2s linear, y 0.2s linear, height 0.2s linear;
+}
+
+
+#timebar-progress-container.frequency-mode::before {
+    display: none !important;
+}
+#timebar-progress-container.frequency-mode #timebar-progress {
+    display: none !important;
+}
+/* New Neon Glowing Cut Markers UI */
+.cut-marker-node {
+    position: absolute;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+    cursor: pointer;
+}
+
+.cut-marker-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: #ff7f50;
+    border: 1px solid #000000;
+    box-shadow: 0 0 5px 1px rgba(255, 127, 80, 0.6), 0 0 0 2px rgba(0, 0, 0, 0.5);
+    transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275), background-color 0.2s;
+}
+
+.cut-marker-node:hover .cut-marker-dot {
+    transform: scale(1.25);
+    background: #ff5722;
+    box-shadow: 0 0 7px 2px rgba(255, 87, 34, 0.8), 0 0 0 2px rgba(0, 0, 0, 0.6);
+}
+
+.cut-marker-tooltip {
+    position: absolute;
+    bottom: 125%;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(10, 10, 10, 0.94);
+    border: 1px solid rgba(255, 127, 80, 0.45);
+    border-radius: 8px;
+    padding: 6px 10px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.75), 0 0 10px rgba(255, 127, 80, 0.2);
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(8px) scale(0.9);
+    transition: opacity 0.25s cubic-bezier(0.165, 0.84, 0.44, 1), transform 0.25s cubic-bezier(0.165, 0.84, 0.44, 1);
+    z-index: 20;
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+}
+
+.cut-marker-node:hover .cut-marker-tooltip {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0) scale(1);
+}
+
+.cut-marker-tooltip::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border-width: 5px;
+    border-style: solid;
+    border-color: rgba(10, 10, 10, 0.94) transparent transparent transparent;
+}
+
+.cut-marker-time {
+    color: #ffd5c2;
+    font-size: 11px;
+    font-weight: 700;
+    font-family: monospace;
+    user-select: none;
+}
+
+.cut-marker-delete-btn {
+    background: none;
+    border: none;
+    color: #ff5252;
+    cursor: pointer;
+    font-size: 11px;
+    padding: 2px 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.2s, transform 0.2s;
+    outline: none;
+}
+
+.cut-marker-delete-btn:hover {
+    color: #ff1744;
+    transform: scale(1.2);
+}
+
+#track-title,
+#track-artist-label,
+#track-album-label {
+    transition: opacity 0.25s ease-in-out;
+    opacity: 1;
+}

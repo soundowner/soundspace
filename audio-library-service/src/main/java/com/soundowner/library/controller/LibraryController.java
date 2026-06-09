@@ -1,13 +1,7 @@
 package com.soundowner.library.controller;
 
-import com.soundowner.library.dto.AlbumDto;
-import com.soundowner.library.dto.ArtistDto;
-import com.soundowner.library.dto.PlaylistDto;
-import com.soundowner.library.dto.TrackDto;
-import com.soundowner.library.entity.Album;
-import com.soundowner.library.entity.Artist;
-import com.soundowner.library.entity.Playlist;
-import com.soundowner.library.entity.Track;
+import com.soundowner.library.dto.*;
+import com.soundowner.library.entity.*;
 import com.soundowner.library.mapper.LibraryMapper;
 import com.soundowner.library.service.LibraryService;
 import lombok.RequiredArgsConstructor;
@@ -217,6 +211,37 @@ public class LibraryController {
             @PathVariable Long trackId) {
         
         libraryService.removeTrackFromPlaylist(playlistId, trackId);
+        return ResponseEntity.ok().build();
+    }
+
+    @GetMapping("/cuts")
+    public ResponseEntity<List<TrackCutDto>> getTrackCuts(
+            @RequestHeader("X-User-Id") UUID userId,
+            @RequestParam("trackId") String trackId) {
+        var entities = libraryService.getTrackCuts(userId, trackId);
+        var dtos = entities.stream()
+                .map(entity -> {
+                    TrackCutDto dto = new TrackCutDto();
+                    dto.setStartTime(entity.getStartTime());
+                    dto.setEndTime(entity.getEndTime());
+                    return dto;
+                })
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(dtos);
+    }
+
+    @PostMapping("/cuts")
+    public ResponseEntity<Void> saveTrackCuts(
+            @RequestHeader("X-User-Id") UUID userId,
+            @RequestParam("trackId") String trackId,
+            @RequestBody List<TrackCutDto> dtos) {
+        var entities = dtos.stream()
+                .map(dto -> TrackCut.builder()
+                        .startTime(dto.getStartTime())
+                        .endTime(dto.getEndTime())
+                        .build())
+                .collect(Collectors.toList());
+        libraryService.saveTrackCuts(userId, trackId, entities);
         return ResponseEntity.ok().build();
     }
 }
