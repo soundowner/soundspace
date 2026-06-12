@@ -199,9 +199,10 @@
                                     <button class="action-btn" id="btn-add"><i class="fa-solid fa-plus" style="color:#2cec9b; font-size:large;"></i></button>
                                     <div id="quality-selector-wrap">
                                         <select id="quality-selector" title="Quality">
-                                            <option value="27|9.0">FLAC</option>
-                                            <option value="6|4.3">MP3</option>
-                                            <option value="5|3.1">AAC</option>
+                                            <option value="27">FLAC/27</option>
+                                            <option value="7">FLAC/7</option>
+                                            <option value="6">FLAC/6</option>
+                                            <option value="5">MP3/5</option>
                                         </select>
                                         <button id="cut-reset-btn" title="Reset cut markers">CUT RESET</button>
                                     </div>
@@ -238,6 +239,11 @@
                             <span id="current-time">0:00</span>
                             <span id="duration">0:00</span>
                         </div>
+
+                        <div id="track-quality-info"></div>
+                        <button id="track-download-btn" title="Download Track">
+                            <i class="fa-solid fa-download"></i> DOWNLOAD
+                        </button>
 
                         <div id="player-controls-container">
                             <div id="backward-button-container" class="player-controls-button"><i class="fa-solid fa-backward"></i></div>

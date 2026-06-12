@@ -40,6 +40,13 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentTrackId = null;
     let currentQueue = [];
     let currentQueueIndex = -1;
+    let isManualSwitch = false;
+
+    // Глобальные переменные для оптимизации и предотвращения Race Conditions
+    let currentAudioFetchController = null;
+    let cachedQueueContext = null;
+    let cachedQueueId = null;
+
     const cutMarkersByTrack = new Map();
     try {
         const localCuts = JSON.parse(localStorage.getItem('ss_cut_markers') || '{}');
@@ -49,7 +56,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (e) {
         console.error('Failed to load cut markers from localStorage', e);
     }
-    let qualitySetting = { label: 'FLAC', formatId: 27, qualityCode: '9.0' };
+    let qualitySetting = { label: 'FLAC', formatId: 27 };
     let libraryLabelTimeout = null;
     
     // --- ELEMENTS ---
@@ -84,6 +91,8 @@ document.addEventListener('DOMContentLoaded', () => {
         
         bgImage: document.querySelector('#player-panel-container-bg-container img'),
         playingBars: document.getElementById('playing-bars'),
+        trackQualityInfo: document.getElementById('track-quality-info'),
+        trackDownloadBtn: document.getElementById('track-download-btn'),
         
         artistContent: document.getElementById('artist-content'),
         albumContent: document.getElementById('album-content'),
@@ -609,15 +618,35 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function buildQueueFromNode(node) {
+        if (!node) return;
+        
         const contextRoot = node.closest('#search-results-container, #artist-content, #album-content, #playlist-content-ss, #tracks-lib-container');
-        const context = contextRoot?.id === 'artist-content' ? 'artist'
-            : contextRoot?.id === 'album-content' ? 'album'
-            : contextRoot?.id === 'playlist-content-ss' ? 'playlist'
-            : contextRoot?.id === 'tracks-lib-container' ? 'tracks'
+        if (!contextRoot) return;
+
+        const contextType = contextRoot.id === 'artist-content' ? 'artist'
+            : contextRoot.id === 'album-content' ? 'album'
+            : contextRoot.id === 'playlist-content-ss' ? 'playlist'
+            : contextRoot.id === 'tracks-lib-container' ? 'tracks'
             : 'search';
-        const nodes = getTrackNodesFromContext(context);
+        
+        // Уникальный ID для контекста (например, data-loaded-id для альбомов/плейлистов)
+        const contextId = contextRoot.dataset.loadedId || contextRoot.id;
+
+        // Если контекст тот же самый, не пересобираем очередь из DOM
+        if (cachedQueueContext === contextType && cachedQueueId === contextId && currentQueue.length > 0) {
+            currentQueueIndex = currentQueue.findIndex(n => n.dataset.trackId === node.dataset.trackId);
+            return;
+        }
+
+        // Иначе - собираем заново и кэшируем
+        const nodes = getTrackNodesFromContext(contextType);
         currentQueue = nodes;
         currentQueueIndex = nodes.findIndex(n => n.dataset.trackId === node.dataset.trackId);
+        
+        cachedQueueContext = contextType;
+        cachedQueueId = contextId;
+        
+        console.log(`[SoundSpace] Queue rebuilt for context: ${contextType}:${contextId}, size: ${nodes.length}`);
     }
 
     function findCurrentTrackNodeInDom() {
@@ -645,11 +674,19 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function handleTrackClick(el, isAutoPlay = false, skipShowActions = false) {
+        if (!el) return;
         document.querySelectorAll('.search-result-track').forEach(n => n.classList.remove('show-actions'));
+        
         currentTrackId = el.dataset.trackId;
-        loadCutsForTrack(currentTrackId);
-        buildQueueFromNode(el);
+        
+        // Пересобираем очередь только при ручном клике. 
+        // При Next/Prev индекс уже обновлен в playAdjacent.
+        if (!isAutoPlay) {
+            buildQueueFromNode(el);
+        }
+        
         syncPlayingHighlights();
+        loadCutsForTrack(currentTrackId);
         
         if (!isAutoPlay) {
             isManualSwitch = true;
@@ -673,13 +710,38 @@ document.addEventListener('DOMContentLoaded', () => {
 
         playerState.currentTrack = meta;
         playerState.isPlaying = true;
-        renderCutMarkers();
+        
+        // Обновление инфо о качестве
+        updateQualityInfoUI(meta.id);
+
+        // Мгновенный сброс UI
+        isIntroAnimating = false;
+        if (els.timeBarProgress) els.timeBarProgress.style.width = '0%';
+        if (els.timeCurrent) els.timeCurrent.textContent = '0:00';
+        if (els.timeBarContainer) {
+            els.timeBarContainer.querySelectorAll('.cut-marker-node').forEach(m => m.remove());
+        }
+
+        if (currentAudioFetchController) {
+            currentAudioFetchController.abort();
+        }
+        currentAudioFetchController = new AbortController();
 
         try {
-            const res = await fetch(`/data/audio/play?trackId=${meta.id}&formatId=${qualitySetting.formatId}&qualityCode=${encodeURIComponent(qualitySetting.qualityCode)}`);
+            // Удален неиспользуемый qualityCode
+            const res = await fetch(`/data/audio/play?trackId=${meta.id}&formatId=${qualitySetting.formatId}`, {
+                signal: currentAudioFetchController.signal
+            });
+            
             const data = await res.json();
+            
             if (data.url) {
                 if (fadeInterval) clearInterval(fadeInterval);
+                
+                player.pause();
+                player.src = "";
+                player.load(); 
+
                 player.src = data.url;
                 wasFadeOutStarted = false;
                 
@@ -692,13 +754,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 if (playPromise !== undefined) {
                     playPromise.catch(error => {
-                        if (error.name !== 'AbortError') console.error('Playback error:', error);
+                        if (error.name !== 'AbortError' && error.name !== 'NotAllowedError') {
+                            console.error('Playback error:', error);
+                        }
                     });
                 }
             }
         } catch (e) {
+            if (e.name === 'AbortError') return;
             console.error(e);
             playerState.isPlaying = false;
+        } finally {
+            if (currentAudioFetchController?.signal.aborted === false) {
+                currentAudioFetchController = null;
+            }
         }
     }
 
@@ -730,11 +799,18 @@ document.addEventListener('DOMContentLoaded', () => {
         e.target.value = ''; // Clear text after search starts
         dismissSearch();
         if (query.length < 2) return;
+
+        // Показываем спиннер
+        els.searchResults.innerHTML = '<div class="search-spinner-container"><div class="search-spinner-ss"></div><p>Searching Qobuz...</p></div>';
+
         try {
             const res = await fetch(`/data/audio/search?query=${encodeURIComponent(query)}&type=tracks`);
             const data = await res.json();
             renderResults(data.tracks?.items || []);
-        } catch (err) { console.error(err); }
+        } catch (err) { 
+            console.error(err);
+            els.searchResults.innerHTML = '<div class="empty-state-ss">Search failed. Try again.</div>';
+        }
     });
 
     els.parentContainer.addEventListener('touchstart', (e) => {
@@ -1677,7 +1753,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let fadeInterval = null;
     const TARGET_VOLUME = 1.0;
-    let isManualSwitch = false;
     let wasFadeOutStarted = false;
     let isIntroAnimating = false;
     let introAnimationStart = 0;
@@ -2310,8 +2385,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderCutMarkers() {
         if (!els.timeBarContainer) return;
+        
+        // Очищаем старые в любом случае
         els.timeBarContainer.querySelectorAll('.cut-marker-node').forEach(m => m.remove());
-        if (!player.duration || !currentTrackId) return;
+        
+        // Если плеер еще не загрузил метаданные (readyState < 1) или нет длительности,
+        // выходим. Отрисовка произойдет позже по событию 'loadedmetadata'.
+        if (!player.duration || isNaN(player.duration) || player.readyState < 1 || !currentTrackId) return;
+
         const markers = cutMarkersByTrack.get(String(currentTrackId)) || [];
         markers.forEach(sec => {
             const markerContainer = document.createElement('div');
@@ -2438,11 +2519,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const cutResetBtn = document.getElementById('cut-reset-btn');
     if (qualitySelect) {
         qualitySelect.addEventListener('change', (e) => {
-            const [formatId, qualityCode] = e.target.value.split('|');
+            const formatId = e.target.value;
             qualitySetting = {
                 label: e.target.options[e.target.selectedIndex].text,
-                formatId: Number(formatId),
-                qualityCode
+                formatId: Number(formatId)
             };
         });
     }
@@ -2454,5 +2534,87 @@ document.addEventListener('DOMContentLoaded', () => {
             saveCutsToBackend(String(currentTrackId));
         });
     }
+    if (els.trackDownloadBtn) {
+        els.trackDownloadBtn.addEventListener('click', async () => {
+            if (!playerState.currentTrack) return;
+            const track = playerState.currentTrack;
+            const originalHTML = els.trackDownloadBtn.innerHTML;
+            
+            els.trackDownloadBtn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> DOWNLOADING...';
+            els.trackDownloadBtn.disabled = true;
+
+            try {
+                // 1. Получаем URL потока
+                const resUrl = await fetch(`/data/audio/play?trackId=${track.id}&formatId=${qualitySetting.formatId}`);
+                const data = await resUrl.json();
+                
+                if (!data.url) throw new Error('No stream URL');
+
+                // 2. Скачиваем сам файл как Blob, чтобы заставить браузер именно сохранить его
+                const fileRes = await fetch(data.url);
+                const blob = await fileRes.blob();
+                
+                // 3. Создаем временную ссылку на Blob и кликаем по ней
+                const blobUrl = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = blobUrl;
+                
+                const ext = qualitySetting.formatId === 5 ? 'mp3' : 'flac';
+                a.download = `${track.artist} - ${track.title}.${ext}`;
+                
+                document.body.appendChild(a);
+                a.click();
+                
+                // Чистим за собой
+                window.URL.revokeObjectURL(blobUrl);
+                document.body.removeChild(a);
+                
+                els.trackDownloadBtn.innerHTML = '<i class="fa-solid fa-check"></i> SAVED';
+            } catch (err) {
+                console.error('Download failed', err);
+                els.trackDownloadBtn.innerHTML = '<i class="fa-solid fa-xmark"></i> FAILED';
+            } finally {
+                els.trackDownloadBtn.disabled = false;
+                setTimeout(() => {
+                    if (els.trackDownloadBtn) els.trackDownloadBtn.innerHTML = originalHTML;
+                }, 3000);
+            }
+        });
+    }
+
+    function updateQualityInfoUI(trackId) {
+        if (!els.trackQualityInfo) return;
+        
+        const track = trackCache.get(String(trackId));
+        const formatId = qualitySetting.formatId;
+
+        if (formatId === 5) {
+            els.trackQualityInfo.textContent = 'MP3 | 320 kbps';
+            return;
+        }
+
+        // Для всех видов FLAC (6, 7, 27) берем максимум из того, что может трек,
+        // но учитываем ограничения выбранного формата.
+        if (track) {
+            let bit = track.maximum_bit_depth || 16;
+            let rate = track.maximum_sampling_rate || 44.1;
+            
+            // Если выбран формат 6 (CD), ограничиваем вывод до 16/44.1
+            if (formatId === 6) {
+                bit = 16;
+                rate = 44.1;
+            } 
+            // Если выбран 7 (Hi-Res 96), ограничиваем частоту до 96, если она выше
+            else if (formatId === 7 && rate > 96) {
+                rate = 96;
+            }
+
+            els.trackQualityInfo.textContent = `FLAC | ${bit}-bit | ${rate} kHz`;
+        } else {
+            els.trackQualityInfo.textContent = qualitySetting.label;
+        }
+    }
+
     if(window.lucide) window.lucide.createIcons();
 });
