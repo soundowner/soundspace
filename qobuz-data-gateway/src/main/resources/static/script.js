@@ -1026,9 +1026,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function fetchPlaylistsSS() {
         if (!els.playlistsContainer) return;
-        renderPlaylistsSS(libraryState.playlists);
-
         if (!libraryState.needsPlaylistsSync && libraryState.playlists.length > 0) return;
+
+        renderPlaylistsSS(libraryState.playlists);
 
         try {
             const res = await fetch('/library/playlists');
@@ -1200,30 +1200,35 @@ document.addEventListener('DOMContentLoaded', () => {
             const coverArtWrapper = content.querySelector('.ss-playlist-cover-art-wrapper');
             if (coverArtWrapper) {
                 let coverHtml = '';
-                if (covers.length >= 4) {
+                if (covers.length >= 3) {
                     coverHtml = `
-                        <div class="playlist-cover-collage cols-4">
-                            ${covers.slice(0, 4).map(src => `<img src="${src}" alt="cover">`).join('')}
-                        </div>
-                    `;
-                } else if (covers.length === 3) {
-                    coverHtml = `
-                        <div class="playlist-cover-collage cols-3">
-                            ${covers.slice(0, 3).map(src => `<img src="${src}" alt="cover">`).join('')}
+                        <div class="ss-cover-deck">
+                            <div class="deck-card card-3"><img src="${covers[2]}" alt="cover"></div>
+                            <div class="deck-card card-2"><img src="${covers[1]}" alt="cover"></div>
+                            <div class="deck-card card-1"><img src="${covers[0]}" alt="cover"></div>
                         </div>
                     `;
                 } else if (covers.length === 2) {
                     coverHtml = `
-                        <div class="playlist-cover-collage cols-2">
-                            ${covers.slice(0, 2).map(src => `<img src="${src}" alt="cover">`).join('')}
+                        <div class="ss-cover-deck">
+                            <div class="deck-card card-2"><img src="${covers[1]}" alt="cover"></div>
+                            <div class="deck-card card-1"><img src="${covers[0]}" alt="cover"></div>
                         </div>
                     `;
                 } else if (covers.length === 1) {
-                    coverHtml = `<img src="${covers[0]}" alt="cover">`;
+                    coverHtml = `
+                        <div class="ss-cover-deck">
+                            <div class="deck-card card-1"><img src="${covers[0]}" alt="cover"></div>
+                        </div>
+                    `;
                 } else if (playlist.coverImage) {
-                    coverHtml = `<img src="${playlist.coverImage}" alt="cover">`;
+                    coverHtml = `
+                        <div class="ss-cover-deck">
+                            <div class="deck-card card-1"><img src="${playlist.coverImage}" alt="cover"></div>
+                        </div>
+                    `;
                 } else {
-                    coverHtml = `<span class="material-symbols-outlined" style="font-size:2rem; color:rgba(255,255,255,0.1)">music_note</span>`;
+                    coverHtml = `<div class="ss-cover-deck"><div class="deck-card card-1" style="display:flex;align-items:center;justify-content:center;"><span class="material-symbols-outlined" style="font-size:2rem; color:rgba(255,255,255,0.1)">music_note</span></div></div>`;
                 }
                 coverArtWrapper.innerHTML = coverHtml;
             }
@@ -1254,7 +1259,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     
                     const artistId = t.performer?.id || t.artist?.id || t.album?.artist?.id || '';
                     const albumId = t.album?.id || '';
-                    const artistName = t.performers || t.performer?.name || t.artist?.name || t.album?.artist?.name || 'Unknown';
+                    const rawArtist = t.performers || t.performer?.name || t.artist?.name || t.album?.artist?.name || 'Unknown';
+                    const artistName = rawArtist.split(',')[0].replace(/\s*\(.*?\)/g, '').trim();
                     const coverUrl = getImg(t);
 
                     row.setAttribute('data-track-id', t.id);
@@ -1269,7 +1275,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <img src="${getImgSmall(t)}" class="search-result-track-cover" loading="lazy">
                         <div class="track-info">
                             <p class="track-title">${escapeHtml(t.title)}</p>
-                            <p class="track-artist">${escapeHtml(artistName)}<span class="track-title-sep"> | </span><span class="track-title-duration">${formatTime(t.duration)}</span></p>
+                            <p class="track-artist"><span style="color: var(--accent-primary, coral); font-weight: 500;">${escapeHtml(artistName)}</span><span class="track-title-sep"> | </span><span class="track-title-duration">${formatTime(t.duration)}</span></p>
                         </div>
                         <div class="track-actions-slide">
                             <button class="slide-btn btn-add-to-playlist" title="Add to Playlist">
@@ -2139,15 +2145,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await res.json();
             currentArtistData = data;
 
-            const elapsed = performance.now() - overlayOpenTime;
-            const remaining = 1000 - elapsed;
-            if (remaining > 50) {
-                setTimeout(() => {
-                    if (els.artistContent.dataset.loadedId === id && els.artistContent.closest('.panel').classList.contains('active')) {
-                        renderArtistPanel(data);
-                    }
-                }, remaining);
-            } else {
+            if (els.artistContent.dataset.loadedId === id && els.artistContent.closest('.panel').classList.contains('active')) {
                 renderArtistPanel(data);
             }
         } catch (e) { console.error(e); }
@@ -2155,6 +2153,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function loadAlbum(id) {
         if (els.albumContent.dataset.loadedId === id) return;
+        
+        // Сразу сбрасываем старый фон для нового альбома
+        const blurBg = document.getElementById('album-blur-bg-ss');
+        if (blurBg) {
+            blurBg.style.backgroundImage = 'none';
+            blurBg.style.display = 'none';
+        }
+
         els.albumContent.dataset.loadedId = id;
         els.albumContent.innerHTML = '<div style="padding:40px; text-align:center">Loading Geometry...</div>';
 
@@ -2163,15 +2169,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await res.json();
             currentAlbumData = data;
 
-            const elapsed = performance.now() - overlayOpenTime;
-            const remaining = 1000 - elapsed;
-            if (remaining > 50) {
-                setTimeout(() => {
-                    if (els.albumContent.dataset.loadedId === id && els.albumContent.closest('.panel').classList.contains('active')) {
-                        renderAlbumPanel(data);
-                    }
-                }, remaining);
-            } else {
+            if (els.albumContent.dataset.loadedId === id && els.albumContent.closest('.panel').classList.contains('active')) {
                 renderAlbumPanel(data);
             }
         } catch (e) { console.error(e); }
@@ -2273,27 +2271,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const header = document.createElement('div');
         header.className = 'album-header-fixed';
-        header.style.cssText = 'display:flex; flex-direction:row; align-items:flex-end; padding:40px 20px 20px; background:rgba(15, 15, 15, 0.65); backdrop-filter:blur(24px); -webkit-backdrop-filter:blur(24px); gap:20px;';
+        header.style.cssText = 'display:flex; flex-direction:row; align-items:flex-end; padding:16px 5px 10px; background:linear-gradient(to bottom, rgba(0, 0, 0, 0.45), transparent); gap:20px;';
         
         const isInLib = libraryState.albumIds.has(String(data.id));
         header.innerHTML = `
-            <div style="display:flex; flex-direction:column; align-items:center; gap:8px; flex-shrink:0;">
-                <div class="album-cover-container" style="width:120px; height:120px;">
+            <div style="display:flex; flex-direction:column; align-items:center; flex-shrink:0;">
+                <div class="album-cover-container" style="width:145px; height:145px;">
                     ${imgUrl ? `<div class="vinyl-disk" style="background-image: url('${imgUrl}')"></div>` : '<div class="vinyl-disk fallback-vinyl"><span class="material-symbols-outlined">album</span></div>'}
                 </div>
+            </div>
+            <div class="album-header-info" style="min-width: 0;">
+                <p style="color:coral; font-size:10px; font-weight:900; letter-spacing:0.05em; margin:0 0 0px 0; text-transform:uppercase; line-height:1.2;">ALBUM <span style="color:rgba(255,255,255,0.5); font-weight:500; text-transform:lowercase; letter-spacing:normal; margin: 0 4px 0 6px;">by</span> <span style="color:coral; font-weight:700; text-transform:none; letter-spacing:normal;">${escapeHtml(data.artist?.name)}</span></p>
+                <h1 class="neon-text" style="font-size:1.5rem; margin:2px 0 2px 0; line-height:1.1; color:#fff; text-shadow:0 0 6px rgba(255,255,255,0.5); font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%;" title="${escapeHtml(data.title)}">${escapeHtml(data.title)}</h1>
+                <p style="color:rgba(255,255,255,0.6); font-size:0.8em; margin-top:4px">${escapeHtml(data.genre?.name || 'Music')} • ${new Date(data.released_at * 1000).getFullYear()}</p>
                 <div class="alb_panel_buttons_container">
-                    <button id="add-album-to-lib" class="alb-action-btn" title="Add to Library">
-                        <i data-lucide="${isInLib ? 'check' : 'plus'}"></i>
-                    </button>
                     <button id="play-album-start" class="alb-action-btn accent" title="Play Album">
-                        <i data-lucide="play"></i>
+                        <i data-lucide="play" style="width: 15px; height: 15px;"></i>
+                        <span>Play</span>
+                    </button>
+                    <button id="add-album-to-lib" class="alb-action-btn" title="Add to Library">
+                        <i data-lucide="${isInLib ? 'check' : 'plus'}" style="width: 15px; height: 15px;"></i>
+                        <span>${isInLib ? 'Library' : 'Add'}</span>
                     </button>
                 </div>
-            </div>
-            <div class="album-header-info">
-                <h1 class="neon-text" style="font-size:1.2rem; margin:0 0 5px 0; lineHeight:1.1; color:#fff; text-shadow:0 0 12px rgba(255,255,255,0.5); font-weight:700;">${escapeHtml(data.title)}</h1>
-                <p style="color:coral; font-weight:600; margin:0">${escapeHtml(data.artist?.name)}</p>
-                <p style="color:rgba(255,255,255,0.6); font-size:0.8em; margin-top:5px">${new Date(data.released_at * 1000).getFullYear()} • ${escapeHtml(data.genre?.name || 'Music')}</p>
             </div>
         `;
 
@@ -2318,9 +2318,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 row.dataset.cover = getImg(data);
                 const isTrackLiked = libraryState.likedTrackIds.has(String(t.id));
                 row.innerHTML = `
-                     <div class="track-info">
-                        <p class="track-title" style="color:#fff">${escapeHtml(t.title)}</p>
-                        <p class="track-artist" style="opacity:0.7">${formatTime(t.duration)}</p>
+                     <div class="track-info" style="display: flex; flex-direction: row; align-items: center; gap: 10px;">
+                        <span class="track-dot" style="width: 5px; height: 5px; background-color: rgba(255, 255, 255, 0.45); border-radius: 50%; flex-shrink: 0;"></span>
+                        <div style="min-width: 0; flex: 1;">
+                            <p class="track-title" style="color:#fff; font-size: 1.15rem; margin: 0; line-height: 1.25; font-weight: 700;">${escapeHtml(t.title)}</p>
+                            <p class="track-artist" style="opacity:0.7; margin: 2px 0 0 0; font-size: 0.82rem;">${formatTime(t.duration)}</p>
+                        </div>
                      </div>
                      <div class="track-actions-slide">
                         <button class="slide-btn btn-like-track ${isTrackLiked ? 'active' : ''}" style="${isTrackLiked ? 'color: coral;' : ''}"><i data-lucide="heart" style="${isTrackLiked ? 'fill: coral;' : ''}"></i></button>
