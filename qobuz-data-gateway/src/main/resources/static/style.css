@@ -62,7 +62,6 @@ input, textarea, [contenteditable="true"] {
     background-color: var(--background-main);
     z-index: 1;
 }
-
 .overlays-container {
     position: absolute;
     top: 0;
@@ -71,6 +70,22 @@ input, textarea, [contenteditable="true"] {
     height: 100%;
     pointer-events: none;
     z-index: 10;
+}
+
+.overlays-container.player-active {
+    z-index: 300000;
+}
+    transition: z-index 0s 0s;
+}
+
+.overlays-container.player-active {
+    z-index: 300000;
+    transition: z-index 0s 0s;
+}
+
+.overlays-container.player-active {
+    z-index: 250000;
+    transition: z-index 0s 0s;
 }
 
 /* --- PANELS (Shared) --- */
@@ -99,8 +114,10 @@ input, textarea, [contenteditable="true"] {
     z-index: 10;
 }
 #player-panel {
-    z-index: 15;
-    transition: opacity 0.45s ease-in-out, visibility 0s 0.35s;
+    z-index: 200000;
+    transition: transform 0.4s, opacity 0.45s ease-in, visibility 0s 0.35s;
+    transform: translate3d(0, 100%, 0);
+    will-change: transform;
 }
 
 #library-panel.active, #search-panel.active {
@@ -111,10 +128,10 @@ input, textarea, [contenteditable="true"] {
 }
 
 #player-panel.active {
-    transform: none !important;
+    transform: translate3d(0, 0, 0) !important;
     opacity: 1;
     visibility: visible;
-    transition: opacity 0.45s ease-in-out, visibility 0s 0s;
+    transition: transform 0.4s, opacity 0.45s ease-in, visibility 0s 0s;
 }
 
 /* Overlay Panels (Artist & Album) */
@@ -125,8 +142,8 @@ input, textarea, [contenteditable="true"] {
     background-color: #121212; /* No blur, solid performance color */
 }
 
-#artist-panel { z-index: 20; }
-#album-panel { z-index: 30; }
+#artist-panel { z-index: 300000; }
+#album-panel { z-index: 400000; }
 
 /* Overlay Header - Adjusted for fixed album layout */
 .overlay-header {
@@ -145,6 +162,7 @@ input, textarea, [contenteditable="true"] {
 
 /* Bottom Navbar Hiding Logic */
 .bottom-navbar {
+    z-index: 100000;
     transition: transform 0.7s cubic-bezier(0.32, 0.72, 0, 1);
     z-index: 100;
 }
@@ -535,21 +553,36 @@ input, textarea, [contenteditable="true"] {
     display: flex;
     position: absolute;
     width: 100dvw;
-    top: 0;
-    left: 0;
-    height: 100%;
-    background: #121212;
     transform: translateY(70dvh);
-    z-index: 5;
+    overflow: visible;
+    justify-content: space-between;
+    top: 0;
+    flex-direction: row;
+    height: 51dvh;
+    background: linear-gradient(to top, black, transparent);
 }
+
+
 
 /* Instant return when panel is closed */
 .panel:not(.active) #now_play_bottom_panel_part {
-    transition: none !important;
+    display: flex;
+    position: absolute;
+    width: 100dvw;
+    transform: translateY(70dvh);
+    overflow: visible;
+    justify-content: space-between;
+    top: 0;
+    flex-direction: row;
+    height: 51dvh;
+    background: linear-gradient(to top, black, transparent);
 }
+
+
 
 /* --- BOTTOM NAVBAR --- */
 .bottom-navbar {
+    z-index: 100000;
     position: absolute;
     bottom: 0;
     left: 0;
@@ -753,6 +786,8 @@ input, textarea, [contenteditable="true"] {
     height: 60vh;
     overflow: hidden;
 }
+
+
 #track-cover-container {
     position: absolute;
     width: 100%;
@@ -899,10 +934,13 @@ color: coral;
     transform: translateY(70dvh);
     overflow: visible;
     justify-content: space-between;
+    top: 0;
     flex-direction: row;
     height: 51dvh;
-    background: #121212;
-        }
+    background: linear-gradient(to top, black, transparent);
+}
+
+
 
 
 /* --- BOTTOM ACTIONS CONTAINER (Static) --- */
@@ -1175,6 +1213,7 @@ color: coral;
 }
 
 #playlist-panel {
+    z-index: 500000;
     overflow: hidden;
     transform: translate3d(0, 0, 0) !important;
     opacity: 0;
@@ -1640,7 +1679,7 @@ color: coral;
  }
 
 .ss-text-btn { background: transparent; border: none; color: #808080; font-weight: 600; cursor: pointer; }
-.ss-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px); z-index: 9999; display: flex; align-items: center; justify-content: center; opacity: 1; pointer-events: auto; transition: opacity 0.5s linear, visibility 0s linear 0s; visibility: visible; }
+.ss-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px); z-index: 1000000; display: flex; align-items: center; justify-content: center; opacity: 1; pointer-events: auto; transition: opacity 0.5s linear, visibility 0s linear 0s; visibility: visible; }
 .ss-modal-overlay.hidden { display: flex !important; opacity: 0; pointer-events: none; visibility: hidden; transition: opacity 0.3s linear, visibility 0s linear 0.3s; }
 .ss-modal-window { width: 70%; max-width: 400px; backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px); background: #1e1e1e59; border-radius: 20px; padding: 24px; box-shadow: 0 20px 50px rgba(0,0,0,0.5); transform: scale(1); border: 1px solid rgba(255, 255, 255, 0.08); transition: transform 0.5s cubic-bezier(0.34, 1.3, 0.64, 1); }
 .ss-modal-overlay.hidden .ss-modal-window { transform: scale(0.92); transition: transform 0.3s cubic-bezier(0.34, 1.3, 0.64, 1); }
@@ -2602,11 +2641,7 @@ color: coral;
 
 /* One-handed overlay controls */
 .overlay-bottom-controls {
-    position: absolute;
-    bottom: calc(9dvh + 14px);
-    left: 16px;
-    right: 16px;
-    z-index: 1200;
+    z-index: 600000;
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -2650,7 +2685,7 @@ color: coral;
     border: 1px solid rgba(255, 255, 255, 0.2);
     color: #fff;
     box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
-    z-index: 1300;
+    z-index: 600000;
 }
 
 #album-close-fab:active,
@@ -2659,14 +2694,7 @@ color: coral;
 }
 
 /* Select playlist overlay: no blur, 75% dark, 0.5s transition */
-.ss-modal-overlay {
-    background: rgba(0, 0, 0, 0.75);
-    backdrop-filter: none;
-    opacity: 1;
-    visibility: visible;
-    pointer-events: auto;
-    transition: opacity 0.5s linear, visibility 0s linear 0s;
-}
+.ss-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px); z-index: 1000000; display: flex; align-items: center; justify-content: center; opacity: 1; pointer-events: auto; transition: opacity 0.5s linear, visibility 0s linear 0s; visibility: visible; }
 
 .ss-modal-overlay.hidden {
     display: flex !important;
