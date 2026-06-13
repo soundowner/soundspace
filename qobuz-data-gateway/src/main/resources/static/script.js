@@ -1,22 +1,60 @@
 // --- FETCH INTERCEPTOR FOR AUTO-REFRESH ---
 const originalFetch = window.fetch;
+let isRefreshing = false;
+let refreshPromise = null;
+
 window.fetch = async (url, options) => {
     let response = await originalFetch(url, options);
 
     if (response.status === 401) {
-        try {
-            const refreshRes = await originalFetch('/auth/refresh');
-            if (refreshRes.ok) {
-                response = await originalFetch(url, options);
-            } else {
+        if (!isRefreshing) {
+            isRefreshing = true;
+            refreshPromise = originalFetch('/auth/refresh').then(res => {
+                isRefreshing = false;
+                if (!res.ok) throw new Error('Refresh failed');
+                return res;
+            }).catch(err => {
+                isRefreshing = false;
                 window.location.href = '/login.html';
-            }
+                throw err;
+            });
+        }
+        
+        try {
+            await refreshPromise;
+            response = await originalFetch(url, options);
         } catch (err) {
-            window.location.href = '/login.html';
+            // window.location.href already handled in promise catch
         }
     }
     return response;
 };
+
+class LRUCache {
+    constructor(limit = 200) {
+        this.cache = new Map();
+        this.limit = limit;
+    }
+    get(key) {
+        if (!this.cache.has(key)) return undefined;
+        const value = this.cache.get(key);
+        this.cache.delete(key);
+        this.cache.set(key, value);
+        return value;
+    }
+    set(key, value) {
+        if (this.cache.has(key)) {
+            this.cache.delete(key);
+        } else if (this.cache.size >= this.limit) {
+            this.cache.delete(this.cache.keys().next().value);
+        }
+        this.cache.set(key, value);
+    }
+    has(key) { return this.cache.has(key); }
+    values() { return this.cache.values(); }
+    delete(key) { return this.cache.delete(key); }
+    clear() { this.cache.clear(); }
+}
 
 document.addEventListener('DOMContentLoaded', () => {
 
@@ -36,8 +74,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     const player = new Audio();
-    const trackCache = new Map();
+    const trackCache = new LRUCache(200);
     let currentTrackId = null;
+    let loadedTrackId = null;
     let currentQueue = [];
     let currentQueueIndex = -1;
     let isManualSwitch = false;
@@ -2477,7 +2516,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Если плеер еще не загрузил метаданные (readyState < 1) или нет длительности,
         // выходим. Отрисовка произойдет позже по событию 'loadedmetadata'.
-        if (!player.duration || isNaN(player.duration) || player.readyState < 1 || !currentTrackId) return;
+        if (!player.duration || isNaN(player.duration) || player.readyState < 1 || !currentTrackId || loadedTrackId !== currentTrackId) return;
 
         const markers = cutMarkersByTrack.get(String(currentTrackId)) || [];
         markers.forEach(sec => {
@@ -2591,6 +2630,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     player.addEventListener('loadedmetadata', () => {
+        loadedTrackId = currentTrackId;
         playerState.duration = player.duration;
         els.timeDuration.textContent = formatTime(player.duration);
         renderCutMarkers();

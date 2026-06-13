@@ -58,7 +58,7 @@ input, textarea, [contenteditable="true"] {
     transition: transform 0.7s var(--ease-spring), border-radius 0.7s var(--ease-spring);
     border-radius: var(--border-radius-main);
     overflow: hidden;
-    will-change: transform; transition: transform 0.5s cubic-bezier(0.32, 0.72, 0, 1), visibility 0s 0.5s;
+     transition: transform 0.5s cubic-bezier(0.32, 0.72, 0, 1), visibility 0s 0.5s;
     background-color: var(--background-main);
     z-index: 1;
 }
@@ -88,7 +88,7 @@ input, textarea, [contenteditable="true"] {
     transform: none !important;
     opacity: 0;
     visibility: hidden;
-    will-change: opacity;
+    
     transition: opacity 0.35s ease, visibility 0s 0.35s;
 }
 
@@ -187,7 +187,7 @@ input, textarea, [contenteditable="true"] {
 .scroll-content {
     content-visibility: auto;
     contain-intrinsic-size: 1px 1000px;
-    will-change: scroll-position;
+    
     flex: 1;
     overflow-y: auto;
     padding-top: 60px; 
@@ -298,7 +298,7 @@ input, textarea, [contenteditable="true"] {
     justify-content: center;
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
     z-index: 100;
-    will-change: transform; transition: transform 0.5s cubic-bezier(0.32, 0.72, 0, 1), visibility 0s 0.5s;
+     transition: transform 0.5s cubic-bezier(0.32, 0.72, 0, 1), visibility 0s 0.5s;
 }
 
 .top-search-panel.active {
@@ -364,7 +364,7 @@ input, textarea, [contenteditable="true"] {
     background: linear-gradient(to right, transparent 0%, var(--panel-background) 30%);
     transform: translateX(105%); /* Hidden by default */
     transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
-    will-change: transform;
+    
     z-index: 10;
 }
 
@@ -638,7 +638,7 @@ input, textarea, [contenteditable="true"] {
 
 #play-button-container i {
     font-size: 36px;
-    will-change: opacity;
+    
 }
 
 #backward-button-container i,
@@ -664,7 +664,7 @@ input, textarea, [contenteditable="true"] {
     filter: blur(15px);
     transform: scale(1.15) translate3d(0, 0, 0);
     opacity: 0.35; /* Полупрозрачный фон для читаемости интерфейса */
-    will-change: transform, opacity;
+    
 }
 
 #player-timebar-container {
@@ -704,7 +704,7 @@ input, textarea, [contenteditable="true"] {
 
 #timebar-progress {
     width: 0%;
-    will-change: width;
+    
     transition: width 0.2s linear;
     height: 0.5vh;
     background: #ccff0af9;
@@ -770,7 +770,7 @@ input, textarea, [contenteditable="true"] {
     box-shadow: inset black 12px 129px 105px 32px,inset black 7px -81px 76px 20px;
     z-index:11;
     transform: translateZ(-1);
-    will-change: transform, box-shadow;
+    
 }
 /* --- TOP TITLE & INFO CONTAINER --- */
 #track-title-container {
@@ -816,7 +816,7 @@ input, textarea, [contenteditable="true"] {
     min-width: 20px;
     opacity: 0;
     transition: opacity 0.3s;
-    will-change: opacity;
+    
     translateZ(-1);
 }
 
@@ -826,6 +826,9 @@ input, textarea, [contenteditable="true"] {
 
 .bar {
     width: 1.6dvw;
+    height: 100%;
+    transform-origin: bottom;
+    transform: scaleY(0.2);
     background-color: coral;
     margin-right: 2px;
     border-radius: 0px;
@@ -838,12 +841,12 @@ input, textarea, [contenteditable="true"] {
 .bar:nth-child(3) { animation-duration: 1.8s; animation-delay: -0.2s; }
 
 @keyframes music-bounce {
-    0% { height: 20%; }
-    20% { height: 60%; }
-    40% { height: 30%; }
-    60% { height: 100%; }
-    80% { height: 50%; }
-    100% { height: 20%; }
+    0% { transform: scaleY(0.2); }
+    20% { transform: scaleY(0.6); }
+    40% { transform: scaleY(0.3); }
+    60% { transform: scaleY(1.0); }
+    80% { transform: scaleY(0.5); }
+    100% { transform: scaleY(0.2); }
 }
 
 #track-info-details {
@@ -867,7 +870,7 @@ input, textarea, [contenteditable="true"] {
     color: #fafafa;
     line-height: 1;
     overflow: hidden;
-    will-change: text-shadow;
+    
 }
 
 #track-artist-icon {
@@ -952,7 +955,7 @@ color: coral;
     flex-direction: column;
     justify-content: center;
     transition: transform 0.4s cubic-bezier(0.23, 1, 0.32, 1), opacity 0.4s ease;
-    will-change: transform, opacity;
+    
     z-index: 1;
 }
 
@@ -1121,7 +1124,7 @@ color: coral;
     
     /* GPU FORCE */
     transform: translate3d(0, 100%, 0);
-    will-change: transform;
+    
     
     /* TIMING MAGIC: Delay hiding visibility until transform is done */
     visibility: hidden;
@@ -1160,7 +1163,7 @@ color: coral;
     
     /* SLOW MOTION LUXURY */
     transform: translate3d(0, 100%, 0);
-    will-change: transform;
+    
     visibility: hidden;
     transition: transform 1s cubic-bezier(0.2, 0.8, 0.2, 1), visibility 0s 1s;
 }
@@ -1756,7 +1759,7 @@ color: coral;
     visibility: hidden;
     transition: opacity 0.7s ease, 
                 visibility 0.7s ease;
-    will-change: opacity;
+    
 }
 
 #playlists-grid-ss::-webkit-scrollbar,
