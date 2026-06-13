@@ -324,25 +324,41 @@ document.addEventListener('DOMContentLoaded', () => {
             playlists: els.playlistsContainer
         };
 
-        Object.values(containers).forEach(c => c && c.classList.remove('active-lib-tab'));
-        if (els.libNavBtns) els.libNavBtns.forEach(b => b.classList.remove('active'));
+        const currentActiveTab = Object.keys(containers).find(key => containers[key] && containers[key].classList.contains('active-lib-tab'));
 
-        if (tabName === 'tracks' && containers.tracks) {
-            containers.tracks.classList.add('active-lib-tab');
-            fetchLikedTracksSS();
-        } else if (tabName === 'artists' && containers.artists) {
-            containers.artists.classList.add('active-lib-tab');
-            fetchArtistsSS();
-        } else if (tabName === 'albums' && containers.albums) {
-            containers.albums.classList.add('active-lib-tab');
-            fetchAlbumsSS();
+        if (currentActiveTab !== tabName) {
+            Object.values(containers).forEach(c => c && c.classList.remove('active-lib-tab'));
+            
+            if (tabName === 'tracks' && containers.tracks) {
+                containers.tracks.classList.add('active-lib-tab');
+                fetchLikedTracksSS();
+            } else if (tabName === 'artists' && containers.artists) {
+                containers.artists.classList.add('active-lib-tab');
+                fetchArtistsSS();
+            } else if (tabName === 'albums' && containers.albums) {
+                containers.albums.classList.add('active-lib-tab');
+                fetchAlbumsSS();
+            } else {
+                containers.playlists && containers.playlists.classList.add('active-lib-tab');
+                fetchPlaylistsSS();
+                tabName = 'playlists';
+            }
         } else {
-            containers.playlists && containers.playlists.classList.add('active-lib-tab');
-            fetchPlaylistsSS();
-            tabName = 'playlists';
+            // Если вкладка уже активна, просто вызываем фетч, не переключая класс active-lib-tab (предотвращает мерцание/сброс CSS transition)
+            if (tabName === 'tracks') {
+                fetchLikedTracksSS();
+            } else if (tabName === 'artists') {
+                fetchArtistsSS();
+            } else if (tabName === 'albums') {
+                fetchAlbumsSS();
+            } else {
+                fetchPlaylistsSS();
+                tabName = 'playlists';
+            }
         }
 
         if (els.libNavBtns) {
+            els.libNavBtns.forEach(b => b.classList.remove('active'));
             const activeBtn = Array.from(els.libNavBtns).find(btn => btn.dataset.libTab === tabName);
             if (activeBtn) activeBtn.classList.add('active');
         }
