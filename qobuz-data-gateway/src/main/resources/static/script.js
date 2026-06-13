@@ -2017,14 +2017,16 @@ document.addEventListener('DOMContentLoaded', () => {
         let timebarPressTimer = null;
 
         const macroDialContainer = document.createElement('div');
-        macroDialContainer.className = 'macro-dial-container';
+        macroDialContainer.className = 'macro-dial-wrapper';
         macroDialContainer.innerHTML = `
-            <button class="macro-btn cancel" id="macro-cancel"><i class="fa-solid fa-trash"></i></button>
+            <div class="macro-btn-group">
+                <button class="macro-btn cancel" id="macro-cancel"><i class="fa-solid fa-trash"></i></button>
+                <button class="macro-btn save" id="macro-save"><i class="fa-solid fa-check"></i></button>
+            </div>
             <div class="macro-dial-window" id="macro-dial">
                 <div class="macro-ticks" id="macro-ticks"></div>
                 <div class="macro-center"></div>
             </div>
-            <button class="macro-btn save" id="macro-save"><i class="fa-solid fa-check"></i></button>
         `;
         els.timeBarContainer.appendChild(macroDialContainer);
 
@@ -2065,6 +2067,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         dial.addEventListener('pointerdown', (e) => {
             isDraggingDial = true;
+            macroDialContainer.classList.add('is-dragging');
             if(previewTimeout) clearTimeout(previewTimeout);
             player.pause();
             dialStartX = e.clientX;
@@ -2084,6 +2087,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         dial.addEventListener('pointerup', (e) => {
             isDraggingDial = false;
+            macroDialContainer.classList.remove('is-dragging');
             dial.releasePointerCapture(e.pointerId);
             
             // Auto-preview burst
@@ -2100,6 +2104,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const closeMacroDial = () => {
             macroDialContainer.classList.remove('active');
+            els.timeBarContainer.classList.remove('finetune-active');
             if (els.timeCurrent) {
                 els.timeCurrent.classList.remove('time-current-finetune');
                 els.timeCurrent.textContent = formatTime(player.currentTime);
@@ -2124,6 +2129,15 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('macro-save').addEventListener('click', (e) => {
             e.stopPropagation();
             if (activeFinetuneKey) {
+                const node = els.timeBarContainer.querySelector('.cut-marker-node');
+                if (node) {
+                    node.classList.add('saved-anim');
+                    setTimeout(() => {
+                        saveCutsToBackend(activeFinetuneKey);
+                        closeMacroDial();
+                    }, 350);
+                    return;
+                }
                 saveCutsToBackend(activeFinetuneKey);
             }
             closeMacroDial();
@@ -2142,6 +2156,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             if (els.timeCurrent) els.timeCurrent.classList.add('time-current-finetune');
             macroDialContainer.classList.add('active');
+            els.timeBarContainer.classList.add('finetune-active');
             updateLiveMarker();
         };
 
@@ -2684,7 +2699,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
             
+            const pincerTop = document.createElement('div');
+            pincerTop.className = 'cut-marker-pincer pincer-top';
+            
+            const pincerBottom = document.createElement('div');
+            pincerBottom.className = 'cut-marker-pincer pincer-bottom';
+            
             markerContainer.appendChild(dot);
+            markerContainer.appendChild(pincerTop);
+            markerContainer.appendChild(pincerBottom);
             markerContainer.appendChild(tooltip);
             els.timeBarContainer.appendChild(markerContainer);
         });
