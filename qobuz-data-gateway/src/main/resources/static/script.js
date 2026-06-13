@@ -938,12 +938,16 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }, { passive: true });
 
+    let lastNonPlayerPanelId = 'library-panel';
+
     els.bottomNavbar.addEventListener('click', (e) => {
         const navBtn = e.target.closest('.nav-button');
         if (!navBtn) return;
         const panelId = navBtn.dataset.panel;
 
-
+        if (panelId !== 'player-panel' && panelId !== 'close-panel') {
+            lastNonPlayerPanelId = panelId;
+        }
 
         // Снимаем класс active со всех нижних кнопок
         els.bottomNavbar.querySelectorAll('.nav-button').forEach(btn => btn.classList.remove('active'));
@@ -953,6 +957,15 @@ document.addEventListener('DOMContentLoaded', () => {
             els.parentContainer.classList.remove('content-scaled');
             dismissSearch();
             return;
+        }
+
+        const overlaysContainer = document.querySelector('.overlays-container');
+        if (overlaysContainer) {
+            if (panelId === 'player-panel') {
+                overlaysContainer.classList.add('player-active');
+            } else {
+                overlaysContainer.classList.remove('player-active');
+            }
         }
 
         // Подсвечиваем активную кнопку
@@ -2832,7 +2845,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     const qualitySelect = document.getElementById('quality-selector');
-    const cutResetBtn = document.getElementById('cut-reset-btn');
     if (qualitySelect) {
         qualitySelect.addEventListener('change', (e) => {
             const formatId = e.target.value;
@@ -2842,14 +2854,39 @@ document.addEventListener('DOMContentLoaded', () => {
             };
         });
     }
-    if (cutResetBtn) {
-        cutResetBtn.addEventListener('click', () => {
-            if (!currentTrackId) return;
-            cutMarkersByTrack.delete(String(currentTrackId));
-            renderCutMarkers();
-            saveCutsToBackend(String(currentTrackId));
-        });
-    }
+    
+    // --- PLAYER PANEL SWIPE GESTURE ---
+    let playerSwipeStartY = 0;
+    let playerSwipeStartTime = 0;
+    
+    els.playerPanel.addEventListener('touchstart', (e) => {
+        if (e.target.closest('#macro-dial, .macro-btn, .action-btn, #quality-selector, #player-timebar-container')) return;
+        playerSwipeStartY = e.touches[0].clientY;
+        playerSwipeStartTime = Date.now();
+    }, { passive: true });
+
+    els.playerPanel.addEventListener('touchend', (e) => {
+        if (!playerSwipeStartY) return;
+        const deltaY = e.changedTouches[0].clientY - playerSwipeStartY;
+        const deltaTime = Date.now() - playerSwipeStartTime;
+        
+        // Свайп вниз (от середины или ниже)
+        const isFromMiddle = playerSwipeStartY > (window.innerHeight * 0.25);
+        if (deltaY > 100 && deltaTime < 400 && isFromMiddle) {
+            // Закрываем плеер и возвращаемся к последней панели
+            const backBtn = document.querySelector(`[data-panel="${lastNonPlayerPanelId}"]`);
+            if (backBtn) {
+                backBtn.click();
+            } else {
+                // Фоллбек если кнопка не найдена
+                els.playerPanel.classList.remove('active');
+                const target = document.getElementById(lastNonPlayerPanelId);
+                if (target) target.classList.add('active');
+            }
+        }
+        playerSwipeStartY = 0;
+    }, { passive: true });
+
     if (els.trackDownloadBtn) {
         els.trackDownloadBtn.addEventListener('click', async () => {
             if (!playerState.currentTrack) return;
