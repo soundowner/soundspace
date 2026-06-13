@@ -41,6 +41,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentQueue = [];
     let currentQueueIndex = -1;
     let isManualSwitch = false;
+    let lastRemovedCurrentTrackIndex = null;
 
     // Глобальные переменные для оптимизации и предотвращения Race Conditions
     let currentAudioFetchController = null;
@@ -617,6 +618,21 @@ document.addEventListener('DOMContentLoaded', () => {
         return Array.from(scope.querySelectorAll('.search-result-track'));
     }
 
+    function removeTrackFromQueue(trackId) {
+        const idStr = String(trackId);
+        const removedIdx = currentQueue.findIndex(t => String(t.trackId) === idStr);
+        if (removedIdx !== -1) {
+            currentQueue = currentQueue.filter(t => String(t.trackId) !== idStr);
+            if (currentTrackId && String(currentTrackId) === idStr) {
+                lastRemovedCurrentTrackIndex = removedIdx;
+            } else {
+                const currentTrackIdStr = currentTrackId ? String(currentTrackId) : null;
+                currentQueueIndex = currentQueue.findIndex(t => String(t.trackId) === currentTrackIdStr);
+            }
+            console.log(`[SoundSpace Queue] Removed track ${idStr} from active queue. New size: ${currentQueue.length}`);
+        }
+    }
+
     function buildQueueFromNode(node) {
         if (!node) return;
         
@@ -634,19 +650,27 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Если контекст тот же самый, не пересобираем очередь из DOM
         if (cachedQueueContext === contextType && cachedQueueId === contextId && currentQueue.length > 0) {
-            currentQueueIndex = currentQueue.findIndex(n => n.dataset.trackId === node.dataset.trackId);
+            currentQueueIndex = currentQueue.findIndex(t => String(t.trackId) === String(node.dataset.trackId));
             return;
         }
 
         // Иначе - собираем заново и кэшируем
         const nodes = getTrackNodesFromContext(contextType);
-        currentQueue = nodes;
-        currentQueueIndex = nodes.findIndex(n => n.dataset.trackId === node.dataset.trackId);
+        currentQueue = nodes.map(n => ({
+            trackId: String(n.dataset.trackId),
+            title: n.dataset.title,
+            artist: n.dataset.artist,
+            album: n.dataset.album,
+            cover: n.dataset.cover,
+            artistId: n.dataset.artistId,
+            albumId: n.dataset.albumId
+        }));
+        currentQueueIndex = currentQueue.findIndex(t => String(t.trackId) === String(node.dataset.trackId));
         
         cachedQueueContext = contextType;
         cachedQueueId = contextId;
         
-        console.log(`[SoundSpace] Queue rebuilt for context: ${contextType}:${contextId}, size: ${nodes.length}`);
+        console.log(`[SoundSpace] Queue rebuilt for context: ${contextType}:${contextId}, size: ${currentQueue.length}`);
     }
 
     function findCurrentTrackNodeInDom() {
@@ -677,11 +701,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!el) return;
         document.querySelectorAll('.search-result-track').forEach(n => n.classList.remove('show-actions'));
         
-        currentTrackId = el.dataset.trackId;
+        const isDomNode = !!(el && el.dataset);
+        const trackId = isDomNode ? el.dataset.trackId : el.trackId;
+        currentTrackId = trackId;
         
         // Пересобираем очередь только при ручном клике. 
         // При Next/Prev индекс уже обновлен в playAdjacent.
-        if (!isAutoPlay) {
+        if (!isAutoPlay && isDomNode) {
             buildQueueFromNode(el);
         }
         
@@ -692,20 +718,20 @@ document.addEventListener('DOMContentLoaded', () => {
             isManualSwitch = true;
         }
         
-        if (isAutoPlay === false && !skipShowActions) {
+        if (isAutoPlay === false && !skipShowActions && isDomNode) {
             requestAnimationFrame(() => {
                 el.classList.add('show-actions');
             });
         }
 
         const meta = {
-            id: el.dataset.trackId,
-            title: el.dataset.title,
-            artist: el.dataset.artist,
-            album: el.dataset.album,
-            cover: el.dataset.cover,
-            artistId: el.dataset.artistId,
-            albumId: el.dataset.albumId
+            id: trackId,
+            title: isDomNode ? el.dataset.title : el.title,
+            artist: isDomNode ? el.dataset.artist : el.artist,
+            album: isDomNode ? el.dataset.album : el.album,
+            cover: isDomNode ? el.dataset.cover : el.cover,
+            artistId: isDomNode ? el.dataset.artistId : el.artistId,
+            albumId: isDomNode ? el.dataset.albumId : el.albumId
         };
 
         playerState.currentTrack = meta;
@@ -772,18 +798,61 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function playAdjacent(direction) {
-        if (!currentQueue.length || currentQueueIndex < 0 || !currentQueue[currentQueueIndex]?.isConnected) {
-            const currentNode = findCurrentTrackNodeInDom();
-            if (currentNode) {
-                buildQueueFromNode(currentNode);
+        if (currentQueue.length === 0) return;
+
+        const currentTrackIdStr = currentTrackId ? String(currentTrackId) : null;
+        let idx = currentQueue.findIndex(t => String(t.trackId) === currentTrackIdStr);
+        
+        if (idx === -1) {
+            // Текущий трек не найден в очереди (он был удален)
+            if (lastRemovedCurrentTrackIndex !== null) {
+                idx = lastRemovedCurrentTrackIndex;
+                lastRemovedCurrentTrackIndex = null; // сбрасываем
+            } else {
+                idx = currentQueueIndex;
+            }
+            
+            if (direction === 'next') {
+                currentQueueIndex = idx;
+            } else {
+                currentQueueIndex = idx - 1;
+            }
+        } else {
+            currentQueueIndex = direction === 'next' ? idx + 1 : idx - 1;
+        }
+
+        if (currentQueueIndex < 0) {
+            if (direction === 'prev') {
+                console.log(`[SoundSpace] Prev pressed at the beginning of the queue. Restarting track.`);
+                const exists = currentQueue.some(t => String(t.trackId) === currentTrackIdStr);
+                if (exists && currentTrackIdStr) {
+                    const markers = cutMarkersByTrack.get(currentTrackIdStr);
+                    const startTime = (markers && markers.length >= 1) ? markers[0] : 0;
+                    player.currentTime = startTime;
+                    if (player.paused) {
+                        player.play().catch(e => console.error("Playback replay failed", e));
+                    }
+                    currentQueueIndex = 0;
+                } else {
+                    currentQueueIndex = 0;
+                    const nextTrackData = currentQueue[0];
+                    if (nextTrackData) {
+                        handleTrackClick(nextTrackData, true);
+                    }
+                }
+                return;
             }
         }
-        if (!currentQueue.length || currentQueueIndex < 0) return;
-        const nextIndex = direction === 'next' ? currentQueueIndex + 1 : currentQueueIndex - 1;
-        const nextNode = currentQueue[nextIndex];
-        if (!nextNode) return;
-        currentQueueIndex = nextIndex;
-        handleTrackClick(nextNode, true);
+
+        if (currentQueueIndex < 0 || currentQueueIndex >= currentQueue.length) {
+            console.log(`[SoundSpace] Queue boundary reached (${currentQueueIndex}/${currentQueue.length}). Stopping playback.`);
+            player.pause();
+            playerState.isPlaying = false;
+            return;
+        }
+
+        const nextTrackData = currentQueue[currentQueueIndex];
+        handleTrackClick(nextTrackData, true);
     }
 
     // --- 2. SEARCH & NAVIGATION LOGIC ---
@@ -1168,6 +1237,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 trackList.appendChild(empty);
             } else {
                 tracks.forEach((t) => {
+                    trackCache.set(String(t.id), t);
                     const row = document.createElement('div');
                     row.className = 'ss-acid-row search-result-track playable-track'; 
                     
@@ -1185,7 +1255,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     row.setAttribute('data-cover', coverUrl);
                     
                     row.innerHTML = `
-                        <img src="${coverUrl}" class="search-result-track-cover" loading="lazy">
+                        <img src="${getImgSmall(t)}" class="search-result-track-cover" loading="lazy">
                         <div class="track-info">
                             <p class="track-title">${escapeHtml(t.title)}</p>
                             <p class="track-artist">${escapeHtml(artistName)}<span class="track-title-sep"> | </span><span class="track-title-duration">${formatTime(t.duration)}</span></p>
@@ -1222,6 +1292,10 @@ document.addEventListener('DOMContentLoaded', () => {
                                 });
                                 setTimeout(() => row.remove(), 360);
                                 
+                                if (cachedQueueContext === 'playlist' && String(cachedQueueId) === String(playlist.id)) {
+                                    removeTrackFromQueue(t.id);
+                                }
+
                                 const pl = libraryState.playlists.find(p => p.id === playlist.id);
                                 if (pl && pl.tracks) {
                                     pl.tracks = pl.tracks.filter(track => track.id !== t.id);
@@ -1490,6 +1564,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (res.ok) {
                     libraryState.likedTrackIds.delete(trackId);
                     libraryState.likedTracks = libraryState.likedTracks.filter(t => String(t.id) !== trackId);
+                    
+                    if (cachedQueueContext === 'tracks') {
+                        removeTrackFromQueue(trackId);
+                    }
+
                     updateHeartIcons(trackId, false);
                     if (els.tracksLibContainer) {
                         renderLikedTracksSS();
@@ -2096,7 +2175,18 @@ document.addEventListener('DOMContentLoaded', () => {
             const res = await fetch(`/data/audio/artist?artistId=${id}`);
             const data = await res.json();
             currentArtistData = data;
-            renderArtistPanel(data);
+
+            const elapsed = performance.now() - overlayOpenTime;
+            const remaining = 1000 - elapsed;
+            if (remaining > 50) {
+                setTimeout(() => {
+                    if (els.artistContent.dataset.loadedId === id && els.artistContent.closest('.panel').classList.contains('active')) {
+                        renderArtistPanel(data);
+                    }
+                }, remaining);
+            } else {
+                renderArtistPanel(data);
+            }
         } catch (e) { console.error(e); }
     }
 
@@ -2109,9 +2199,22 @@ document.addEventListener('DOMContentLoaded', () => {
             const res = await fetch(`/data/audio/album?albumId=${id}`);
             const data = await res.json();
             currentAlbumData = data;
-            renderAlbumPanel(data);
+
+            const elapsed = performance.now() - overlayOpenTime;
+            const remaining = 1000 - elapsed;
+            if (remaining > 50) {
+                setTimeout(() => {
+                    if (els.albumContent.dataset.loadedId === id && els.albumContent.closest('.panel').classList.contains('active')) {
+                        renderAlbumPanel(data);
+                    }
+                }, remaining);
+            } else {
+                renderAlbumPanel(data);
+            }
         } catch (e) { console.error(e); }
     }
+
+
 
     function renderArtistPanel(data) {
         const content = els.artistContent;
@@ -2324,10 +2427,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if(window.lucide) lucide.createIcons();
     }
 
+    let overlayOpenTime = 0;
+
     function openOverlay(id) {
         const panel = document.getElementById(id);
         if (!panel) return;
         panel.classList.add('active');
+        overlayOpenTime = performance.now();
         // Добавляем состояние в историю
         history.pushState({ panelId: id }, "", "");
     }
@@ -2378,6 +2484,20 @@ document.addEventListener('DOMContentLoaded', () => {
         if (item.albums && item.albums.items && item.albums.items.length > 0) {
             const firstAlbum = item.albums.items[0];
             if (firstAlbum.image) return firstAlbum.image.large || firstAlbum.image.medium || firstAlbum.image.small || '';
+            if (firstAlbum.picture) return firstAlbum.picture;
+        }
+        return '';
+    }
+
+    function getImgSmall(item) {
+        if (!item) return '';
+        if (item.image) return item.image.small || item.image.thumbnail || item.image.medium || item.image.large || '';
+        if (item.picture) return item.picture;
+        if (item.album && item.album.image) return item.album.image.small || item.album.image.thumbnail || item.album.image.medium || item.album.image.large || '';
+        if (item.album && item.album.picture) return item.album.picture;
+        if (item.albums && item.albums.items && item.albums.items.length > 0) {
+            const firstAlbum = item.albums.items[0];
+            if (firstAlbum.image) return firstAlbum.image.small || firstAlbum.image.thumbnail || firstAlbum.image.medium || firstAlbum.image.large || '';
             if (firstAlbum.picture) return firstAlbum.picture;
         }
         return '';
@@ -2437,7 +2557,21 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function loop() {
+    let isLooping = false;
+
+    function startLoop() {
+        if (isLooping) return;
+        isLooping = true;
+        requestAnimationFrame(tick);
+    }
+
+    function stopLoop() {
+        isLooping = false;
+    }
+
+    function tick() {
+        if (!isLooping) return;
+
         if (player.duration) {
             if (isIntroAnimating) {
                 const elapsed = performance.now() - introAnimationStart;
@@ -2471,11 +2605,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 if (progress >= 1) {
                     isIntroAnimating = false;
+                    if (player.paused) {
+                        stopLoop();
+                    }
                 }
             } else {
                 const pct = (player.currentTime / player.duration) * 100;
                 els.timeBarProgress.style.width = `${pct}%`;
-                els.timeCurrent.textContent = formatTime(player.currentTime);
 
                 if (!player.paused) {
                     if (player.duration > 8 && player.duration - player.currentTime <= 4.0 && !wasFadeOutStarted) {
@@ -2488,9 +2624,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
         }
-        requestAnimationFrame(loop);
+        
+        if (isLooping) {
+            requestAnimationFrame(tick);
+        }
     }
-    loop();
 
     player.addEventListener('loadedmetadata', () => {
         playerState.duration = player.duration;
@@ -2507,13 +2645,40 @@ document.addEventListener('DOMContentLoaded', () => {
             isIntroAnimating = true;
             introAnimationStart = performance.now();
             introAnimationTarget = markerTime;
+            startLoop();
         } else {
             isIntroAnimating = false;
         }
     });
-    player.addEventListener('ended', () => playAdjacent('next'));
-    player.addEventListener('play', () => { playerState.isPlaying = true; });
-    player.addEventListener('pause', () => { playerState.isPlaying = false; });
+    
+    player.addEventListener('timeupdate', () => {
+        if (!isIntroAnimating && player.duration) {
+            els.timeCurrent.textContent = formatTime(player.currentTime);
+        }
+    });
+
+    player.addEventListener('ended', () => {
+        stopLoop();
+        playAdjacent('next');
+    });
+
+    player.addEventListener('play', () => {
+        playerState.isPlaying = true;
+        startLoop();
+    });
+
+    player.addEventListener('playing', () => {
+        startLoop();
+    });
+
+    player.addEventListener('pause', () => {
+        playerState.isPlaying = false;
+        stopLoop();
+    });
+
+    player.addEventListener('error', () => {
+        stopLoop();
+    });
 
     const qualitySelect = document.getElementById('quality-selector');
     const cutResetBtn = document.getElementById('cut-reset-btn');
@@ -2717,7 +2882,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
             els.trackQualityInfo.textContent = `FLAC | ${bit}-bit | ${rate} kHz`;
         } else {
-            els.trackQualityInfo.textContent = qualitySetting.label;
+            // Если точных метаданных трека нет в кэше, выводим качественные характеристики по умолчанию для выбранного стрима
+            if (formatId === 6) {
+                els.trackQualityInfo.textContent = 'FLAC | 16-bit | 44.1 kHz';
+            } else if (formatId === 7) {
+                els.trackQualityInfo.textContent = 'FLAC | 24-bit | 96 kHz';
+            } else if (formatId === 27) {
+                els.trackQualityInfo.textContent = 'FLAC | 24-bit | 192 kHz';
+            } else {
+                els.trackQualityInfo.textContent = 'FLAC | Lossless';
+            }
         }
     }
 
