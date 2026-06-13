@@ -79,14 +79,43 @@ input, textarea, [contenteditable="true"] {
 /* REPLACED */
 
 /* Specific Z-Indexes for Stacking */
+#library-panel, #search-panel, #player-panel {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    transform: none !important;
+    opacity: 0;
+    visibility: hidden;
+    will-change: opacity;
+    transition: opacity 0.35s ease, visibility 0s 0.35s;
+}
+
 #library-panel {
     z-index: 10;
-    position: absolute;
-    height: 100%;
-    width: 100%;
 }
-#search-panel { z-index: 10; }
-#player-panel { z-index: 15; height: 100%; } /* Player is always full height */
+#search-panel {
+    z-index: 10;
+}
+#player-panel {
+    z-index: 15;
+    transition: opacity 0.45s ease-in-out, visibility 0s 0.35s;
+}
+
+#library-panel.active, #search-panel.active {
+    transform: none !important;
+    opacity: 1;
+    visibility: visible;
+    transition: opacity 0.35s ease, visibility 0s 0s;
+}
+
+#player-panel.active {
+    transform: none !important;
+    opacity: 1;
+    visibility: visible;
+    transition: opacity 0.45s ease-in-out, visibility 0s 0s;
+}
 
 /* Overlay Panels (Artist & Album) */
 .overlay-panel {
