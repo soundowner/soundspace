@@ -56,7 +56,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (e) {
         console.error('Failed to load cut markers from localStorage', e);
     }
-    let qualitySetting = { label: 'FLAC', formatId: 27 };
+    let qualitySetting = { label: 'FLAC/7', formatId: 7 };
     let libraryLabelTimeout = null;
     
     // --- ELEMENTS ---
@@ -2479,48 +2479,153 @@ document.addEventListener('DOMContentLoaded', () => {
         els.trackDownloadBtn.addEventListener('click', async () => {
             if (!playerState.currentTrack) return;
             const track = playerState.currentTrack;
-            const originalHTML = els.trackDownloadBtn.innerHTML;
             
-            els.trackDownloadBtn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> DOWNLOADING...';
-            els.trackDownloadBtn.disabled = true;
-
-            try {
-                // 1. Получаем URL потока
-                const resUrl = await fetch(`/data/audio/play?trackId=${track.id}&formatId=${qualitySetting.formatId}`);
-                const data = await resUrl.json();
-                
-                if (!data.url) throw new Error('No stream URL');
-
-                // 2. Скачиваем сам файл как Blob, чтобы заставить браузер именно сохранить его
-                const fileRes = await fetch(data.url);
-                const blob = await fileRes.blob();
-                
-                // 3. Создаем временную ссылку на Blob и кликаем по ней
-                const blobUrl = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.style.display = 'none';
-                a.href = blobUrl;
-                
-                const ext = qualitySetting.formatId === 5 ? 'mp3' : 'flac';
-                a.download = `${track.artist} - ${track.title}.${ext}`;
-                
-                document.body.appendChild(a);
-                a.click();
-                
-                // Чистим за собой
-                window.URL.revokeObjectURL(blobUrl);
-                document.body.removeChild(a);
-                
-                els.trackDownloadBtn.innerHTML = '<i class="fa-solid fa-check"></i> SAVED';
-            } catch (err) {
-                console.error('Download failed', err);
-                els.trackDownloadBtn.innerHTML = '<i class="fa-solid fa-xmark"></i> FAILED';
-            } finally {
-                els.trackDownloadBtn.disabled = false;
-                setTimeout(() => {
-                    if (els.trackDownloadBtn) els.trackDownloadBtn.innerHTML = originalHTML;
-                }, 3000);
+            let cachedTrack = trackCache.get(String(track.id));
+            if ((!cachedTrack || !cachedTrack.album) && track.albumId) {
+                const originalHTML = els.trackDownloadBtn.innerHTML;
+                els.trackDownloadBtn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> LOADING METADATA...';
+                els.trackDownloadBtn.disabled = true;
+                try {
+                    const albumRes = await fetch(`/data/audio/album?albumId=${track.albumId}`);
+                    if (albumRes.ok) {
+                        const albumData = await albumRes.json();
+                        if (albumData.tracks && albumData.tracks.items) {
+                            albumData.tracks.items.forEach(t => {
+                                t.album = JSON.parse(JSON.stringify(albumData));
+                                delete t.album.tracks;
+                                if (!t.artist) t.artist = albumData.artist;
+                                trackCache.set(String(t.id), t);
+                            });
+                        }
+                    }
+                } catch (e) {
+                    console.error("Failed to load album details for download cache", e);
+                } finally {
+                    els.trackDownloadBtn.disabled = false;
+                    els.trackDownloadBtn.innerHTML = originalHTML;
+                }
+                cachedTrack = trackCache.get(String(track.id));
             }
+            
+            showDownloadQualityModal(track, cachedTrack, async (selectedFormatId) => {
+                const originalHTML = els.trackDownloadBtn.innerHTML;
+                els.trackDownloadBtn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> DOWNLOADING...';
+                els.trackDownloadBtn.disabled = true;
+
+                try {
+                    // 1. Получаем URL потока с выбранным качеством
+                    const resUrl = await fetch(`/data/audio/play?trackId=${track.id}&formatId=${selectedFormatId}`);
+                    const data = await resUrl.json();
+                    
+                    if (!data.url) throw new Error('No stream URL');
+
+                    // 2. Скачиваем сам файл как Blob
+                    const fileRes = await fetch(data.url);
+                    if (!fileRes.ok) throw new Error(`HTTP error! status: ${fileRes.status}`);
+                    const blob = await fileRes.blob();
+                    
+                    // 3. Конвертируем Blob в Uint8Array для тегирования
+                    const fileBytes = new Uint8Array(await blob.arrayBuffer());
+                    
+                    // 4. Скачиваем обложку
+                    let coverBytes = null;
+                    let coverMime = "image/jpeg";
+                    if (track.cover) {
+                        try {
+                            const coverRes = await fetch(track.cover);
+                            if (coverRes.ok) {
+                                coverBytes = await coverRes.arrayBuffer();
+                                const contentType = coverRes.headers.get("content-type");
+                                if (contentType) {
+                                    coverMime = contentType;
+                                } else {
+                                    coverMime = getMimeType(track.cover);
+                                }
+                            }
+                        } catch (e) {
+                            console.error("Failed to fetch cover image", e);
+                        }
+                    }
+                    
+                    // 5. Тегируем в зависимости от формата
+                    const ext = selectedFormatId === 5 ? 'mp3' : 'flac';
+                    let taggedBytes;
+                    const dateStr = cachedTrack?.release_date_original || '';
+                    let yearStr = '';
+                    if (dateStr && dateStr.length >= 4) {
+                        yearStr = dateStr.substring(0, 4);
+                    }
+                    
+                    let genreStr = '';
+                    const genreObj = cachedTrack?.album?.genre || cachedTrack?.genre;
+                    if (genreObj) {
+                        if (typeof genreObj === 'string') {
+                            genreStr = genreObj;
+                        } else if (typeof genreObj === 'object') {
+                            genreStr = genreObj.name || '';
+                        }
+                    }
+
+                    // Настраиваем битность и частоту на основе выбранного формата
+                    let bitDepth = 16;
+                    let sampleRate = 44100;
+                    if (selectedFormatId === 7) {
+                        bitDepth = cachedTrack?.maximum_bit_depth || 24;
+                        sampleRate = cachedTrack?.maximum_sampling_rate ? (cachedTrack.maximum_sampling_rate > 1000 ? cachedTrack.maximum_sampling_rate : Math.round(cachedTrack.maximum_sampling_rate * 1000)) : 48000;
+                    } else if (selectedFormatId === 5) {
+                        bitDepth = 16;
+                        sampleRate = 44100;
+                    }
+
+                    const metadata = {
+                        title: track.title || '',
+                        artist: track.artist || '',
+                        album: track.album || '',
+                        date: dateStr,
+                        year: yearStr,
+                        isrc: cachedTrack?.isrc || '',
+                        duration: cachedTrack?.duration || player.duration || playerState.duration || 0,
+                        tracknumber: cachedTrack?.track_number || '',
+                        bits_per_sample: bitDepth,
+                        sample_rate: sampleRate,
+                        hires: selectedFormatId === 7 ? "1" : "0",
+                        genre: genreStr
+                    };
+                    
+                    if (ext === 'mp3') {
+                        taggedBytes = tagMp3File(fileBytes, metadata, coverBytes, coverMime);
+                    } else if (ext === 'flac') {
+                        taggedBytes = tagFlacFile(fileBytes, metadata, coverBytes, coverMime);
+                    } else {
+                        taggedBytes = fileBytes;
+                    }
+                    
+                    // 6. Создаем временную ссылку на Blob и кликаем по ней
+                    const taggedBlob = new Blob([taggedBytes], { type: ext === 'mp3' ? 'audio/mpeg' : 'audio/flac' });
+                    const blobUrl = window.URL.createObjectURL(taggedBlob);
+                    const a = document.createElement('a');
+                    a.style.display = 'none';
+                    a.href = blobUrl;
+                    a.download = `${track.artist} - ${track.title}.${ext}`;
+                    
+                    document.body.appendChild(a);
+                    a.click();
+                    
+                    // Чистим за собой
+                    window.URL.revokeObjectURL(blobUrl);
+                    document.body.removeChild(a);
+                    
+                    els.trackDownloadBtn.innerHTML = '<i class="fa-solid fa-check"></i> SAVED';
+                } catch (err) {
+                    console.error('Download failed', err);
+                    els.trackDownloadBtn.innerHTML = '<i class="fa-solid fa-xmark"></i> FAILED';
+                } finally {
+                    els.trackDownloadBtn.disabled = false;
+                    setTimeout(() => {
+                        if (els.trackDownloadBtn) els.trackDownloadBtn.innerHTML = originalHTML;
+                    }, 3000);
+                }
+            });
         });
     }
 
@@ -2558,4 +2663,412 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if(window.lucide) window.lucide.createIcons();
+
+    // --- AUDIO TAGGING UTILITIES (FRONTEND-ONLY) ---
+
+    function getMimeType(url) {
+        if (!url) return "image/jpeg";
+        if (url.endsWith(".png")) return "image/png";
+        if (url.endsWith(".gif")) return "image/gif";
+        return "image/jpeg";
+    }
+
+    function encodeUTF16BE(str) {
+        const buf = new Uint8Array(str.length * 2);
+        for (let i = 0; i < str.length; i++) {
+            const code = str.charCodeAt(i);
+            buf[i * 2] = (code >> 8) & 0xFF;
+            buf[i * 2 + 1] = code & 0xFF;
+        }
+        return buf;
+    }
+
+    function createFrame(frameId, payload) {
+        const frame = new Uint8Array(10 + payload.length);
+        const encoder = new TextEncoder();
+        frame.set(encoder.encode(frameId), 0);
+        
+        frame[4] = (payload.length >> 24) & 0xFF;
+        frame[5] = (payload.length >> 16) & 0xFF;
+        frame[6] = (payload.length >> 8) & 0xFF;
+        frame[7] = payload.length & 0xFF;
+        
+        frame[8] = 0x00;
+        frame[9] = 0x00;
+        
+        frame.set(payload, 10);
+        return frame;
+    }
+
+    function createApicFrame(coverBytes, mimeType) {
+        const encoder = new TextEncoder();
+        const mimeBytes = encoder.encode(mimeType || "image/jpeg");
+        const descBytes = encoder.encode("Cover");
+        
+        const payload = new Uint8Array(1 + mimeBytes.length + 1 + 1 + descBytes.length + 1 + coverBytes.byteLength);
+        payload[0] = 0x00;
+        let offset = 1;
+        payload.set(mimeBytes, offset);
+        offset += mimeBytes.length;
+        payload[offset] = 0x00;
+        offset += 1;
+        payload[offset] = 0x03;
+        offset += 1;
+        payload.set(descBytes, offset);
+        offset += descBytes.length;
+        payload[offset] = 0x00;
+        offset += 1;
+        payload.set(new Uint8Array(coverBytes), offset);
+        
+        return payload;
+    }
+
+    function createId3Tag(frames) {
+        let totalFramesSize = 0;
+        for (const frame of frames) {
+            totalFramesSize += frame.length;
+        }
+        
+        const tag = new Uint8Array(10 + totalFramesSize);
+        tag.set([0x49, 0x44, 0x33, 0x03, 0x00, 0x00], 0);
+        
+        let size = totalFramesSize;
+        tag[6] = (size >> 21) & 0x7F;
+        tag[7] = (size >> 14) & 0x7F;
+        tag[8] = (size >> 7) & 0x7F;
+        tag[9] = size & 0x7F;
+        
+        let offset = 10;
+        for (const frame of frames) {
+            tag.set(frame, offset);
+            offset += frame.length;
+        }
+        
+        return tag;
+    }
+
+    function createTxxxFrame(description, value) {
+        const encoder = new TextEncoder();
+        const descBytes = encoder.encode(description);
+        const valBytes = encoder.encode(value);
+        
+        const payload = new Uint8Array(1 + descBytes.length + 1 + valBytes.length);
+        payload[0] = 0x00; // ISO-8859-1
+        payload.set(descBytes, 1);
+        payload[1 + descBytes.length] = 0x00; // NULL
+        payload.set(valBytes, 1 + descBytes.length + 1);
+        
+        return createFrame("TXXX", payload);
+    }
+
+    function tagMp3File(audioBytes, tags, coverBytes, coverMime) {
+        const frames = [];
+        
+        if (tags.title) {
+            const titlePayload = new Uint8Array([0x01, 0xFE, 0xFF, ...encodeUTF16BE(tags.title)]);
+            frames.push(createFrame("TIT2", titlePayload));
+        }
+        if (tags.artist) {
+            const artistPayload = new Uint8Array([0x01, 0xFE, 0xFF, ...encodeUTF16BE(tags.artist)]);
+            frames.push(createFrame("TPE1", artistPayload));
+        }
+        if (tags.album) {
+            const albumPayload = new Uint8Array([0x01, 0xFE, 0xFF, ...encodeUTF16BE(tags.album)]);
+            frames.push(createFrame("TALB", albumPayload));
+        }
+        if (tags.year) {
+            const yearPayload = new Uint8Array([0x01, 0xFE, 0xFF, ...encodeUTF16BE(tags.year)]);
+            frames.push(createFrame("TYER", yearPayload));
+        }
+        if (tags.date) {
+            const datePayload = new Uint8Array([0x01, 0xFE, 0xFF, ...encodeUTF16BE(tags.date)]);
+            frames.push(createFrame("TDRC", datePayload));
+            
+            if (tags.date.length >= 10) {
+                const dayMonthStr = tags.date.substring(8, 10) + tags.date.substring(5, 7);
+                const tdatPayload = new Uint8Array([0x01, 0xFE, 0xFF, ...encodeUTF16BE(dayMonthStr)]);
+                frames.push(createFrame("TDAT", tdatPayload));
+            }
+        }
+        if (tags.isrc) {
+            const isrcPayload = new Uint8Array([0x01, 0xFE, 0xFF, ...encodeUTF16BE(tags.isrc)]);
+            frames.push(createFrame("TSRC", isrcPayload));
+        }
+        if (tags.genre) {
+            const genrePayload = new Uint8Array([0x01, 0xFE, 0xFF, ...encodeUTF16BE(tags.genre)]);
+            frames.push(createFrame("TCON", genrePayload));
+        }
+        if (tags.duration) {
+            const msStr = String(Math.round(tags.duration * 1000));
+            const durationPayload = new Uint8Array([0x01, 0xFE, 0xFF, ...encodeUTF16BE(msStr)]);
+            frames.push(createFrame("TLEN", durationPayload));
+        }
+        if (tags.tracknumber) {
+            const trackPayload = new Uint8Array([0x01, 0xFE, 0xFF, ...encodeUTF16BE(String(tags.tracknumber))]);
+            frames.push(createFrame("TRCK", trackPayload));
+        }
+        if (tags.bits_per_sample) {
+            frames.push(createTxxxFrame("BITSPERSAMPLE", String(tags.bits_per_sample)));
+        }
+        if (tags.sample_rate) {
+            frames.push(createTxxxFrame("SAMPLERATE", String(tags.sample_rate)));
+        }
+        if (tags.hires !== undefined) {
+            frames.push(createTxxxFrame("HIRES", String(tags.hires)));
+        }
+        if (coverBytes && coverBytes.byteLength > 0) {
+            const apicPayload = createApicFrame(coverBytes, coverMime);
+            frames.push(createFrame("APIC", apicPayload));
+        }
+        
+        const id3Tag = createId3Tag(frames);
+        
+        let startOffset = 0;
+        if (audioBytes.length > 10 && audioBytes[0] === 0x49 && audioBytes[1] === 0x44 && audioBytes[2] === 0x33) {
+            const s1 = audioBytes[6] & 0x7F;
+            const s2 = audioBytes[7] & 0x7F;
+            const s3 = audioBytes[8] & 0x7F;
+            const s4 = audioBytes[9] & 0x7F;
+            const existingSize = (s1 << 21) | (s2 << 14) | (s3 << 7) | s4;
+            startOffset = 10 + existingSize;
+        }
+        
+        const mp3Frames = audioBytes.slice(startOffset);
+        
+        const result = new Uint8Array(id3Tag.length + mp3Frames.length);
+        result.set(id3Tag, 0);
+        result.set(mp3Frames, id3Tag.length);
+        
+        return result;
+    }
+
+    function createVorbisCommentBlock(tags) {
+        const encoder = new TextEncoder();
+        const vendorBytes = encoder.encode("reference libFLAC 1.3.2 20170101");
+        
+        const commentStrings = [];
+        for (const [key, value] of Object.entries(tags)) {
+            if (value !== undefined && value !== null && value !== "") {
+                commentStrings.push(`${key.toUpperCase()}=${value}`);
+            }
+        }
+        
+        let size = 4 + vendorBytes.length + 4;
+        const encodedComments = commentStrings.map(str => encoder.encode(str));
+        for (const bytes of encodedComments) {
+            size += 4 + bytes.length;
+        }
+        
+        const payload = new Uint8Array(size);
+        const view = new DataView(payload.buffer);
+        
+        let offset = 0;
+        view.setUint32(offset, vendorBytes.length, true);
+        offset += 4;
+        payload.set(vendorBytes, offset);
+        offset += vendorBytes.length;
+        
+        view.setUint32(offset, encodedComments.length, true);
+        offset += 4;
+        
+        for (const bytes of encodedComments) {
+            view.setUint32(offset, bytes.length, true);
+            offset += 4;
+            payload.set(bytes, offset);
+            offset += bytes.length;
+        }
+        
+        return payload;
+    }
+
+    function createPictureBlock(imageBytes, mimeType) {
+        const encoder = new TextEncoder();
+        const mimeBytes = encoder.encode(mimeType || "image/jpeg");
+        const descBytes = encoder.encode("Cover");
+        
+        const size = 4 + 4 + mimeBytes.length + 4 + descBytes.length + 4 + 4 + 4 + 4 + 4 + imageBytes.byteLength;
+        const payload = new Uint8Array(size);
+        const view = new DataView(payload.buffer);
+        
+        let offset = 0;
+        view.setUint32(offset, 3, false);
+        offset += 4;
+        
+        view.setUint32(offset, mimeBytes.length, false);
+        offset += 4;
+        payload.set(mimeBytes, offset);
+        offset += mimeBytes.length;
+        
+        view.setUint32(offset, descBytes.length, false);
+        offset += 4;
+        payload.set(descBytes, offset);
+        offset += descBytes.length;
+        
+        view.setUint32(offset, 0, false);
+        offset += 4;
+        view.setUint32(offset, 0, false);
+        offset += 4;
+        view.setUint32(offset, 0, false);
+        offset += 4;
+        view.setUint32(offset, 0, false);
+        offset += 4;
+        
+        view.setUint32(offset, imageBytes.byteLength, false);
+        offset += 4;
+        payload.set(new Uint8Array(imageBytes), offset);
+        
+        return payload;
+    }
+
+    function tagFlacFile(audioBytes, tags, coverBytes, coverMime) {
+        let offset = 4;
+        let blocks = [];
+        let isLast = false;
+        
+        while (!isLast) {
+            if (offset + 4 > audioBytes.length) break;
+            const headerByte = audioBytes[offset];
+            isLast = (headerByte & 0x80) !== 0;
+            const blockType = headerByte & 0x7F;
+            const blockLength = (audioBytes[offset + 1] << 16) | (audioBytes[offset + 2] << 8) | audioBytes[offset + 3];
+            
+            if (offset + 4 + blockLength > audioBytes.length) break;
+            
+            const blockData = audioBytes.slice(offset + 4, offset + 4 + blockLength);
+            
+            if (blockType !== 4 && blockType !== 6) {
+                blocks.push({
+                    type: blockType,
+                    data: blockData
+                });
+            }
+            
+            offset += 4 + blockLength;
+        }
+        
+        const audioFrames = audioBytes.slice(offset);
+        
+        const commentPayload = createVorbisCommentBlock(tags);
+        blocks.push({
+            type: 4,
+            data: commentPayload
+        });
+        
+        if (coverBytes && coverBytes.byteLength > 0) {
+            const picturePayload = createPictureBlock(coverBytes, coverMime);
+            blocks.push({
+                type: 6,
+                data: picturePayload
+            });
+        }
+        
+        let totalSize = 4;
+        for (const block of blocks) {
+            totalSize += 4 + block.data.length;
+        }
+        totalSize += audioFrames.length;
+        
+        const result = new Uint8Array(totalSize);
+        result.set([0x66, 0x4C, 0x61, 0x43], 0);
+        
+        let writeOffset = 4;
+        for (let i = 0; i < blocks.length; i++) {
+            const block = blocks[i];
+            const isLastBlock = (i === blocks.length - 1);
+            
+            const headerByte = (isLastBlock ? 0x80 : 0x00) | (block.type & 0x7F);
+            result[writeOffset] = headerByte;
+            result[writeOffset + 1] = (block.data.length >> 16) & 0xFF;
+            result[writeOffset + 2] = (block.data.length >> 8) & 0xFF;
+            result[writeOffset + 3] = block.data.length & 0xFF;
+            writeOffset += 4;
+            
+            result.set(block.data, writeOffset);
+            writeOffset += block.data.length;
+        }
+        
+        result.set(audioFrames, writeOffset);
+        
+        return result;
+    }
+
+    function showDownloadQualityModal(track, cachedTrack, onSelect) {
+        const isHiRes = cachedTrack?.hires === true || (cachedTrack?.maximum_bit_depth && cachedTrack.maximum_bit_depth > 16);
+        
+        const overlay = document.createElement('div');
+        overlay.id = 'download-modal-overlay';
+        overlay.className = 'fixed inset-0 z-[9999] flex items-center justify-center bg-black/85 backdrop-blur-sm transition-opacity duration-300 opacity-0';
+        
+        const bitDepth = cachedTrack?.maximum_bit_depth || 24;
+        let rawSampleRate = cachedTrack?.maximum_sampling_rate || 48.0;
+        if (rawSampleRate > 1000) {
+            rawSampleRate = Math.round(rawSampleRate / 100) / 10;
+        }
+        const sampleRate = rawSampleRate;
+        const maxQualityLabel = isHiRes ? `Hi-Res (${bitDepth}-bit / ${sampleRate} kHz)` : `CD (16-bit / 44.1 kHz)`;
+        
+        overlay.innerHTML = `
+            <div class="bg-[#121212] border border-emerald-500/20 rounded-2xl p-6 w-[90%] max-w-sm shadow-[0_0_40px_rgba(16,185,129,0.15)] transform scale-95 transition-all duration-300 text-neutral-200 font-sans">
+                <h3 class="text-white text-base font-semibold mb-1">Select Download Quality</h3>
+                <p class="text-neutral-500 text-xs mb-4">Maximum: <span class="text-emerald-400 font-medium">${maxQualityLabel}</span></p>
+                
+                <div class="flex flex-col gap-2.5">
+                    ${isHiRes ? `
+                    <button class="quality-opt-btn flex items-center justify-between p-3 rounded-xl border border-emerald-500/20 bg-emerald-500/5 hover:bg-emerald-500/10 hover:border-emerald-500/40 text-left transition-all" data-format-id="7">
+                        <div>
+                            <div class="text-white font-medium text-sm">FLAC | Hi-Res</div>
+                            <div class="text-neutral-400 text-xs">${bitDepth}-bit | ${sampleRate} kHz</div>
+                        </div>
+                        <span class="text-[9px] bg-emerald-500 text-neutral-950 font-bold px-1.5 py-0.5 rounded tracking-wide">HI-RES</span>
+                    </button>
+                    ` : ''}
+                    
+                    <button class="quality-opt-btn flex items-center justify-between p-3 rounded-xl border border-neutral-800 bg-neutral-900/60 hover:bg-neutral-850 hover:border-neutral-700 text-left transition-all" data-format-id="6">
+                        <div>
+                            <div class="text-white font-medium text-sm">FLAC | CD Quality</div>
+                            <div class="text-neutral-400 text-xs">16-bit | 44.1 kHz</div>
+                        </div>
+                    </button>
+                    
+                    <button class="quality-opt-btn flex items-center justify-between p-3 rounded-xl border border-neutral-800 bg-neutral-900/60 hover:bg-neutral-850 hover:border-neutral-700 text-left transition-all" data-format-id="5">
+                        <div>
+                            <div class="text-white font-medium text-sm">MP3 | High Quality</div>
+                            <div class="text-neutral-400 text-xs">320 kbps</div>
+                        </div>
+                    </button>
+                </div>
+                
+                <button id="close-download-modal" class="mt-4 w-full py-2.5 rounded-xl bg-neutral-900 hover:bg-neutral-800 border border-neutral-800/80 text-neutral-400 text-xs font-semibold transition-all">Cancel</button>
+            </div>
+        `;
+        
+        document.body.appendChild(overlay);
+        
+        requestAnimationFrame(() => {
+            overlay.classList.remove('opacity-0');
+            overlay.querySelector('div').classList.remove('scale-95');
+        });
+        
+        const closeModal = () => {
+            overlay.classList.add('opacity-0');
+            overlay.querySelector('div').classList.add('scale-95');
+            setTimeout(() => {
+                overlay.remove();
+            }, 300);
+        };
+        
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) closeModal();
+        });
+        
+        overlay.querySelector('#close-download-modal').addEventListener('click', closeModal);
+        
+        overlay.querySelectorAll('.quality-opt-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const formatId = Number(btn.dataset.formatId);
+                closeModal();
+                onSelect(formatId);
+            });
+        });
+    }
 });
