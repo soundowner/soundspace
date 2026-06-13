@@ -736,21 +736,16 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await res.json();
             
             if (data.url) {
-                if (fadeInterval) clearInterval(fadeInterval);
-                
                 player.pause();
                 player.src = "";
                 player.load(); 
 
                 player.src = data.url;
-                wasFadeOutStarted = false;
                 
-                const fadeInDuration = 3000;
                 isManualSwitch = false;
                 
-                player.volume = 0;
+                player.volume = 1.0;
                 const playPromise = player.play();
-                fadeIn(fadeInDuration);
                 
                 if (playPromise !== undefined) {
                     playPromise.catch(error => {
@@ -1751,9 +1746,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    let fadeInterval = null;
-    const TARGET_VOLUME = 1.0;
-    let wasFadeOutStarted = false;
     let isIntroAnimating = false;
     let introAnimationStart = 0;
     let introAnimationDuration = 800;
@@ -1770,51 +1762,6 @@ document.addEventListener('DOMContentLoaded', () => {
         playheadDelayTimeout = setTimeout(() => {
             showPlayheads = true;
         }, 200);
-    }
-
-    function fadeIn(durationMs) {
-        console.log(`[SoundSpace Audio] Starting fadeIn over ${durationMs}ms...`);
-        if (fadeInterval) clearInterval(fadeInterval);
-        player.volume = 0;
-        const startTime = performance.now();
-        const startVolume = 0;
-        
-        fadeInterval = setInterval(() => {
-            const elapsed = performance.now() - startTime;
-            const pct = Math.min(1, elapsed / durationMs);
-            player.volume = startVolume + (TARGET_VOLUME - startVolume) * pct;
-            
-            console.log(`[SoundSpace Audio] fadeIn: elapsed: ${elapsed.toFixed(0)}ms, volume: ${player.volume.toFixed(2)}`);
-            
-            if (pct >= 1) {
-                clearInterval(fadeInterval);
-                fadeInterval = null;
-                player.volume = TARGET_VOLUME;
-                console.log(`[SoundSpace Audio] fadeIn finished! Target volume reached: ${player.volume}`);
-            }
-        }, 50);
-    }
-
-    function fadeOut(durationMs) {
-        console.log(`[SoundSpace Audio] Starting fadeOut over ${durationMs}ms...`);
-        if (fadeInterval) clearInterval(fadeInterval);
-        const startTime = performance.now();
-        const startVolume = player.volume;
-        
-        fadeInterval = setInterval(() => {
-            const elapsed = performance.now() - startTime;
-            const pct = Math.min(1, elapsed / durationMs);
-            player.volume = startVolume * (1 - pct);
-            
-            console.log(`[SoundSpace Audio] fadeOut: elapsed: ${elapsed.toFixed(0)}ms, volume: ${player.volume.toFixed(2)}`);
-            
-            if (pct >= 1) {
-                clearInterval(fadeInterval);
-                fadeInterval = null;
-                player.volume = 0;
-                console.log(`[SoundSpace Audio] fadeOut finished! Volume is 0`);
-            }
-        }, 50);
     }
 
     let isFrequencyMode = false;
@@ -2477,12 +2424,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 els.timeBarProgress.style.width = `${pct}%`;
                 els.timeCurrent.textContent = formatTime(player.currentTime);
 
-                if (!player.paused) {
-                    if (player.duration > 8 && player.duration - player.currentTime <= 4.0 && !wasFadeOutStarted) {
-                        wasFadeOutStarted = true;
-                        fadeOut(4000);
-                    }
-                }
                 if (isFrequencyMode) {
                     updateWaveformProgress();
                 }
