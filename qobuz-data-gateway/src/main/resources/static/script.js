@@ -2016,21 +2016,142 @@ document.addEventListener('DOMContentLoaded', () => {
         let lastTapTime = 0;
         let timebarPressTimer = null;
 
+        const macroDialContainer = document.createElement('div');
+        macroDialContainer.className = 'macro-dial-container';
+        macroDialContainer.innerHTML = `
+            <button class="macro-btn cancel" id="macro-cancel"><i class="fa-solid fa-trash"></i></button>
+            <div class="macro-dial-window" id="macro-dial">
+                <div class="macro-ticks" id="macro-ticks"></div>
+                <div class="macro-center"></div>
+            </div>
+            <button class="macro-btn save" id="macro-save"><i class="fa-solid fa-check"></i></button>
+        `;
+        els.timeBarContainer.appendChild(macroDialContainer);
+
+        let activeFinetuneKey = null;
+        let activeFinetuneTime = 0;
+        let originalMarkerState = [];
+
+        function formatTimeMs(s) {
+            if (!s) return '0:00.00';
+            const m = Math.floor(s / 60);
+            const sec = Math.floor(s % 60);
+            const ms = Math.floor((s % 1) * 100);
+            return `${m}:${sec.toString().padStart(2, '0')}.${ms.toString().padStart(2, '0')}`;
+        }
+
+        function updateLiveMarker() {
+            if (!activeFinetuneKey) return;
+            cutMarkersByTrack.set(activeFinetuneKey, [activeFinetuneTime]);
+            const node = els.timeBarContainer.querySelector('.cut-marker-node');
+            if (node) {
+                node.style.left = `${(activeFinetuneTime / player.duration) * 100}%`;
+                const timeLabel = node.querySelector('.cut-marker-time');
+                if(timeLabel) timeLabel.textContent = formatTime(activeFinetuneTime);
+            } else {
+                renderCutMarkers();
+            }
+            if (els.timeCurrent) els.timeCurrent.textContent = formatTimeMs(activeFinetuneTime);
+            player.currentTime = activeFinetuneTime;
+        }
+
+        const dial = document.getElementById('macro-dial');
+        const ticks = document.getElementById('macro-ticks');
+        let isDraggingDial = false;
+        let dialStartX = 0;
+        let dialStartBgX = 0;
+        let dialStartTime = 0;
+        let previewTimeout = null;
+
+        dial.addEventListener('pointerdown', (e) => {
+            isDraggingDial = true;
+            if(previewTimeout) clearTimeout(previewTimeout);
+            player.pause();
+            dialStartX = e.clientX;
+            dialStartTime = activeFinetuneTime;
+            dialStartBgX = parseFloat(getComputedStyle(ticks).backgroundPositionX) || 0;
+            dial.setPointerCapture(e.pointerId);
+        });
+        dial.addEventListener('pointermove', (e) => {
+            if(!isDraggingDial) return;
+            const deltaX = e.clientX - dialStartX;
+            let newTime = dialStartTime - (deltaX * 0.02);
+            newTime = Math.max(0, Math.min(player.duration || 0, newTime));
+            activeFinetuneTime = newTime;
+            
+            ticks.style.backgroundPositionX = `${dialStartBgX + deltaX}px`;
+            updateLiveMarker();
+        });
+        dial.addEventListener('pointerup', (e) => {
+            isDraggingDial = false;
+            dial.releasePointerCapture(e.pointerId);
+            
+            // Auto-preview burst
+            player.currentTime = activeFinetuneTime;
+            player.play();
+            if(previewTimeout) clearTimeout(previewTimeout);
+            previewTimeout = setTimeout(() => {
+                if (!isDraggingDial && activeFinetuneKey && !player.paused) {
+                    player.pause();
+                    player.currentTime = activeFinetuneTime;
+                }
+            }, 500);
+        });
+
+        const closeMacroDial = () => {
+            macroDialContainer.classList.remove('active');
+            if (els.timeCurrent) {
+                els.timeCurrent.classList.remove('time-current-finetune');
+                els.timeCurrent.textContent = formatTime(player.currentTime);
+            }
+            activeFinetuneKey = null;
+            if(previewTimeout) clearTimeout(previewTimeout);
+        };
+
+        document.getElementById('macro-cancel').addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (activeFinetuneKey) {
+                if (originalMarkerState.length > 0) {
+                    cutMarkersByTrack.set(activeFinetuneKey, originalMarkerState);
+                } else {
+                    cutMarkersByTrack.delete(activeFinetuneKey);
+                }
+                renderCutMarkers();
+            }
+            closeMacroDial();
+        });
+
+        document.getElementById('macro-save').addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (activeFinetuneKey) {
+                saveCutsToBackend(activeFinetuneKey);
+            }
+            closeMacroDial();
+        });
+
+        window.openFinetuneDock = (trackId, initialTime) => {
+            player.pause();
+            activeFinetuneKey = String(trackId);
+            activeFinetuneTime = initialTime;
+            
+            const markers = (cutMarkersByTrack.get(activeFinetuneKey) || []).slice();
+            originalMarkerState = markers.slice();
+            
+            cutMarkersByTrack.set(activeFinetuneKey, [activeFinetuneTime]);
+            renderCutMarkers();
+            
+            if (els.timeCurrent) els.timeCurrent.classList.add('time-current-finetune');
+            macroDialContainer.classList.add('active');
+            updateLiveMarker();
+        };
+
         const addCutMarkerAtClientX = (clientX) => {
             if (!player.duration || !currentTrackId) return;
             const rect = els.timeBarContainer.getBoundingClientRect();
             if (!rect.width) return;
             const clickX = Math.max(0, Math.min(rect.width, clientX - rect.left));
             const markerSec = (clickX / rect.width) * player.duration;
-            const key = String(currentTrackId);
-            const markers = (cutMarkersByTrack.get(key) || []).slice();
-            const hasNearMarker = markers.some(m => Math.abs(m - markerSec) < 0.35);
-            if (hasNearMarker) return;
-            if (markers.length >= 1) markers.shift();
-            markers.push(markerSec);
-            cutMarkersByTrack.set(key, markers);
-            renderCutMarkers();
-            saveCutsToBackend(key);
+            window.openFinetuneDock(currentTrackId, markerSec);
         };
 
         const handleTimebarSingleClick = (clientX, offsetX) => {
@@ -2555,6 +2676,13 @@ document.addEventListener('DOMContentLoaded', () => {
             
             tooltip.appendChild(timeLabel);
             tooltip.appendChild(deleteBtn);
+            
+            markerContainer.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (typeof window.openFinetuneDock === 'function') {
+                    window.openFinetuneDock(currentTrackId, sec);
+                }
+            });
             
             markerContainer.appendChild(dot);
             markerContainer.appendChild(tooltip);
