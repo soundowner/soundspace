@@ -60,6 +60,21 @@
             <!-- Main content goes here -->
         </div>
         <div class="overlays-container">
+            <div class="panel" id="user-panel">
+                <div class="library-header-ss">
+                    <h2 class="neon-text">PROFILE</h2>
+                    <button id="user-settings-btn" style="background: none; border: none; color: var(--text-secondary); padding: 0 20px; cursor: pointer; outline: none; -webkit-tap-highlight-color: transparent;">
+                        <i class="fa-solid fa-gear" style="font-size: 20px;"></i>
+                    </button>
+                </div>
+                <div id="user-profile-content" style="padding: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 80%;">
+                    
+                    <div id="user-info-display" style="margin-top: 50px; text-align: center;">
+                        <p style="color: coral; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;">Nexus Core Active</p>
+                    </div>
+                </div>
+            </div>
+
             <div class="panel" id="library-panel">
 
                 <div id="library_wrapper">
@@ -292,17 +307,17 @@
 
         <nav class="bottom-navbar">
             <div id="bottom-nav-buttons-container">
-                <button id="close-button" class="nav-button" data-panel="close-panel">
-                    <i class="fa-regular fa-circle-user"></i>
-                    <span class="nav-button-label">close</span>
-                </button>
-                <button class="nav-button" data-panel="player-panel">
-                    <i class="fa-regular fa-circle-play"></i>
-                    <span class="nav-button-label">player</span>
+                <button id="close-button" class="nav-button" data-panel="user-panel">
+                    <i class="fa-solid fa-user"></i>
+                    <span class="nav-button-label">profile</span>
                 </button>
                 <button class="nav-button" data-panel="library-panel">
                     <i class="fa-solid fa-music"></i>
                     <span class="nav-button-label">library</span>
+                </button>
+                <button class="nav-button" data-panel="player-panel">
+                    <i class="fa-regular fa-circle-play"></i>
+                    <span class="nav-button-label">player</span>
                 </button>
                 <button id="search-button" class="nav-button" data-panel="search-panel">
                     <i class="fa-solid fa-magnifying-glass"></i>

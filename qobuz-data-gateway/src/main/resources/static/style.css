@@ -654,6 +654,7 @@ input, textarea, [contenteditable="true"] {
     text-align: center;
     letter-spacing: 0.1em;
     text-transform: uppercase;
+    text-shadow: 1px -1px 1px black;
 }
 
 .player-controls-button {
@@ -3358,3 +3359,8 @@ color: coral;
     box-shadow: 0 0 15px orangered, 0 0 35px orangered;
     transition: all 0.3s ease-out;
 }
+
+#user-panel {
+    z-index: 10;
+}
+
