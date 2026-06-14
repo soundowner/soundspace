@@ -3537,29 +3537,48 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             const plData = await plRes.json();
             
-            if (!plData.items || plData.items.length === 0) {
-                els.youtubeImportStatus.textContent = "No playlists found.";
-                return;
+            let selectedPlaylistId = null;
+
+            function extractPlaylistId(input) {
+                if (!input) return null;
+                const match = input.match(/[?&]list=([^&]+)/);
+                if (match) return match[1];
+                // If it looks like an ID directly
+                if (input.match(/^[a-zA-Z0-9_-]{10,}$/)) return input.trim();
+                return null;
             }
 
-            let promptText = "Select a playlist by number:\n";
-            plData.items.forEach((p, i) => {
-                promptText += `${i + 1}. ${p.snippet.title}\n`;
-            });
-            
-            const selection = window.prompt(promptText, "1");
-            if (!selection) {
-                els.youtubeImportStatus.textContent = "Import cancelled.";
+            if (!plData.items || plData.items.length === 0) {
+                const urlOrId = window.prompt("No playlists found on your channel.\nPlease enter a YouTube Playlist URL or ID manually:");
+                if (!urlOrId) {
+                    els.youtubeImportStatus.textContent = "Import cancelled.";
+                    return;
+                }
+                selectedPlaylistId = extractPlaylistId(urlOrId);
+            } else {
+                let promptText = "Select a playlist by number, OR paste a YouTube Playlist URL:\n";
+                plData.items.forEach((p, i) => {
+                    promptText += `${i + 1}. ${p.snippet.title}\n`;
+                });
+                
+                const selection = window.prompt(promptText, "1");
+                if (!selection) {
+                    els.youtubeImportStatus.textContent = "Import cancelled.";
+                    return;
+                }
+                
+                const selectedIndex = parseInt(selection) - 1;
+                if (!isNaN(selectedIndex) && selectedIndex >= 0 && selectedIndex < plData.items.length) {
+                    selectedPlaylistId = plData.items[selectedIndex].id;
+                } else {
+                    selectedPlaylistId = extractPlaylistId(selection);
+                }
+            }
+
+            if (!selectedPlaylistId) {
+                els.youtubeImportStatus.textContent = "Invalid playlist selection or URL.";
                 return;
             }
-            
-            const selectedIndex = parseInt(selection) - 1;
-            if (isNaN(selectedIndex) || selectedIndex < 0 || selectedIndex >= plData.items.length) {
-                els.youtubeImportStatus.textContent = "Invalid selection.";
-                return;
-            }
-            
-            const selectedPlaylistId = plData.items[selectedIndex].id;
             
             els.youtubeImportStatus.textContent = "Fetching tracks...";
             
