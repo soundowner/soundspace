@@ -160,13 +160,56 @@
                 <div class="ss-modal-window">
                     <h3>Add to Playlist</h3>
                     <div id="select-playlist-list" class="ss-playlist-select-list">
-                        <!-- Playlists to select -->
+                        <!-- Playlists injected here -->
                     </div>
                     <div class="ss-modal-actions">
                         <button id="add-to-playlist-cancel" class="ss-text-btn">Cancel</button>
                     </div>
                 </div>
             </div>
+
+            <!-- YouTube Playlist Picker -->
+            <div id="youtube-playlist-modal" class="ss-modal-overlay hidden">
+                <div class="ss-modal-window" style="max-width: 450px;">
+                    <h3>Select YouTube Playlist</h3>
+                    <div id="youtube-playlists-container" style="max-height: 400px; overflow-y: auto; margin: 15px 0; display: flex; flex-direction: column; gap: 6px;">
+                        <!-- YouTube playlists will be injected here -->
+                    </div>
+                    <div class="ss-modal-actions">
+                        <button id="close-youtube-modal" class="ss-text-btn">Cancel</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Import Loading Indicator -->
+            <div id="import-loading-overlay" class="ss-modal-overlay hidden" style="z-index: 9999; background: rgba(0,0,0,0.85); flex-direction: column; justify-content: center; align-items: center;">
+                <div class="loading-spinner" style="width: 60px; height: 60px; border: 5px solid rgba(255,255,255,0.1); border-top-color: coral; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 20px;"></div>
+                <h2 id="import-loading-text" style="color: white; font-size: 1.5rem; font-weight: 300; letter-spacing: 0.1em; text-align: center;">Importing Spirits...</h2>
+                <p id="import-loading-subtext" style="color: rgba(255,255,255,0.6); margin-top: 10px; text-align: center;"></p>
+            </div>
+
+            <style>
+                @keyframes spin { to { transform: rotate(360deg); } }
+                .yt-playlist-item {
+                    padding: 12px 16px;
+                    background: rgba(255,255,255,0.05);
+                    border-radius: 8px;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                    border: 1px solid transparent;
+                    text-align: left;
+                }
+                .yt-playlist-item:hover {
+                    background: rgba(255,255,255,0.1);
+                    border-color: rgba(255,255,255,0.2);
+                }
+                .yt-playlist-title {
+                    color: white;
+                    font-weight: 500;
+                    display: block;
+                    font-size: 14px;
+                }
+            </style>
 
             <div class="panel" id="search-panel">
                 <div id="search-results-container"></div>
