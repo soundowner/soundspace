@@ -35,6 +35,9 @@ class LibraryControllerTest {
     @MockBean
     private LibraryMapper libraryMapper;
 
+    @MockBean
+    private org.springframework.web.client.RestTemplate restTemplate;
+
     @Autowired
     private ObjectMapper objectMapper;
 
