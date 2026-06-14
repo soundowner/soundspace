@@ -600,12 +600,12 @@ input, textarea, [contenteditable="true"] {
 
 #bottom-nav-buttons-container {
     position: relative;
-    width: 70%;
-    height: 80%;
-    clip-path: polygon(4% -4%, 95% -2%, 87% 100%, 11% 100%);
-    background: #101010;
-    top: -10%;
-    left: 14%;
+    width: 80%;
+    height: 73%;
+    /* clip-path: polygon(4% -4%, 95% -2%, 87% 100%, 11% 100%); */
+    /* background: #101010; */
+    top: 0%;
+    left: 12%;
     z-index: 7;
     display: flex;
     /* box-shadow: #ff4308 0 0 12px; */
@@ -635,7 +635,7 @@ input, textarea, [contenteditable="true"] {
 
 .nav-button .material-symbols-outlined,
 .nav-button i {
-    font-size: 22px;
+    font-size: 25px;
     font-weight: 600;
     color: inherit;
     transition: color 0.3s ease, text-shadow 0.3s ease;
@@ -652,7 +652,7 @@ input, textarea, [contenteditable="true"] {
     line-height: 1;
     color: inherit;
     text-align: center;
-    letter-spacing: 0.02em;
+    letter-spacing: 0.1em;
     text-transform: uppercase;
 }
 
@@ -670,13 +670,13 @@ input, textarea, [contenteditable="true"] {
 }
 
 #play-button-container i {
-    font-size: 36px;
+    font-size: 40px;
     
 }
 
 #backward-button-container i,
 #forward-button-container i {
-    font-size: 20px;
+    font-size: 23px;
 }
 
 #player-panel-container-bg-container {
@@ -701,26 +701,27 @@ input, textarea, [contenteditable="true"] {
 }
 
 #player-timebar-container {
-    top: -5dvh;
+    top: 8dvh;
     position: relative;
     display: flex;
-    height: 8dvh;
+    height: 12dvh;
     width: 99vw;
     justify-content: center;
-    /* box-shadow: 0 0 5px 1px black; */
     flex-direction: column;
 }
 
 #timebar-progress-container {
-    width: 94vw;
-    left: 3%;
+    width: 96vw;
+    left: 2%;
     height: 8dvh;
     border: none;
     position: relative;
     display: flex;
     align-items: center;
+    justify-content: space-between;
     background: transparent;
     cursor: pointer;
+    padding: 0 10px;
 }
 
 #timebar-progress-container::before {
@@ -737,7 +738,8 @@ input, textarea, [contenteditable="true"] {
 
 #timebar-progress {
     width: 0%;
-    
+    position: absolute;
+    left: 0;
     transition: width 0.2s linear;
     height: 0.25vh;
     background: #ccff0af9;
@@ -749,25 +751,20 @@ input, textarea, [contenteditable="true"] {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    width: 80px;
-    position: absolute;
-    top: 1.5dvh;
-    left: 50%;
-    transform: translateX(-50%);
+    width: 95vw;
+    margin: 0 auto;
     font-size: 0.8em;
     color: #00ffc6;
-    z-index: 1212121212;
+    left: 0%;
+    top: -20%;
+    z-index: 12;
+    position: relative;
 }
 
-#current-time::after {
-    content: "";
-    display: inline-block;
-    width: 1px;
-    height: 10px;
-    background: rgba(0, 255, 198, 0.3);
-    margin-left: 10px;
-    position: absolute;
-    left: 33px;
+#current-time, #duration {
+    font-size: 1em;
+    color: #00ffc6;
+    pointer-events: none;
 }
 
 /* --- Player Panel Layout --- */
@@ -860,11 +857,11 @@ input, textarea, [contenteditable="true"] {
 }
 
 .bar {
-    width: 1.6dvw;
+    width: 1.4dvw;
     height: 100%;
     transform-origin: bottom;
     transform: scaleY(0.2);
-    background-color: coral;
+    background-color: #ff5213;
     margin-right: 2px;
     border-radius: 0px;
     animation: music-bounce 1s infinite ease-in-out;
@@ -888,9 +885,9 @@ input, textarea, [contenteditable="true"] {
     display: flex;
     flex-direction: column;
     position: relative;
-    height: 8dvh;
+    height: 12dvh;
     width: 55%;
-    left: -2%;
+    left: 4%;
     top: 65%;
 }
 
@@ -898,14 +895,13 @@ input, textarea, [contenteditable="true"] {
     margin-top: 0;
     position: relative;
     width: 100%;
-    height: 50%; /* Adjusted to 50% */
+    height: 50%;
     display: flex;
     align-items: center;
-    font-size: medium;
+    font-size: large;
     color: #fafafa;
     line-height: 1;
     overflow: hidden;
-    
 }
 
 #track-artist-icon {
@@ -972,7 +968,7 @@ color: coral;
 
 /* Icons in top container */
 #track-artist-icon .fa-solid, #track-album-icon .fa-solid {
-    margin-right: 0 5px 0 15px;
+    margin: 0;
     font-size: 0.9em;
 }
 
@@ -1136,16 +1132,15 @@ color: coral;
     flex-direction: revert;
     align-items: initial;
     width: 100vw;
-    top: 7vh;
+    top: -7vh;
     justify-content: center;
     position: absolute;
     z-index: 12121;
 }
 
-#track-artist-icon .fa-solid,
 #track-album-icon .fa-solid {
-    margin: 0 10px 0 15px;
-    color: coral;
+    margin: 0;
+    color: #ff5213;
 }
 
 

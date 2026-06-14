@@ -216,6 +216,12 @@
 
                     <div id="now_play_bottom_panel_part">
 
+                        <div id="player-controls-container">
+                            <div id="backward-button-container" class="player-controls-button"><i class="fa-solid fa-backward"></i></div>
+                            <div id="play-button-container" class="player-controls-button"><i class="fa-solid fa-play"></i></div>
+                            <div id="forward-button-container" class="player-controls-button"><i class="fa-solid fa-forward"></i></div>
+                        </div>
+
                         <div id="player-timebar-container">
                             <div id="timebar-progress-container">
                                 <div id="timebar-progress"></div>
@@ -231,23 +237,16 @@
                                     <rect class="waveform-playhead" fill="#ffffff" width="8" height="0" rx="4" ry="4" style="display: none; filter: drop-shadow(0px 0px 5px rgba(255, 255, 255, 0.7)) !important; opacity: 0.75;" />
                                 </svg>
                             </div>
-                        </div>
-
-                        <div id="time-container">
-                            <span id="current-time">0:00</span>
-                            <span id="duration">0:00</span>
+                            <div id="time-container">
+                                <span id="current-time">0:00</span>
+                                <span id="duration">0:00</span>
+                            </div>
                         </div>
 
                         <div id="track-quality-info"></div>
                         <button id="track-download-btn" title="Download Track">
                             <i class="fa-solid fa-download"></i> DOWNLOAD
                         </button>
-
-                        <div id="player-controls-container">
-                            <div id="backward-button-container" class="player-controls-button"><i class="fa-solid fa-backward"></i></div>
-                            <div id="play-button-container" class="player-controls-button"><i class="fa-solid fa-play"></i></div>
-                            <div id="forward-button-container" class="player-controls-button"><i class="fa-solid fa-forward"></i></div>
-                        </div>
 
                     </div>
 
@@ -293,6 +292,14 @@
 
         <nav class="bottom-navbar">
             <div id="bottom-nav-buttons-container">
+                <button id="close-button" class="nav-button" data-panel="close-panel">
+                    <i class="fa-regular fa-circle-user"></i>
+                    <span class="nav-button-label">close</span>
+                </button>
+                <button class="nav-button" data-panel="player-panel">
+                    <i class="fa-regular fa-circle-play"></i>
+                    <span class="nav-button-label">player</span>
+                </button>
                 <button class="nav-button" data-panel="library-panel">
                     <i class="fa-solid fa-music"></i>
                     <span class="nav-button-label">library</span>
@@ -300,14 +307,6 @@
                 <button id="search-button" class="nav-button" data-panel="search-panel">
                     <i class="fa-solid fa-magnifying-glass"></i>
                     <span class="nav-button-label">search</span>
-                </button>
-                <button class="nav-button" data-panel="player-panel">
-                    <span class="material-symbols-outlined">play_circle</span>
-                    <span class="nav-button-label">player</span>
-                </button>
-                <button id="close-button" class="nav-button" data-panel="close-panel">
-                    <i class="fa-solid fa-circle-user"></i>
-                    <span class="nav-button-label">close</span>
                 </button>
             </div>
         </nav>
