@@ -29,29 +29,49 @@ public class YoutubeImportService {
     @Async("youtubeImportExecutor")
     public CompletableFuture<Boolean> processAndSaveTrackAsync(UUID userId, YoutubeImportRequestDto item) {
         try {
-            String query = item.getArtist() + " " + item.getTitle();
-            String url = "http://qobuz-api-gateway:8082/data/audio/search?query=" + URLEncoder.encode(query, StandardCharsets.UTF_8) + "&type=tracks&limit=5";
-
-            String responseStr = restTemplate.getForObject(url, String.class);
-            JsonNode tracksNode = objectMapper.readTree(responseStr).path("tracks").path("items");
-
-            if (tracksNode.isArray() && tracksNode.size() > 0) {
-                for (JsonNode node : tracksNode) {
-                    TrackDto trackDto = objectMapper.treeToValue(node, TrackDto.class);
-                    if (isValidMatch(item, trackDto)) {
-                        libraryService.addTrackToLibrary(userId, libraryMapper.toTrack(trackDto));
-                        log.debug("Successfully imported: {} - {}", item.getArtist(), item.getTitle());
-                        return CompletableFuture.completedFuture(true);
-                    }
-                }
-                log.warn("No valid match found for: {} - {}", item.getArtist(), item.getTitle());
-            } else {
-                log.warn("Qobuz returned 0 results for: {} - {}", item.getArtist(), item.getTitle());
+            TrackDto matchedTrack = findBestMatch(item);
+            if (matchedTrack != null) {
+                libraryService.addTrackToLibrary(userId, libraryMapper.toTrack(matchedTrack));
+                log.debug("Successfully imported to library: {} - {}", item.getArtist(), item.getTitle());
+                return CompletableFuture.completedFuture(true);
             }
         } catch (Exception e) {
-            log.error("Error processing track: {} - {}. Reason: {}", item.getArtist(), item.getTitle(), e.getMessage());
+            log.error("Error processing track to library: {} - {}. Reason: {}", item.getArtist(), item.getTitle(), e.getMessage());
         }
         return CompletableFuture.completedFuture(false);
+    }
+
+    @Async("youtubeImportExecutor")
+    public CompletableFuture<Boolean> processAndAddToPlaylistAsync(UUID playlistId, YoutubeImportRequestDto item) {
+        try {
+            TrackDto matchedTrack = findBestMatch(item);
+            if (matchedTrack != null) {
+                libraryService.addTrackToPlaylist(playlistId, libraryMapper.toTrack(matchedTrack));
+                log.debug("Successfully added to playlist: {} - {}", item.getArtist(), item.getTitle());
+                return CompletableFuture.completedFuture(true);
+            }
+        } catch (Exception e) {
+            log.error("Error adding to playlist: {} - {}. Reason: {}", item.getArtist(), item.getTitle(), e.getMessage());
+        }
+        return CompletableFuture.completedFuture(false);
+    }
+
+    private TrackDto findBestMatch(YoutubeImportRequestDto item) throws Exception {
+        String query = item.getArtist() + " " + item.getTitle();
+        String url = "http://qobuz-api-gateway:8082/data/audio/search?query=" + URLEncoder.encode(query, StandardCharsets.UTF_8) + "&type=tracks&limit=5";
+
+        String responseStr = restTemplate.getForObject(url, String.class);
+        JsonNode tracksNode = objectMapper.readTree(responseStr).path("tracks").path("items");
+
+        if (tracksNode.isArray() && tracksNode.size() > 0) {
+            for (JsonNode node : tracksNode) {
+                TrackDto trackDto = objectMapper.treeToValue(node, TrackDto.class);
+                if (isValidMatch(item, trackDto)) {
+                    return trackDto;
+                }
+            }
+        }
+        return null;
     }
 
     private boolean isValidMatch(YoutubeImportRequestDto yt, TrackDto qobuz) {
