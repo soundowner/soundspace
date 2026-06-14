@@ -1183,8 +1183,7 @@ color: coral;
     height: 100%;
     border-radius: 0;
     background-color: #121212;
-    z-index: 30;
-    /* Reset transform for overlay specific needs if any, but base .panel handles it */
+    z-index: 500000;
 }
 
 
@@ -1193,7 +1192,7 @@ color: coral;
     height: 100%;
     border-radius: 0;
     background-color: #121212;
-    z-index: 30;
+    z-index: 500000;
     
     /* SLOW MOTION LUXURY */
     transform: translate3d(0, 100%, 0);
@@ -2637,6 +2636,10 @@ color: coral;
 
 /* One-handed overlay controls */
 .overlay-bottom-controls {
+    position: absolute;
+    bottom: calc(9dvh + 20px);
+    left: 20px;
+    right: 20px;
     z-index: 600000;
     display: flex;
     justify-content: space-between;
