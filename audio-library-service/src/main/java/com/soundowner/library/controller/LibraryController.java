@@ -19,6 +19,41 @@ public class LibraryController {
 
     private final LibraryService libraryService;
     private final LibraryMapper libraryMapper;
+    private final org.springframework.web.client.RestTemplate restTemplate;
+    private final com.fasterxml.jackson.databind.ObjectMapper objectMapper;
+
+    @PostMapping("/import/youtube")
+    public ResponseEntity<YoutubeImportResponseDto> importFromYoutube(
+            @RequestHeader("X-User-Id") UUID userId,
+            @RequestBody List<YoutubeImportRequestDto> request) {
+        
+        int foundCount = 0;
+        
+        for (YoutubeImportRequestDto item : request) {
+            try {
+                String query = item.getArtist() + " " + item.getTitle();
+                String url = "http://qobuz-api-gateway:8082/data/audio/search?query=" + java.net.URLEncoder.encode(query, "UTF-8") + "&type=tracks";
+                
+                String responseStr = restTemplate.getForObject(url, String.class);
+                com.fasterxml.jackson.databind.JsonNode root = objectMapper.readTree(responseStr);
+                com.fasterxml.jackson.databind.JsonNode tracksNode = root.path("tracks").path("items");
+                
+                if (tracksNode.isArray() && tracksNode.size() > 0) {
+                    com.fasterxml.jackson.databind.JsonNode firstTrack = tracksNode.get(0);
+                    TrackDto trackDto = objectMapper.treeToValue(firstTrack, TrackDto.class);
+                    
+                    if (trackDto != null && trackDto.getId() != null) {
+                        libraryService.addTrackToLibrary(userId, libraryMapper.toTrack(trackDto));
+                        foundCount++;
+                    }
+                }
+            } catch (Exception e) {
+                // Ignore single track errors and continue
+            }
+        }
+        
+        return ResponseEntity.ok(new YoutubeImportResponseDto(foundCount, request.size()));
+    }
 
     @GetMapping("/artists/ids")
     public ResponseEntity<List<Long>> getMyArtistIds(

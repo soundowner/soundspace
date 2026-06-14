@@ -139,6 +139,10 @@ document.addEventListener('DOMContentLoaded', () => {
         
         bottomNavbar: document.querySelector('.bottom-navbar'),
 
+        // Profile Elements
+        importYoutubeBtn: document.getElementById('import-youtube-btn'),
+        youtubeImportStatus: document.getElementById('youtube-import-status'),
+
         // Library Elements
         libraryPanel: document.getElementById('library-panel'),
         playlistsContainer: document.getElementById('playlists-grid-ss'),
@@ -3491,5 +3495,136 @@ document.addEventListener('DOMContentLoaded', () => {
                 onSelect(formatId);
             });
         });
+    }
+
+    // --- YOUTUBE IMPORT LOGIC ---
+    let tokenClient;
+    
+    function initGoogleAuth() {
+        if (window.google && google.accounts && google.accounts.oauth2) {
+            tokenClient = google.accounts.oauth2.initTokenClient({
+                client_id: '791416519915-0cct0jrd857c0jkrkdt1c553uqm0np05.apps.googleusercontent.com',
+                scope: 'https://www.googleapis.com/auth/youtube.readonly',
+                callback: async (tokenResponse) => {
+                    if (tokenResponse && tokenResponse.access_token) {
+                        handleYoutubeImport(tokenResponse.access_token);
+                    }
+                }
+            });
+        } else {
+            setTimeout(initGoogleAuth, 100);
+        }
+    }
+    
+    initGoogleAuth();
+
+    if (els.importYoutubeBtn) {
+        els.importYoutubeBtn.addEventListener('click', () => {
+            if (tokenClient) {
+                els.youtubeImportStatus.textContent = "Requesting access...";
+                tokenClient.requestAccessToken();
+            } else {
+                els.youtubeImportStatus.textContent = "Google API not loaded yet.";
+            }
+        });
+    }
+
+    async function handleYoutubeImport(accessToken) {
+        try {
+            els.youtubeImportStatus.textContent = "Fetching playlists...";
+            const plRes = await fetch('https://www.googleapis.com/youtube/v3/playlists?part=snippet&mine=true&maxResults=50', {
+                headers: { 'Authorization': `Bearer ${accessToken}` }
+            });
+            const plData = await plRes.json();
+            
+            if (!plData.items || plData.items.length === 0) {
+                els.youtubeImportStatus.textContent = "No playlists found.";
+                return;
+            }
+
+            let promptText = "Select a playlist by number:\n";
+            plData.items.forEach((p, i) => {
+                promptText += `${i + 1}. ${p.snippet.title}\n`;
+            });
+            
+            const selection = window.prompt(promptText, "1");
+            if (!selection) {
+                els.youtubeImportStatus.textContent = "Import cancelled.";
+                return;
+            }
+            
+            const selectedIndex = parseInt(selection) - 1;
+            if (isNaN(selectedIndex) || selectedIndex < 0 || selectedIndex >= plData.items.length) {
+                els.youtubeImportStatus.textContent = "Invalid selection.";
+                return;
+            }
+            
+            const selectedPlaylistId = plData.items[selectedIndex].id;
+            
+            els.youtubeImportStatus.textContent = "Fetching tracks...";
+            
+            let allItems = [];
+            let nextPageToken = "";
+            
+            do {
+                const itemsRes = await fetch(`https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&maxResults=50&playlistId=${selectedPlaylistId}${nextPageToken ? `&pageToken=${nextPageToken}` : ''}`, {
+                    headers: { 'Authorization': `Bearer ${accessToken}` }
+                });
+                const itemsData = await itemsRes.json();
+                if (itemsData.items) {
+                    allItems = allItems.concat(itemsData.items);
+                }
+                nextPageToken = itemsData.nextPageToken;
+            } while (nextPageToken);
+
+            els.youtubeImportStatus.textContent = `Parsing ${allItems.length} tracks...`;
+            
+            const normalizedTracks = allItems.map(item => {
+                const rawTitle = item.snippet.title;
+                const channelTitle = item.snippet.videoOwnerChannelTitle || "";
+                
+                // Clean up title (remove Official Video, Audio, etc.)
+                let title = rawTitle.replace(/\((Official|Lyric|Music)?\s*(Video|Audio)\)/gi, '').trim();
+                title = title.replace(/\[(Official|Lyric|Music)?\s*(Video|Audio)\]/gi, '').trim();
+                
+                let artist = "";
+                
+                // Try to split "Artist - Title"
+                if (title.includes(' - ')) {
+                    const parts = title.split(' - ');
+                    artist = parts[0].trim();
+                    title = parts.slice(1).join(' - ').trim();
+                } else {
+                    // Use channel name, removing common suffixes
+                    artist = channelTitle.replace(/(- Topic|VEVO)$/i, '').trim();
+                }
+                
+                return { artist, title };
+            }).filter(t => t.title && t.title !== 'Deleted video' && t.title !== 'Private video');
+
+            els.youtubeImportStatus.textContent = `Sending ${normalizedTracks.length} tracks to server...`;
+
+            const importRes = await fetch('/library/import/youtube', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(normalizedTracks)
+            });
+
+            if (importRes.ok) {
+                const result = await importRes.json();
+                els.youtubeImportStatus.textContent = `Import complete: Found ${result.found}/${normalizedTracks.length} tracks.`;
+                // Force UI update
+                libraryState.needsTracksSync = true;
+                if (libraryState.lastTab === 'tracks') {
+                    fetchLikedTracksSS();
+                }
+            } else {
+                els.youtubeImportStatus.textContent = "Server error during import.";
+            }
+
+        } catch (err) {
+            console.error("YouTube import error:", err);
+            els.youtubeImportStatus.textContent = "Error importing tracks.";
+        }
     }
 });
