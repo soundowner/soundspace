@@ -663,6 +663,12 @@ input, textarea, [contenteditable="true"] {
     display: flex;
     align-items: center;
     justify-content: center;
+    background: transparent;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    font: inherit;
+    color: inherit;
 }
 
 .player-controls-button i {
@@ -1199,12 +1205,16 @@ color: coral;
     
     visibility: hidden;
     transition: transform 1s cubic-bezier(0.2, 0.8, 0.2, 1), visibility 0s 1s;
+    
+    pointer-events: none; /* Make click-through immediately when inactive */
 }
 
 .overlay-panel.active {
     transform: translate3d(0, 0, 0);
     visibility: visible;
     transition: transform 1s cubic-bezier(0.2, 0.8, 0.2, 1), visibility 0s 0s;
+    
+    pointer-events: auto; /* Enable pointer interactions when active */
 }
 
 #playlist-panel {
@@ -2535,8 +2545,7 @@ color: coral;
     padding: 14px 18px;
     gap: 16px;
     cursor: pointer;
-    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-    margin-bottom: 6px;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     touch-action: pan-y;
 }
 
@@ -2612,9 +2621,43 @@ color: coral;
 
 
 .ss-acid-row.is-removing {
-    opacity: 0;
-    margin-bottom: 0;
+    opacity: 0 !important;
+    max-height: 0 !important;
+    min-height: 0 !important;
+    height: 0 !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    margin-bottom: 0 !important;
     pointer-events: none;
+    
+    transition: 
+        opacity 0.3s cubic-bezier(0.25, 1, 0.5, 1),
+        max-height 0.3s cubic-bezier(0.25, 1, 0.5, 1),
+        min-height 0.3s cubic-bezier(0.25, 1, 0.5, 1),
+        height 0.3s cubic-bezier(0.25, 1, 0.5, 1),
+        padding-top 0.3s cubic-bezier(0.25, 1, 0.5, 1),
+        padding-bottom 0.3s cubic-bezier(0.25, 1, 0.5, 1),
+        margin-bottom 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+/* Prevent track contents from vertical squishing/shrinking during height collapse */
+.ss-acid-row.is-removing .search-result-track-cover,
+.ss-acid-row.is-removing .track-info,
+.ss-acid-row.is-removing .track-actions-slide,
+.ss-acid-row.is-removing i {
+    flex-shrink: 0 !important;
+}
+
+/* Offset the 8px parent flex gap in the playlist track list */
+.ss-acid-list .ss-acid-row.is-removing {
+    margin-top: -8px !important;
+    transition: margin-top 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+/* Offset the 12px parent flex gap in the liked tracks list */
+#tracks-lib-container .ss-acid-row.is-removing {
+    margin-top: -12px !important;
+    transition: margin-top 0.3s cubic-bezier(0.25, 1, 0.5, 1);
 }
 
 /* --- Stage 2 Overrides: One-Handed UX + Cyberpunk Geometry --- */

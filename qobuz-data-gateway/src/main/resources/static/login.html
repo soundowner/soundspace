@@ -284,12 +284,12 @@
 
         <form id="login-form" class="auth-form">
             <div class="input-group">
-                <input type="email" id="login-email" class="data-input" placeholder=" " required autocomplete="off">
-                <label class="input-label">[Email]</label>
+                <input type="email" id="login-email" name="username" class="data-input" placeholder=" " required autocomplete="username">
+                <label for="login-email" class="input-label">[Email]</label>
             </div>
             <div class="input-group">
-                <input type="password" id="login-password" class="data-input" placeholder=" " required>
-                <label class="input-label">[Passkey]</label>
+                <input type="password" id="login-password" name="password" class="data-input" placeholder=" " required autocomplete="current-password">
+                <label for="login-password" class="input-label">[Passkey]</label>
             </div>
 
             <div class="actions-stack">
@@ -300,16 +300,16 @@
 
         <form id="register-form" class="auth-form">
             <div class="input-group">
-                <input type="text" id="reg-name" class="data-input" placeholder=" " required autocomplete="off">
-                <label class="input-label">[Name]</label>
+                <input type="text" id="reg-name" class="data-input" placeholder=" " required>
+                <label for="reg-name" class="input-label">[Name]</label>
             </div>
             <div class="input-group">
-                <input type="email" id="reg-email" class="data-input" placeholder=" " required autocomplete="off">
-                <label class="input-label">[Email]</label>
+                <input type="email" id="reg-email" name="username" class="data-input" placeholder=" " required autocomplete="username">
+                <label for="reg-email" class="input-label">[Email]</label>
             </div>
             <div class="input-group">
-                <input type="password" id="reg-password" class="data-input" placeholder=" " required>
-                <label class="input-label">[Passkey]</label>
+                <input type="password" id="reg-password" name="password" class="data-input" placeholder=" " required autocomplete="new-password">
+                <label for="reg-password" class="input-label">[Passkey]</label>
             </div>
 
             <div class="actions-stack">

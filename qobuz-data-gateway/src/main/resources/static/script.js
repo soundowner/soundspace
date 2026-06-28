@@ -329,7 +329,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const smallCoverUrl = item.album?.image?.small || item.image?.small || coverUrl;
 
             return `
-                <div class="search-result-track playable-track"
+                <div class="ss-acid-row search-result-track playable-track"
                      data-track-id="${item.id}"
                      data-artist-id="${artistId}"
                      data-album-id="${albumId}"
@@ -1091,7 +1091,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (res.ok) {
                 const playlists = await res.json();
                 libraryState.playlists = playlists.map(newPl => {
-                    const existing = libraryState.playlists.find(p => p.id === newPl.id);
+                    const existing = libraryState.playlists.find(p => String(p.id) === String(newPl.id));
                     return existing ? { ...newPl, tracks: existing.tracks } : newPl;
                 });
                 saveLibraryToLocal();
@@ -1153,7 +1153,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function handlePlaylistClickSS(id) {
-        const pl = libraryState.playlists.find(p => p.id === id);
+        const pl = libraryState.playlists.find(p => String(p.id) === String(id));
         
         if (pl) {
             // Мгновенная предзагрузка обложек перед открытием
@@ -1176,7 +1176,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const res = await fetch(`/library/playlists/${id}/tracks`);
             if (res.ok) {
                 const tracks = await res.json();
-                const currentPl = libraryState.playlists.find(p => p.id === id);
+                const currentPl = libraryState.playlists.find(p => String(p.id) === String(id));
                 if (currentPl) {
                     currentPl.tracks = tracks;
                     saveLibraryToLocal();
@@ -1186,6 +1186,66 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
         } catch (e) { console.error(e); }
+    }
+
+    function updatePlaylistDetailCoversOnly(playlist) {
+        const content = els.playlistContent;
+        if (!content || content.dataset.loadedId !== String(playlist.id)) return;
+        const tracks = playlist.tracks || [];
+        const covers = playlist.track_covers || tracks.map(t => getImg(t)).filter(Boolean);
+        const coverUrl = playlist.coverImage || (covers.length ? covers[0] : '');
+        
+        const coversJson = JSON.stringify(covers.slice(0, 4)) + '||' + coverUrl;
+        if (content.dataset.renderedCovers !== coversJson) {
+            content.dataset.renderedCovers = coversJson;
+            
+            const blurBg = document.getElementById('playlist-blur-bg-ss');
+            if (blurBg) {
+                if (coverUrl) {
+                    blurBg.style.backgroundImage = `url('${coverUrl}')`;
+                    blurBg.style.display = 'block';
+                } else {
+                    blurBg.style.backgroundImage = 'none';
+                    blurBg.style.display = 'none';
+                }
+            }
+            
+            const coverArtWrapper = content.querySelector('.ss-playlist-cover-art-wrapper');
+            if (coverArtWrapper) {
+                let coverHtml = '';
+                if (covers.length >= 3) {
+                    coverHtml = `
+                        <div class="ss-cover-deck">
+                            <div class="deck-card card-3"><img src="${covers[2]}" alt="cover"></div>
+                            <div class="deck-card card-2"><img src="${covers[1]}" alt="cover"></div>
+                            <div class="deck-card card-1"><img src="${covers[0]}" alt="cover"></div>
+                        </div>
+                    `;
+                } else if (covers.length === 2) {
+                    coverHtml = `
+                        <div class="ss-cover-deck">
+                            <div class="deck-card card-2"><img src="${covers[1]}" alt="cover"></div>
+                            <div class="deck-card card-1"><img src="${covers[0]}" alt="cover"></div>
+                        </div>
+                    `;
+                } else if (covers.length === 1) {
+                    coverHtml = `
+                        <div class="ss-cover-deck">
+                            <div class="deck-card card-1"><img src="${covers[0]}" alt="cover"></div>
+                        </div>
+                    `;
+                } else if (playlist.coverImage) {
+                    coverHtml = `
+                        <div class="ss-cover-deck">
+                            <div class="deck-card card-1"><img src="${playlist.coverImage}" alt="cover"></div>
+                        </div>
+                    `;
+                } else {
+                    coverHtml = `<div class="ss-cover-deck"><div class="deck-card card-1" style="display:flex;align-items:center;justify-content:center;"><span class="material-symbols-outlined" style="font-size:2rem; color:rgba(255,255,255,0.1)">music_note</span></div></div>`;
+                }
+                coverArtWrapper.innerHTML = coverHtml;
+            }
+        }
     }
 
     function renderPlaylistDetailSS(playlist) {
@@ -1359,27 +1419,52 @@ document.addEventListener('DOMContentLoaded', () => {
                             if (res.ok) {
                                 const rowHeight = row.offsetHeight;
                                 row.style.maxHeight = `${rowHeight}px`;
+                                row.offsetHeight; // Force browser reflow
                                 row.classList.add('is-removing');
-                                requestAnimationFrame(() => {
-                                    row.style.maxHeight = '0px';
-                                });
-                                setTimeout(() => row.remove(), 360);
-                                
-                                if (cachedQueueContext === 'playlist' && String(cachedQueueId) === String(playlist.id)) {
-                                    removeTrackFromQueue(t.id);
-                                }
+                                row.style.maxHeight = '0px';
 
-                                const pl = libraryState.playlists.find(p => p.id === playlist.id);
-                                if (pl && pl.tracks) {
-                                    pl.tracks = pl.tracks.filter(track => track.id !== t.id);
-                                    pl.trackCount = Math.max(0, pl.trackCount - 1);
-                                    updatePlaylistCovers(pl);
-                                    saveLibraryToLocal();
-                                    
-                                    renderPlaylistDetailSS(pl);
-                                    renderPlaylistsSS(libraryState.playlists);
-                                }
-                            }
+                                 const updateStateAndUi = () => {
+                                     if (cachedQueueContext === 'playlist' && String(cachedQueueId) === String(playlist.id)) {
+                                         removeTrackFromQueue(t.id);
+                                     }
+
+                                     const pl = libraryState.playlists.find(p => String(p.id) === String(playlist.id));
+                                     if (pl && pl.tracks) {
+                                         pl.tracks = pl.tracks.filter(track => track.id !== t.id);
+                                         pl.trackCount = Math.max(0, pl.trackCount - 1);
+                                         updatePlaylistCovers(pl);
+                                         saveLibraryToLocal();
+                                         
+                                         // Direct DOM updates to avoid full tracklist redraw and image flickering
+                                         const countEl = els.playlistContent.querySelector('.ss-label-header-count');
+                                         if (countEl) {
+                                             countEl.textContent = `${pl.trackCount} TRACKS`;
+                                         }
+                                         updatePlaylistDetailCoversOnly(pl);
+                                         renderPlaylistsSS(libraryState.playlists);
+
+                                         if (pl.tracks.length === 0) {
+                                              const trackList = els.playlistContent.querySelector('.ss-acid-list');
+                                              if (trackList) {
+                                                  trackList.replaceChildren();
+                                                  const empty = document.createElement('div');
+                                                  empty.className = 'empty-state-ss';
+                                                  empty.style.cssText = 'padding: 40px; text-align: center; opacity: 0.5;';
+                                                  empty.textContent = 'Playlist is empty';
+                                                  trackList.appendChild(empty);
+                                              }
+                                         }
+                                     }
+                                     row.remove();
+                                 };
+
+                                 const animations = row.getAnimations();
+                                 if (animations.length > 0) {
+                                     Promise.allSettled(animations.map(a => a.finished)).then(updateStateAndUi);
+                                 } else {
+                                     updateStateAndUi();
+                                 }
+                             }
                         } catch (err) { console.error(err); }
                     };
 
@@ -1519,7 +1604,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     els.addToPlaylistModal.classList.add('hidden');
                     
                     // Update local state and UI immediately
-                    const pl = libraryState.playlists.find(p => p.id === playlistId);
+                    const pl = libraryState.playlists.find(p => String(p.id) === String(playlistId));
                     if (pl) {
                         if (!pl.tracks) pl.tracks = [];
                         pl.tracks.push(trackPayload);
@@ -1635,16 +1720,45 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 const res = await fetch(`/library/tracks/${trackId}`, { method: 'DELETE' });
                 if (res.ok) {
-                    libraryState.likedTrackIds.delete(trackId);
-                    libraryState.likedTracks = libraryState.likedTracks.filter(t => String(t.id) !== trackId);
-                    
-                    if (cachedQueueContext === 'tracks') {
-                        removeTrackFromQueue(trackId);
-                    }
+                    const row = els.tracksLibContainer ? els.tracksLibContainer.querySelector(`.search-result-track[data-track-id="${trackId}"]`) : null;
 
-                    updateHeartIcons(trackId, false);
-                    if (els.tracksLibContainer) {
-                        renderLikedTracksSS();
+                    const updateStateAndUi = () => {
+                        libraryState.likedTrackIds.delete(trackId);
+                        libraryState.likedTracks = libraryState.likedTracks.filter(t => String(t.id) !== trackId);
+                        
+                        if (cachedQueueContext === 'tracks') {
+                            removeTrackFromQueue(trackId);
+                        }
+
+                        updateHeartIcons(trackId, false);
+                        if (els.tracksLibContainer) {
+                            if (row) {
+                                // The row was already animated and removed from DOM, do not redraw the whole list
+                                row.remove();
+                                if (libraryState.likedTracks.length === 0) {
+                                    els.tracksLibContainer.innerHTML = '<div class="empty-state-ss">No liked tracks yet</div>';
+                                }
+                            } else {
+                                // Unliked from player or search results, redraw to keep the library in sync
+                                renderLikedTracksSS();
+                            }
+                        }
+                    };
+
+                    if (row) {
+                        const rowHeight = row.offsetHeight;
+                        row.style.maxHeight = `${rowHeight}px`;
+                        row.offsetHeight; // Force reflow
+                        row.classList.add('is-removing');
+                        row.style.maxHeight = '0px';
+                        const animations = row.getAnimations();
+                        if (animations.length > 0) {
+                            Promise.allSettled(animations.map(a => a.finished)).then(updateStateAndUi);
+                        } else {
+                            updateStateAndUi();
+                        }
+                    } else {
+                        updateStateAndUi();
                     }
                 }
             } catch (e) { console.error('Failed to remove track from library', e); }
@@ -3669,5 +3783,54 @@ document.addEventListener('DOMContentLoaded', () => {
                 fetchPlaylistsSS();
             }
         }
+    }
+
+    // Register WebMCP tools on document.modelContext if supported by the browser runtime
+    if (typeof document.modelContext !== 'undefined') {
+        document.modelContext.play_track = async (args) => {
+            if (args && args.trackId) {
+                const trackData = {
+                    trackId: String(args.trackId),
+                    title: args.title || 'Unknown Title',
+                    artist: args.artist || 'Unknown Artist',
+                    album: args.album || 'Unknown Album',
+                    cover: args.cover || '',
+                    artistId: args.artistId || '',
+                    albumId: args.albumId || ''
+                };
+                await handleTrackClick(trackData, false, true);
+                return { success: true, message: `Playing track ${args.trackId}` };
+            }
+            return { success: false, error: 'Missing trackId' };
+        };
+
+        document.modelContext.get_player_state = () => {
+            return {
+                isPlaying: playerState.isPlaying,
+                currentTime: playerState.currentTime,
+                duration: playerState.duration,
+                currentTrack: playerState.currentTrack
+            };
+        };
+
+        document.modelContext.toggle_play = () => {
+            if (playerState.currentTrack) {
+                player.paused ? player.play() : player.pause();
+                return { success: true, isPlaying: playerState.isPlaying };
+            }
+            return { success: false, error: 'No track loaded' };
+        };
+
+        document.modelContext.next_track = () => {
+            isManualSwitch = true;
+            playAdjacent('next');
+            return { success: true };
+        };
+
+        document.modelContext.previous_track = () => {
+            isManualSwitch = true;
+            playAdjacent('prev');
+            return { success: true };
+        };
     }
 });
