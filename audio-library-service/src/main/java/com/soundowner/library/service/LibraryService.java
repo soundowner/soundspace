@@ -142,10 +142,16 @@ public class LibraryService {
     @Transactional
     public void addTrackToPlaylist(UUID playlistId, Track track) {
         Playlist playlist = playlistRepository.findById(playlistId)
-                .orElseThrow(() -> new RuntimeException("Playlist not found"));
+                .orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(
+                        org.springframework.http.HttpStatus.NOT_FOUND, "Playlist not found"));
 
         // Сначала сохраняем всю иерархию и получаем УПРАВЛЯЕМЫЙ трек
         Track managedTrack = ensureTrackHierarchySaved(track);
+
+        if (playlistTrackRepository.existsByPlaylistIdAndTrackId(playlistId, managedTrack.getId())) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.CONFLICT, "Track is already in this playlist");
+        }
 
         int maxPos = playlistTrackRepository.findMaxPositionByPlaylistId(playlistId);
         
@@ -159,6 +165,18 @@ public class LibraryService {
 
     @Transactional
     public Playlist createPlaylist(Playlist playlist) {
+        if (playlist.getTitle() == null || playlist.getTitle().trim().isEmpty()) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.BAD_REQUEST, "Playlist title cannot be empty");
+        }
+        if (playlist.getTitle().length() > 50) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.BAD_REQUEST, "Playlist title cannot exceed 50 characters");
+        }
+        if (playlistRepository.existsByUserIdAndTitleIgnoreCase(playlist.getUserId(), playlist.getTitle().trim())) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.CONFLICT, "Playlist with this name already exists");
+        }
         return playlistRepository.save(playlist);
     }
 

@@ -10,4 +10,5 @@ import java.util.UUID;
 @Repository
 public interface PlaylistRepository extends JpaRepository<Playlist, UUID> {
     List<Playlist> findAllByUserIdOrderByCreatedAtDesc(UUID userId);
+    boolean existsByUserIdAndTitleIgnoreCase(UUID userId, String title);
 }

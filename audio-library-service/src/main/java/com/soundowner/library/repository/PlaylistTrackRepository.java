@@ -32,6 +32,8 @@ public interface PlaylistTrackRepository extends JpaRepository<PlaylistTrack, UU
 
     long countByPlaylistId(UUID playlistId);
 
+    boolean existsByPlaylistIdAndTrackId(UUID playlistId, Long trackId);
+
     @Modifying
     @Query("DELETE FROM PlaylistTrack pt WHERE pt.playlist.id = :playlistId AND pt.track.id = :trackId")
     void deleteByPlaylistIdAndTrackId(@Param("playlistId") UUID playlistId, @Param("trackId") Long trackId);

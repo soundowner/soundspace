@@ -145,7 +145,8 @@
                             <span>Image</span>
                         </div>
                         <div class="ss-modal-inputs">
-                            <input type="text" id="playlist_title" placeholder="Playlist Title" autocomplete="off">
+                            <input type="text" id="playlist_title" placeholder="Playlist Title" autocomplete="off" required minlength="1" maxlength="50">
+                            <div id="playlist-title-error" class="error-msg"></div>
                         </div>
                     </div>
                     <div class="ss-modal-actions">

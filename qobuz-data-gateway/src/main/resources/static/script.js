@@ -1525,6 +1525,39 @@ document.addEventListener('DOMContentLoaded', () => {
         els.createPlaylistBtn.addEventListener('click', () => {
             els.createPlaylistModal.classList.remove('hidden');
             els.playlistTitleInput.focus();
+            // Reset input and validation errors on open
+            els.playlistTitleInput.value = '';
+            els.playlistTitleInput.setCustomValidity('');
+            const errorDiv = document.getElementById('playlist-title-error');
+            if (errorDiv) errorDiv.textContent = '';
+        });
+    }
+
+    if (els.playlistTitleInput) {
+        els.playlistTitleInput.addEventListener('input', () => {
+            const title = els.playlistTitleInput.value.trim();
+            const errorDiv = document.getElementById('playlist-title-error');
+            
+            if (!title) {
+                els.playlistTitleInput.setCustomValidity('Title is required');
+                if (errorDiv) errorDiv.textContent = 'Playlist title cannot be empty.';
+                return;
+            }
+            if (title.length > 50) {
+                els.playlistTitleInput.setCustomValidity('Title cannot exceed 50 characters');
+                if (errorDiv) errorDiv.textContent = 'Title must be 50 characters or less.';
+                return;
+            }
+            
+            // Check for case-insensitive duplicate playlist names
+            const exists = libraryState.playlists.some(p => p.title.toLowerCase() === title.toLowerCase());
+            if (exists) {
+                els.playlistTitleInput.setCustomValidity('Playlist name already exists');
+                if (errorDiv) errorDiv.textContent = 'A playlist with this name already exists.';
+            } else {
+                els.playlistTitleInput.setCustomValidity('');
+                if (errorDiv) errorDiv.textContent = '';
+            }
         });
     }
 
@@ -1537,7 +1570,25 @@ document.addEventListener('DOMContentLoaded', () => {
     if (els.createPlaylistConfirm) {
         els.createPlaylistConfirm.addEventListener('click', async () => {
             const title = els.playlistTitleInput.value.trim();
-            if (!title) return;
+            const errorDiv = document.getElementById('playlist-title-error');
+            
+            // Re-run validations
+            if (!title) {
+                els.playlistTitleInput.setCustomValidity('Title is required');
+                if (errorDiv) errorDiv.textContent = 'Playlist title cannot be empty.';
+                return;
+            }
+            if (title.length > 50) {
+                els.playlistTitleInput.setCustomValidity('Title cannot exceed 50 characters');
+                if (errorDiv) errorDiv.textContent = 'Title must be 50 characters or less.';
+                return;
+            }
+            const exists = libraryState.playlists.some(p => p.title.toLowerCase() === title.toLowerCase());
+            if (exists) {
+                els.playlistTitleInput.setCustomValidity('Playlist name already exists');
+                if (errorDiv) errorDiv.textContent = 'A playlist with this name already exists.';
+                return;
+            }
 
             try {
                 const res = await fetch('/library/playlists', {
@@ -1553,8 +1604,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     els.createPlaylistModal.classList.add('hidden');
                     els.playlistTitleInput.value = '';
                     renderPlaylistsSS(libraryState.playlists);
+                } else {
+                    if (res.status === 409) {
+                        els.playlistTitleInput.setCustomValidity('Playlist name already exists');
+                        if (errorDiv) errorDiv.textContent = 'A playlist with this name already exists.';
+                    } else {
+                        els.playlistTitleInput.setCustomValidity('Error creating playlist');
+                        if (errorDiv) errorDiv.textContent = 'Failed to create playlist. Please try again.';
+                    }
                 }
-            } catch (e) { console.error(e); }
+            } catch (e) { 
+                console.error(e); 
+                if (errorDiv) errorDiv.textContent = 'Connection error. Please try again.';
+            }
         });
     }
 
@@ -1565,17 +1627,20 @@ document.addEventListener('DOMContentLoaded', () => {
         trackToAdd = trackData;
         if (!trackToAdd) return;
         els.addToPlaylistModal.classList.remove('hidden');
-        els.selectPlaylistList.innerHTML = libraryState.playlists.map(pl => `
-            <div class="ss-playlist-select-item" data-id="${pl.id}">
-                <div class="ss-playlist-select-cover">
-                    ${pl.coverImage ? `<img src="${pl.coverImage}">` : '<i class="fa-solid fa-music"></i>'}
+        els.selectPlaylistList.innerHTML = libraryState.playlists.map(pl => {
+            const hasTrack = pl.tracks && pl.tracks.some(t => String(t.id) === String(trackToAdd.id));
+            return `
+                <div class="ss-playlist-select-item ${hasTrack ? 'ss-already-added' : ''}" data-id="${pl.id}" style="${hasTrack ? 'opacity: 0.5; pointer-events: none;' : ''}">
+                    <div class="ss-playlist-select-cover">
+                        ${pl.coverImage ? `<img src="${pl.coverImage}">` : '<i class="fa-solid fa-music"></i>'}
+                    </div>
+                    <div class="ss-playlist-select-info">
+                        <h4>${escapeHtml(pl.title)}</h4>
+                        <p>${hasTrack ? 'Already in this playlist' : `${pl.trackCount || 0} tracks`}</p>
+                    </div>
                 </div>
-                <div class="ss-playlist-select-info">
-                    <h4>${escapeHtml(pl.title)}</h4>
-                    <p>${pl.tracks?.length || 0} tracks</p>
-                </div>
-            </div>
-        `).join('');
+            `;
+        }).join('');
     }
 
     if (els.addToPlaylistCancel) {
@@ -1589,6 +1654,10 @@ document.addEventListener('DOMContentLoaded', () => {
         els.selectPlaylistList.addEventListener('click', async (e) => {
             const item = e.target.closest('.ss-playlist-select-item');
             if (!item || !trackToAdd) return;
+            if (item.classList.contains('ss-already-added')) {
+                alert('This track is already in this playlist.');
+                return;
+            }
             const playlistId = item.dataset.id;
             
             // Map full cached object to Backend DTO
