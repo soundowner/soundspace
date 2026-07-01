@@ -799,9 +799,15 @@ document.addEventListener('DOMContentLoaded', () => {
         // Обновление инфо о качестве
         updateQualityInfoUI(meta.id);
 
-        // Мгновенный сброс UI
+        // Мгновенный сброс UI (без анимации обратного отката)
         isIntroAnimating = false;
-        if (els.timeBarProgress) els.timeBarProgress.style.width = '0%';
+        if (els.timeBarProgress) {
+            const originalTransition = els.timeBarProgress.style.transition;
+            els.timeBarProgress.style.transition = 'none';
+            els.timeBarProgress.style.width = '0%';
+            els.timeBarProgress.offsetHeight; // Force reflow
+            els.timeBarProgress.style.transition = originalTransition;
+        }
         if (els.timeCurrent) els.timeCurrent.textContent = '0:00';
         if (els.timeBarContainer) {
             els.timeBarContainer.querySelectorAll('.cut-marker-node').forEach(m => m.remove());
@@ -979,10 +985,17 @@ document.addEventListener('DOMContentLoaded', () => {
         if (target) {
             const isAlreadyActive = target.classList.contains('active');
             
-            // Clear other panels but keep overlays if needed (or just clear all main panels)
-            document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
-            
-            target.classList.add('active');
+            const updateDOM = () => {
+                // Clear other panels but keep overlays if needed (or just clear all main panels)
+                document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+                target.classList.add('active');
+            };
+
+            if (document.startViewTransition) {
+                document.startViewTransition(updateDOM);
+            } else {
+                updateDOM();
+            }
 
             
             if (panelId === 'search-panel') {
@@ -2134,9 +2147,24 @@ document.addEventListener('DOMContentLoaded', () => {
         
         let seed = getSeed(String(currentTrackId || "default"));
         
-        let htmlBackground = '';
-        let htmlForeground = '';
         waveformBars = [];
+        
+        // Lazy initialize the SVG rect nodes once
+        if (els.waveformBackground.children.length === 0) {
+            let bgHtml = '';
+            let fgHtml = '';
+            for (let i = 0; i < N; i++) {
+                const x = i * step + 2;
+                const rectStr = `<rect x="${x}" y="0" width="${barWidth}" height="0" rx="${barWidth/2}" ry="${barWidth/2}" />`;
+                bgHtml += rectStr;
+                fgHtml += rectStr;
+            }
+            els.waveformBackground.innerHTML = bgHtml;
+            els.waveformForeground.innerHTML = fgHtml;
+        }
+        
+        const rectsBg = els.waveformBackground.children;
+        const rectsFg = els.waveformForeground.children;
         
         for (let i = 0; i < N; i++) {
             const x = i * step + 2;
@@ -2159,19 +2187,20 @@ document.addEventListener('DOMContentLoaded', () => {
             
             const y = (viewH - h) / 2;
             
-            const rectStr = `<rect x="${x}" y="${y}" width="${barWidth}" height="${h}" rx="${barWidth/2}" ry="${barWidth/2}" />`;
-            htmlBackground += rectStr;
-            htmlForeground += rectStr;
+            // Recycle elements by only updating attributes
+            if (rectsBg[i] && rectsFg[i]) {
+                rectsBg[i].setAttribute('y', y.toString());
+                rectsBg[i].setAttribute('height', h.toString());
+                rectsFg[i].setAttribute('y', y.toString());
+                rectsFg[i].setAttribute('height', h.toString());
+            }
             waveformBars.push({ x, y, h });
         }
-        
-        els.waveformBackground.innerHTML = htmlBackground;
-        els.waveformForeground.innerHTML = htmlForeground;
     }
 
-    function updateWaveformProgress() {
+    function updateWaveformProgress(overridePct) {
         if (!player.duration || !els.waveformClipRect) return;
-        const pct = (player.currentTime / player.duration) * 100;
+        const pct = overridePct !== undefined ? overridePct : (player.currentTime / player.duration) * 100;
         els.waveformClipRect.setAttribute('width', (pct * 10).toString());
         
         if (waveformBars.length > 0 && els.waveformPlayheads && els.waveformPlayheads.length > 0) {
@@ -2378,10 +2407,13 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             isIntroAnimating = false;
             if (player.duration) {
-                player.currentTime = (finalX / width) * player.duration;
+                const targetTime = (finalX / width) * player.duration;
+                player.currentTime = targetTime;
+                
                 if (isFrequencyMode) {
                     triggerPlayheadDelay();
-                    updateWaveformProgress();
+                    const pct = (targetTime / player.duration) * 100;
+                    updateWaveformProgress(pct);
                 }
             }
         };
@@ -2925,8 +2957,19 @@ document.addEventListener('DOMContentLoaded', () => {
         isLooping = false;
     }
 
+    let lastPct = -1;
+
     function tick() {
         if (!isLooping) return;
+
+        // Pause updates if the player panel is not visible
+        if (!els.playerPanel.classList.contains('active')) {
+            lastPct = -1; // Reset to force update on open
+            if (isLooping) {
+                requestAnimationFrame(tick);
+            }
+            return;
+        }
 
         if (player.duration) {
             if (isIntroAnimating) {
@@ -2936,27 +2979,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 const visualSec = introAnimationTarget * eased;
                 const pct = (visualSec / player.duration) * 100;
                 
-                els.timeBarProgress.style.width = `${pct}%`;
-                els.timeCurrent.textContent = formatTime(visualSec);
-                
-                if (isFrequencyMode) {
-                    els.waveformClipRect.setAttribute('width', (pct * 10).toString());
-                    if (waveformBars.length > 0 && els.waveformPlayheads && els.waveformPlayheads.length > 0) {
-                        const activeIndex = Math.min(waveformBars.length - 1, Math.floor((pct / 100) * waveformBars.length));
-                        els.waveformPlayheads.forEach((playhead, i) => {
-                            const targetIndex = activeIndex - i;
-                            if (targetIndex >= 0 && targetIndex < waveformBars.length && showPlayheads) {
-                                const bar = waveformBars[targetIndex];
-                                const playheadX = ((pct / 100) * 1000 - 4) - (i * 8);
-                                playhead.setAttribute('x', playheadX.toString());
-                                playhead.setAttribute('y', bar.y.toString());
-                                playhead.setAttribute('height', bar.h.toString());
-                                playhead.style.display = 'block';
-                            } else {
-                                playhead.style.display = 'none';
-                            }
-                        });
+                if (Math.abs(pct - lastPct) > 0.05) {
+                    els.timeBarProgress.style.width = `${pct}%`;
+                    els.timeCurrent.textContent = formatTime(visualSec);
+                    
+                    if (isFrequencyMode) {
+                        updateWaveformProgress(pct);
                     }
+                    lastPct = pct;
                 }
                 
                 if (progress >= 1) {
@@ -2967,10 +2997,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             } else {
                 const pct = (player.currentTime / player.duration) * 100;
+                
+                // Update timebar width on every frame to let CSS transition act as a smooth visual filter
                 els.timeBarProgress.style.width = `${pct}%`;
-
-                if (isFrequencyMode) {
+                
+                if (isFrequencyMode && Math.abs(pct - lastPct) > 0.05) {
                     updateWaveformProgress();
+                    lastPct = pct;
                 }
             }
         }
