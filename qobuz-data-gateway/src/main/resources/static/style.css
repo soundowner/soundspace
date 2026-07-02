@@ -593,6 +593,8 @@ input, textarea, [contenteditable="true"] {
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
     background: #1818188f;
+    will-change: backdrop-filter, transform;
+    transform: translateZ(0);
     display: flex;
     justify-content: normal;
     align-items: center;
@@ -1707,6 +1709,8 @@ color: coral;
     z-index: 111;
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
+    will-change: backdrop-filter, transform;
+    transform: translateZ(0);
     /* border-bottom-left-radius: 11px; */
     /* padding: 20px 5px; */
     height: 10dvh;

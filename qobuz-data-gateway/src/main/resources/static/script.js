@@ -764,6 +764,16 @@ document.addEventListener('DOMContentLoaded', () => {
         const trackId = isDomNode ? el.dataset.trackId : el.trackId;
         currentTrackId = trackId;
         
+        // Stop playback and loop immediately, and clear delay timeout
+        if (introAnimationTimeout) {
+            clearTimeout(introAnimationTimeout);
+            introAnimationTimeout = null;
+        }
+        stopLoop();
+        player.pause();
+        player.src = "";
+        player.load();
+        
         // Пересобираем очередь только при ручном клике. 
         // При Next/Prev индекс уже обновлен в playAdjacent.
         if (!isAutoPlay && isDomNode) {
@@ -802,11 +812,9 @@ document.addEventListener('DOMContentLoaded', () => {
         // Мгновенный сброс UI (без анимации обратного отката)
         isIntroAnimating = false;
         if (els.timeBarProgress) {
-            const originalTransition = els.timeBarProgress.style.transition;
             els.timeBarProgress.style.transition = 'none';
             els.timeBarProgress.style.width = '0%';
             els.timeBarProgress.offsetHeight; // Force reflow
-            els.timeBarProgress.style.transition = originalTransition;
         }
         if (els.timeCurrent) els.timeCurrent.textContent = '0:00';
         if (els.timeBarContainer) {
@@ -816,15 +824,22 @@ document.addEventListener('DOMContentLoaded', () => {
         if (currentAudioFetchController) {
             currentAudioFetchController.abort();
         }
-        currentAudioFetchController = new AbortController();
+        const controller = new AbortController();
+        currentAudioFetchController = controller;
 
         try {
             // Удален неиспользуемый qualityCode
             const res = await fetch(`/data/audio/play?trackId=${meta.id}&formatId=${qualitySetting.formatId}`, {
-                signal: currentAudioFetchController.signal
+                signal: controller.signal
             });
             
             const data = await res.json();
+            
+            // Verify if this request corresponds to the track currently active
+            if (String(trackId) !== String(currentTrackId)) {
+                console.log(`Fetch resolved for track ${trackId}, but current active track is ${currentTrackId}. Aborting player src change.`);
+                return;
+            }
             
             if (data.url) {
                 player.pause();
@@ -836,14 +851,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 isManualSwitch = false;
                 
                 player.volume = 1.0;
-                const playPromise = player.play();
-                
-                if (playPromise !== undefined) {
-                    playPromise.catch(error => {
-                        if (error.name !== 'AbortError' && error.name !== 'NotAllowedError') {
-                            console.error('Playback error:', error);
-                        }
-                    });
+                if (playerState.isPlaying) {
+                    const playPromise = player.play();
+                    if (playPromise !== undefined) {
+                        playPromise.then(() => {
+                            startLoop(); // Guarantee loop is active
+                        }).catch(error => {
+                            if (error.name !== 'AbortError' && error.name !== 'NotAllowedError') {
+                                console.error('Playback error:', error);
+                            }
+                        });
+                    }
                 }
             }
         } catch (e) {
@@ -851,7 +869,7 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error(e);
             playerState.isPlaying = false;
         } finally {
-            if (currentAudioFetchController?.signal.aborted === false) {
+            if (currentAudioFetchController === controller) {
                 currentAudioFetchController = null;
             }
         }
@@ -2053,7 +2071,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (els.playBtnContainer) {
         els.playBtnContainer.addEventListener('click', () => {
-            player.paused ? player.play() : player.pause();
+            if (currentAudioFetchController) {
+                currentAudioFetchController.abort();
+                currentAudioFetchController = null;
+                playerState.isPlaying = false;
+                return;
+            }
+            if (playerState.currentTrack) {
+                player.paused ? player.play() : player.pause();
+            }
         });
     }
     if (els.forwardBtn) els.forwardBtn.addEventListener('click', () => {
@@ -2103,6 +2129,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let introAnimationStart = 0;
     let introAnimationDuration = 800;
     let introAnimationTarget = 0;
+    let introAnimationTimeout = null;
     let showPlayheads = false;
     let playheadDelayTimeout = null;
 
@@ -2405,7 +2432,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 const rect = els.timeBarContainer.getBoundingClientRect();
                 finalX = Math.max(0, Math.min(rect.width, clientX - rect.left));
             }
-            isIntroAnimating = false;
+            if (introAnimationTimeout) {
+                clearTimeout(introAnimationTimeout);
+                introAnimationTimeout = null;
+            }
+            if (isIntroAnimating) {
+                isIntroAnimating = false;
+                if (els.timeBarProgress) {
+                    els.timeBarProgress.offsetHeight; // Force reflow
+                    els.timeBarProgress.style.transition = ''; // Restore CSS transition
+                }
+            }
             if (player.duration) {
                 const targetTime = (finalX / width) * player.duration;
                 player.currentTime = targetTime;
@@ -2946,28 +2983,42 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     let isLooping = false;
+    let animationFrameId = null;
 
     function startLoop() {
         if (isLooping) return;
         isLooping = true;
-        requestAnimationFrame(tick);
+        if (animationFrameId === null) {
+            animationFrameId = requestAnimationFrame(tick);
+        }
     }
 
     function stopLoop() {
         isLooping = false;
+        if (animationFrameId !== null) {
+            cancelAnimationFrame(animationFrameId);
+            animationFrameId = null;
+        }
     }
 
     let lastPct = -1;
 
     function tick() {
-        if (!isLooping) return;
+        if (!isLooping) {
+            animationFrameId = null;
+            return;
+        }
 
         // Pause updates if the player panel is not visible
         if (!els.playerPanel.classList.contains('active')) {
             lastPct = -1; // Reset to force update on open
-            if (isLooping) {
-                requestAnimationFrame(tick);
-            }
+            animationFrameId = requestAnimationFrame(tick);
+            return;
+        }
+
+        // Do not update progress width during the 150ms slide delay
+        if (introAnimationTimeout !== null) {
+            animationFrameId = requestAnimationFrame(tick);
             return;
         }
 
@@ -2991,14 +3042,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 if (progress >= 1) {
                     isIntroAnimating = false;
+                    if (els.timeBarProgress) {
+                        els.timeBarProgress.offsetHeight; // Force reflow
+                        els.timeBarProgress.style.transition = ''; // Restore CSS transition
+                    }
                     if (player.paused) {
                         stopLoop();
+                        return; // Stop scheduling
                     }
                 }
             } else {
                 const pct = (player.currentTime / player.duration) * 100;
                 
-                // Update timebar width on every frame to let CSS transition act as a smooth visual filter
+                // Update timebar width on every frame for liquid smoothness
                 els.timeBarProgress.style.width = `${pct}%`;
                 
                 if (isFrequencyMode && Math.abs(pct - lastPct) > 0.05) {
@@ -3009,7 +3065,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         if (isLooping) {
-            requestAnimationFrame(tick);
+            animationFrameId = requestAnimationFrame(tick);
+        } else {
+            animationFrameId = null;
         }
     }
 
@@ -3026,12 +3084,30 @@ document.addEventListener('DOMContentLoaded', () => {
             const markerTime = markers[0];
             player.currentTime = markerTime;
             
-            isIntroAnimating = true;
-            introAnimationStart = performance.now();
-            introAnimationTarget = markerTime;
-            startLoop();
+            isIntroAnimating = false; // Keep false during the 150ms delay
+            if (els.timeBarProgress) {
+                els.timeBarProgress.style.transition = 'none';
+                els.timeBarProgress.style.width = '0%';
+            }
+            
+            if (introAnimationTimeout) {
+                clearTimeout(introAnimationTimeout);
+            }
+            introAnimationTimeout = setTimeout(() => {
+                introAnimationTimeout = null; // Clear active timeout reference
+                isIntroAnimating = true;
+                introAnimationStart = performance.now();
+                introAnimationTarget = markerTime;
+                startLoop();
+            }, 150); // 0.15s delay
+            
         } else {
             isIntroAnimating = false;
+            if (els.timeBarProgress) {
+                els.timeBarProgress.offsetHeight; // Force reflow
+                els.timeBarProgress.style.transition = ''; // Restore CSS transition
+            }
+            startLoop(); // Guarantee loop starts on new track load
         }
     });
     
@@ -3042,6 +3118,11 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     player.addEventListener('ended', () => {
+        if (els.timeBarProgress) {
+            els.timeBarProgress.style.transition = 'none';
+            els.timeBarProgress.style.width = '0%';
+            els.timeBarProgress.offsetHeight; // Force reflow
+        }
         stopLoop();
         playAdjacent('next');
     });
@@ -3056,6 +3137,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     player.addEventListener('pause', () => {
+        if (currentAudioFetchController) {
+            return;
+        }
         playerState.isPlaying = false;
         stopLoop();
     });
