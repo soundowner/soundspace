@@ -3821,30 +3821,47 @@ document.addEventListener('DOMContentLoaded', () => {
     let tokenClient;
     
     function initGoogleAuth() {
-        if (window.google && google.accounts && google.accounts.oauth2) {
-            tokenClient = google.accounts.oauth2.initTokenClient({
-                client_id: '791416519915-0cct0jrd857c0jkrkdt1c553uqm0np05.apps.googleusercontent.com',
-                scope: 'https://www.googleapis.com/auth/youtube.readonly',
-                callback: async (tokenResponse) => {
-                    if (tokenResponse && tokenResponse.access_token) {
-                        handleYoutubeImport(tokenResponse.access_token);
+        try {
+            if (window.google && google.accounts && google.accounts.oauth2) {
+                tokenClient = google.accounts.oauth2.initTokenClient({
+                    client_id: '791416519915-0cct0jrd857c0jkrkdt1c553uqm0np05.apps.googleusercontent.com',
+                    scope: 'https://www.googleapis.com/auth/youtube.readonly',
+                    callback: async (tokenResponse) => {
+                        if (tokenResponse && tokenResponse.access_token) {
+                            handleYoutubeImport(tokenResponse.access_token);
+                        }
                     }
-                }
-            });
-        } else {
-            setTimeout(initGoogleAuth, 100);
+                });
+            } else {
+                setTimeout(initGoogleAuth, 100);
+            }
+        } catch (e) {
+            console.error("Failed to initialize Google Auth client:", e);
         }
     }
     
     initGoogleAuth();
 
     if (els.importYoutubeBtn) {
-        els.importYoutubeBtn.addEventListener('click', () => {
+        els.importYoutubeBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            // Try to initialize client if it hasn't been loaded yet
+            if (!tokenClient) {
+                initGoogleAuth();
+            }
+
             if (tokenClient) {
                 els.youtubeImportStatus.textContent = "Requesting access...";
-                tokenClient.requestAccessToken();
+                try {
+                    tokenClient.requestAccessToken();
+                } catch (err) {
+                    console.error("Failed to request access token:", err);
+                    els.youtubeImportStatus.textContent = "Request failed. Try again.";
+                }
             } else {
-                els.youtubeImportStatus.textContent = "Google API not loaded yet.";
+                els.youtubeImportStatus.textContent = "Google API not loaded yet. Retrying...";
             }
         });
     }
@@ -3909,15 +3926,23 @@ document.addEventListener('DOMContentLoaded', () => {
             const item = document.createElement('div');
             item.className = 'yt-playlist-item';
             item.innerHTML = `<span class="yt-playlist-title">${pl.title}</span>`;
-            item.onclick = () => {
+            item.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
                 modal.classList.add('hidden');
                 startPlaylistImport(pl.id, pl.title, accessToken);
-            };
+            });
             container.appendChild(item);
         });
 
         modal.classList.remove('hidden');
-        closeBtn.onclick = () => modal.classList.add('hidden');
+        closeBtn.onclick = (e) => {
+            if (e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+            modal.classList.add('hidden');
+        };
     }
 
     async function startPlaylistImport(playlistId, playlistTitle, accessToken) {
