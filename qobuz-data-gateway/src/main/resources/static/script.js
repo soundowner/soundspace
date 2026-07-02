@@ -86,6 +86,9 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentAudioFetchController = null;
     let cachedQueueContext = null;
     let cachedQueueId = null;
+    let searchAbortController = null;
+    let artistAbortController = null;
+    let albumAbortController = null;
 
     const cutMarkersByTrack = new Map();
     try {
@@ -950,13 +953,22 @@ document.addEventListener('DOMContentLoaded', () => {
         // Показываем спиннер
         els.searchResults.innerHTML = '<div class="search-spinner-container"><div class="search-spinner-ss"></div><p>Searching Qobuz...</p></div>';
 
+        if (searchAbortController) {
+            searchAbortController.abort();
+        }
+        searchAbortController = new AbortController();
+
         try {
-            const res = await fetch(`/data/audio/search?query=${encodeURIComponent(query)}&type=tracks`);
+            const res = await fetch(`/data/audio/search?query=${encodeURIComponent(query)}&type=tracks`, {
+                signal: searchAbortController.signal
+            });
             const data = await res.json();
             renderResults(data.tracks?.items || []);
         } catch (err) { 
-            console.error(err);
-            els.searchResults.innerHTML = '<div class="empty-state-ss">Search failed. Try again.</div>';
+            if (err.name !== 'AbortError') {
+                console.error(err);
+                els.searchResults.innerHTML = '<div class="empty-state-ss">Search failed. Try again.</div>';
+            }
         }
     });
 
@@ -1008,6 +1020,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
                 target.classList.add('active');
             };
+
+            if (panelId === 'player-panel' && player && !player.paused) {
+                startLoop();
+            }
 
             if (document.startViewTransition) {
                 document.startViewTransition(updateDOM);
@@ -2577,6 +2593,11 @@ document.addEventListener('DOMContentLoaded', () => {
         els.artistContent.dataset.loadedId = id;
         els.artistContent.innerHTML = '<div style="padding:40px; text-align:center">Loading Frequency...</div>';
         
+        if (artistAbortController) {
+            artistAbortController.abort();
+        }
+        artistAbortController = new AbortController();
+
         // Reset button icon based on library state
         if (els.addArtistToLibBtn) {
             const isInLib = libraryState.artistIds.has(Number(id));
@@ -2585,14 +2606,20 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         try {
-            const res = await fetch(`/data/audio/artist?artistId=${id}`);
+            const res = await fetch(`/data/audio/artist?artistId=${id}`, {
+                signal: artistAbortController.signal
+            });
             const data = await res.json();
             currentArtistData = data;
 
             if (els.artistContent.dataset.loadedId === id && els.artistContent.closest('.panel').classList.contains('active')) {
                 renderArtistPanel(data);
             }
-        } catch (e) { console.error(e); }
+        } catch (e) {
+            if (e.name !== 'AbortError') {
+                console.error(e);
+            }
+        }
     }
 
     async function loadAlbum(id) {
@@ -2608,15 +2635,26 @@ document.addEventListener('DOMContentLoaded', () => {
         els.albumContent.dataset.loadedId = id;
         els.albumContent.innerHTML = '<div style="padding:40px; text-align:center">Loading Geometry...</div>';
 
+        if (albumAbortController) {
+            albumAbortController.abort();
+        }
+        albumAbortController = new AbortController();
+
         try {
-            const res = await fetch(`/data/audio/album?albumId=${id}`);
+            const res = await fetch(`/data/audio/album?albumId=${id}`, {
+                signal: albumAbortController.signal
+            });
             const data = await res.json();
             currentAlbumData = data;
 
             if (els.albumContent.dataset.loadedId === id && els.albumContent.closest('.panel').classList.contains('active')) {
                 renderAlbumPanel(data);
             }
-        } catch (e) { console.error(e); }
+        } catch (e) {
+            if (e.name !== 'AbortError') {
+                console.error(e);
+            }
+        }
     }
 
 
@@ -3032,7 +3070,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Pause updates if the player panel is not visible
         if (!els.playerPanel.classList.contains('active')) {
             lastPct = -1; // Reset to force update on open
-            animationFrameId = requestAnimationFrame(tick);
+            stopLoop();
             return;
         }
 

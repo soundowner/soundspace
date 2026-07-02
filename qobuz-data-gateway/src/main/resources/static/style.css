@@ -1169,6 +1169,7 @@ color: coral;
     
     /* GPU FORCE */
     transform: translate3d(0, 100%, 0);
+    will-change: transform;
     
     
     /* TIMING MAGIC: Delay hiding visibility until transform is done */
