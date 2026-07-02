@@ -69,9 +69,10 @@ public class QobuzApiService {
      * @return      Mono с JSON-строкой ответа от API Qobuz
      */
     public Mono<String> search(String query, String type) {
+        String formattedQuery = query != null ? query.trim().replaceAll("\\s+", "+") : "";
         java.net.URI uri = UriComponentsBuilder.fromUriString(properties.getQobuzBaseUrl() + "catalog/search")
                 .queryParam("app_id", properties.getAppId())
-                .queryParam("query", query)
+                .queryParam("query", formattedQuery)
                 .queryParam("type", type !=null && !type.isEmpty() ? type : "tracks")
                 .queryParam("extra", "albums") // Added to get alphanumeric IDs
                 .queryParam("user_auth_token", validSearchToken)
