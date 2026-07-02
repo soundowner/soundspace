@@ -2961,10 +2961,30 @@ document.addEventListener('DOMContentLoaded', () => {
             tooltip.appendChild(timeLabel);
             tooltip.appendChild(deleteBtn);
             
-            markerContainer.addEventListener('click', (e) => {
+            // Click on time label inside the tooltip opens the fine-tune dial
+            timeLabel.style.cursor = 'pointer';
+            timeLabel.addEventListener('click', (e) => {
                 e.stopPropagation();
                 if (typeof window.openFinetuneDock === 'function') {
                     window.openFinetuneDock(currentTrackId, sec);
+                }
+                markerContainer.classList.remove('active');
+            });
+
+            // Click on the marker node toggles the delete tooltip menu
+            markerContainer.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const isActive = markerContainer.classList.contains('active');
+                
+                // Close other tooltips
+                document.querySelectorAll('.cut-marker-node.active').forEach(m => {
+                    if (m !== markerContainer) m.classList.remove('active');
+                });
+                
+                if (isActive) {
+                    markerContainer.classList.remove('active');
+                } else {
+                    markerContainer.classList.add('active');
                 }
             });
             
@@ -3970,6 +3990,13 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     }
+
+    // Close active cut-marker tooltips on document click
+    document.addEventListener('click', () => {
+        document.querySelectorAll('.cut-marker-node.active').forEach(m => {
+            m.classList.remove('active');
+        });
+    });
 
     // Register WebMCP tools on document.modelContext if supported by the browser runtime
     if (typeof document.modelContext !== 'undefined') {

@@ -3160,7 +3160,8 @@ color: coral;
     transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275), background-color 0.2s;
 }
 
-.cut-marker-node:hover .cut-marker-dot {
+.cut-marker-node:hover .cut-marker-dot,
+.cut-marker-node.active .cut-marker-dot {
     transform: scale(1.25);
     background: #ff5722;
     box-shadow: 0 0 7px 2px rgba(255, 87, 34, 0.8), 0 0 0 2px rgba(0, 0, 0, 0.6);
@@ -3186,7 +3187,8 @@ color: coral;
     -webkit-backdrop-filter: blur(4px);
 }
 
-.cut-marker-node:hover .cut-marker-tooltip {
+.cut-marker-node:hover .cut-marker-tooltip,
+.cut-marker-node.active .cut-marker-tooltip {
     opacity: 1;
     pointer-events: auto;
     transform: translateY(0) scale(1);
