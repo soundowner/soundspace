@@ -3997,14 +3997,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (importRes.ok) {
                 const result = await importRes.json();
-                alert(`Import complete! Created playlist "${playlistTitle}" with ${result.found} tracks.`);
+                els.youtubeImportStatus.innerHTML = `<span style="color: #4caf50; font-weight: 600;">Import complete! Created playlist with ${result.found} tracks.</span>`;
+            } else if (importRes.status === 409) {
+                els.youtubeImportStatus.innerHTML = `<span style="color: #ff5722; font-weight: 600;">Error: Playlist "${playlistTitle.replace('❤️ ', '')}" already exists.</span>`;
             } else {
-                alert("Server error during playlist import.");
+                els.youtubeImportStatus.innerHTML = `<span style="color: #ff5722; font-weight: 600;">Server error during playlist import.</span>`;
             }
 
         } catch (err) {
             console.error("Import failed:", err);
-            alert("An error occurred during import.");
+            els.youtubeImportStatus.innerHTML = `<span style="color: #ff5722; font-weight: 600;">An error occurred during import.</span>`;
         } finally {
             overlay.classList.add('hidden');
             overlay.style.display = 'none';
