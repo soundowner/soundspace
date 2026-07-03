@@ -1474,7 +1474,23 @@ document.addEventListener('DOMContentLoaded', () => {
                         </div>
                     `;
                 } else if (covers.length === 1) {
-                    c        // Обновляем список треков
+                    coverHtml = `
+                        <div class="ss-cover-deck">
+                            <div class="deck-card card-1"><img src="${covers[0]}" alt="cover"></div>
+                        </div>
+                    `;
+                } else if (playlist.coverImage) {
+                    coverHtml = `
+                        <div class="ss-cover-deck">
+                            <div class="deck-card card-1"><img src="${playlist.coverImage}" alt="cover"></div>
+                        </div>
+                    `;
+                } else {
+                    coverHtml = `<div class="ss-cover-deck"><div class="deck-card card-1" style="display:flex;align-items:center;justify-content:center;"><span class="material-symbols-outlined" style="font-size:2rem; color:rgba(255,255,255,0.1)">music_note</span></div></div>`;
+                }
+                coverArtWrapper.innerHTML = coverHtml;
+            }
+        }
         const trackList = content.querySelector('.ss-acid-list');
         if (trackList) {
             trackList.replaceChildren();
