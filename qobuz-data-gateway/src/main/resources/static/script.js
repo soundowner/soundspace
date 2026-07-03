@@ -88,10 +88,22 @@ document.addEventListener('DOMContentLoaded', () => {
     let cachedQueueId = null;
 
     const cutMarkersByTrack = new Map();
+    function setCutMarker(trackId, markers) {
+        const key = String(trackId);
+        if (cutMarkersByTrack.has(key)) {
+            cutMarkersByTrack.delete(key);
+        } else if (cutMarkersByTrack.size >= 100) {
+            const firstKey = cutMarkersByTrack.keys().next().value;
+            if (firstKey !== undefined) {
+                cutMarkersByTrack.delete(firstKey);
+            }
+        }
+        cutMarkersByTrack.set(key, markers);
+    }
     try {
         const localCuts = JSON.parse(localStorage.getItem('ss_cut_markers') || '{}');
         for (const [tid, markers] of Object.entries(localCuts)) {
-            cutMarkersByTrack.set(String(tid), markers);
+            setCutMarker(String(tid), markers);
         }
     } catch (e) {
         console.error('Failed to load cut markers from localStorage', e);
@@ -354,9 +366,11 @@ document.addEventListener('DOMContentLoaded', () => {
             `;
         }).join('');
         
-        initSwipeForTrackList(els.tracksLibContainer);
         syncPlayingHighlights();
-        if (window.lucide) lucide.createIcons();
+        if (window.lucide) lucide.createIcons({
+            attrs: { class: 'lucide-icon' },
+            nameAttr: 'data-lucide'
+        }, els.tracksLibContainer);
     }
 
     function setActiveLibraryTab(tabName) {
@@ -601,7 +615,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (cuts && cuts.length > 0) {
                     const cut = cuts[0];
                     const marker = Number(cut.endTime);
-                    cutMarkersByTrack.set(String(trackId), [marker]);
+                    setCutMarker(String(trackId), [marker]);
                 } else {
                     cutMarkersByTrack.delete(String(trackId));
                 }
@@ -756,12 +770,12 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    async function handleTrackClick(el, isAutoPlay = false, skipShowActions = false) {
+    async function handleTrackClick(el, isPlaylistGrid = false, isRawData = false, seekTime = 0) {
         if (!el) return;
         document.querySelectorAll('.search-result-track').forEach(n => n.classList.remove('show-actions'));
         
-        const isDomNode = !!(el && el.dataset);
-        const trackId = isDomNode ? el.dataset.trackId : el.trackId;
+        const isDomNode = !isRawData && !!(el && el.dataset);
+        const trackId = isDomNode ? el.dataset.trackId : (el.trackId || el.id);
         currentTrackId = trackId;
         
         // Stop playback and loop immediately, and clear delay timeout
@@ -770,24 +784,21 @@ document.addEventListener('DOMContentLoaded', () => {
             introAnimationTimeout = null;
         }
         stopLoop();
-        player.pause();
-        player.src = "";
-        player.load();
         
         // Пересобираем очередь только при ручном клике. 
         // При Next/Prev индекс уже обновлен в playAdjacent.
-        if (!isAutoPlay && isDomNode) {
+        if (!isPlaylistGrid && isDomNode) {
             buildQueueFromNode(el);
         }
         
         syncPlayingHighlights();
         loadCutsForTrack(currentTrackId);
         
-        if (!isAutoPlay) {
+        if (!isPlaylistGrid) {
             isManualSwitch = true;
         }
         
-        if (isAutoPlay === false && !skipShowActions && isDomNode) {
+        if (isPlaylistGrid === false && !isRawData && isDomNode) {
             requestAnimationFrame(() => {
                 el.classList.add('show-actions');
             });
@@ -806,6 +817,13 @@ document.addEventListener('DOMContentLoaded', () => {
         playerState.currentTrack = meta;
         playerState.isPlaying = true;
         
+        // НЕМЕДЛЕННО прерываем фоновое скачивание предыдущего аудио-потока в браузере
+        player.pause();
+        player.src = "";
+        try {
+            player.load();
+        } catch(e) {}
+        
         // Обновление инфо о качестве
         updateQualityInfoUI(meta.id);
 
@@ -814,7 +832,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (els.timeBarProgress) {
             els.timeBarProgress.style.transition = 'none';
             els.timeBarProgress.style.width = '0%';
-            els.timeBarProgress.offsetHeight; // Force reflow
         }
         if (els.timeCurrent) els.timeCurrent.textContent = '0:00';
         if (els.timeBarContainer) {
@@ -842,24 +859,29 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             
             if (data.url) {
-                player.pause();
-                player.src = "";
-                player.load(); 
-
                 player.src = data.url;
                 
                 isManualSwitch = false;
-                
                 player.volume = 1.0;
+
+                if (seekTime > 0) {
+                    const restoreTime = () => {
+                        player.currentTime = seekTime;
+                        player.removeEventListener('loadedmetadata', restoreTime);
+                    };
+                    player.addEventListener('loadedmetadata', restoreTime);
+                }
+
                 if (playerState.isPlaying) {
                     const playPromise = player.play();
                     if (playPromise !== undefined) {
                         playPromise.then(() => {
-                            startLoop(); // Guarantee loop is active
+                            startLoop();
                         }).catch(error => {
                             if (error.name !== 'AbortError' && error.name !== 'NotAllowedError') {
                                 console.error('Playback error:', error);
                             }
+                            playerState.isPlaying = false; // Сбросить статус в UI, если воспроизведение заблокировано
                         });
                     }
                 }
@@ -1450,9 +1472,10 @@ document.addEventListener('DOMContentLoaded', () => {
                             if (res.ok) {
                                 const rowHeight = row.offsetHeight;
                                 row.style.maxHeight = `${rowHeight}px`;
-                                row.offsetHeight; // Force browser reflow
-                                row.classList.add('is-removing');
-                                row.style.maxHeight = '0px';
+                                requestAnimationFrame(() => {
+                                    row.classList.add('is-removing');
+                                    row.style.maxHeight = '0px';
+                                });
 
                                  const updateStateAndUi = () => {
                                      if (cachedQueueContext === 'playlist' && String(cachedQueueId) === String(playlist.id)) {
@@ -1503,10 +1526,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             }
 
-            initSwipeForTrackList(trackList);
         }
 
-        if (window.lucide) window.lucide.createIcons();
+        if (window.lucide) window.lucide.createIcons({
+            attrs: { class: 'lucide-icon' },
+            nameAttr: 'data-lucide'
+        }, trackList);
         syncPlayingHighlights();
     }
 
@@ -1527,7 +1552,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         renderArtistsSS(libraryState.artists);
                         libraryState.needsArtistsSync = true;
                         els.addArtistToLibBtn.innerHTML = '<i data-lucide="user-plus"></i>';
-                        if (window.lucide) lucide.createIcons();
+                        if (window.lucide) lucide.createIcons({
+                            attrs: { class: 'lucide-icon' },
+                            nameAttr: 'data-lucide'
+                        }, els.addArtistToLibBtn);
                     }
                 } catch (e) { console.error(e); }
             } else {
@@ -1545,7 +1573,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         renderArtistsSS(libraryState.artists);
                         libraryState.needsArtistsSync = true;
                         els.addArtistToLibBtn.innerHTML = '<i data-lucide="check"></i>';
-                        if (window.lucide) lucide.createIcons();
+                        if (window.lucide) lucide.createIcons({
+                            attrs: { class: 'lucide-icon' },
+                            nameAttr: 'data-lucide'
+                        }, els.addArtistToLibBtn);
                     }
                 } catch (e) { console.error(e); }
             }
@@ -1848,9 +1879,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (row) {
                         const rowHeight = row.offsetHeight;
                         row.style.maxHeight = `${rowHeight}px`;
-                        row.offsetHeight; // Force reflow
-                        row.classList.add('is-removing');
-                        row.style.maxHeight = '0px';
+                        requestAnimationFrame(() => {
+                            row.classList.add('is-removing');
+                            row.style.maxHeight = '0px';
+                        });
                         const animations = row.getAnimations();
                         if (animations.length > 0) {
                             Promise.allSettled(animations.map(a => a.finished)).then(updateStateAndUi);
@@ -2025,6 +2057,9 @@ document.addEventListener('DOMContentLoaded', () => {
     
     initSwipeForTrackList(els.artistContent);
     initSwipeForTrackList(els.albumContent);
+    if (els.playlistContent) {
+        initSwipeForTrackList(els.playlistContent);
+    }
 
     if (els.artistContent) {
         els.artistContent.addEventListener('click', (e) => {
@@ -2300,7 +2335,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         function updateLiveMarker() {
             if (!activeFinetuneKey) return;
-            cutMarkersByTrack.set(activeFinetuneKey, [activeFinetuneTime]);
+            setCutMarker(activeFinetuneKey, [activeFinetuneTime]);
             const node = els.timeBarContainer.querySelector('.cut-marker-node');
             if (node) {
                 node.style.left = `${(activeFinetuneTime / player.duration) * 100}%`;
@@ -2373,7 +2408,7 @@ document.addEventListener('DOMContentLoaded', () => {
             e.stopPropagation();
             if (activeFinetuneKey) {
                 if (originalMarkerState.length > 0) {
-                    cutMarkersByTrack.set(activeFinetuneKey, originalMarkerState);
+                    setCutMarker(activeFinetuneKey, originalMarkerState);
                 } else {
                     cutMarkersByTrack.delete(activeFinetuneKey);
                 }
@@ -2407,7 +2442,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const markers = (cutMarkersByTrack.get(activeFinetuneKey) || []).slice();
             originalMarkerState = markers.slice();
             
-            cutMarkersByTrack.set(activeFinetuneKey, [activeFinetuneTime]);
+            setCutMarker(activeFinetuneKey, [activeFinetuneTime]);
             renderCutMarkers();
             
             if (els.timeCurrent) els.timeCurrent.classList.add('time-current-finetune');
@@ -2439,7 +2474,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (isIntroAnimating) {
                 isIntroAnimating = false;
                 if (els.timeBarProgress) {
-                    els.timeBarProgress.offsetHeight; // Force reflow
                     els.timeBarProgress.style.transition = ''; // Restore CSS transition
                 }
             }
@@ -2569,7 +2603,10 @@ document.addEventListener('DOMContentLoaded', () => {
             `;
         }).join('');
         syncPlayingHighlights();
-        if(window.lucide) lucide.createIcons();
+        if(window.lucide) lucide.createIcons({
+            attrs: { class: 'lucide-icon' },
+            nameAttr: 'data-lucide'
+        }, els.searchResults);
     }
 
     async function loadArtist(id) {
@@ -2581,7 +2618,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (els.addArtistToLibBtn) {
             const isInLib = libraryState.artistIds.has(Number(id));
             els.addArtistToLibBtn.innerHTML = isInLib ? '<i data-lucide="check"></i>' : '<i data-lucide="user-plus"></i>';
-            if (window.lucide) lucide.createIcons();
+            if (window.lucide) lucide.createIcons({
+                attrs: { class: 'lucide-icon' },
+                nameAttr: 'data-lucide'
+            }, els.addArtistToLibBtn);
         }
 
         try {
@@ -2694,7 +2734,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         content.appendChild(scrollArea);
         syncPlayingHighlights();
-        if(window.lucide) lucide.createIcons();
+        if(window.lucide) lucide.createIcons({
+            attrs: { class: 'lucide-icon' },
+            nameAttr: 'data-lucide'
+        }, els.artistContent);
     }
 
     function renderAlbumPanel(data) {
@@ -2795,7 +2838,10 @@ document.addEventListener('DOMContentLoaded', () => {
                             renderAlbumsSS(libraryState.albums);
                             libraryState.needsAlbumsSync = true;
                             addBtn.innerHTML = '<i data-lucide="plus"></i>';
-                            if (window.lucide) lucide.createIcons();
+                            if (window.lucide) lucide.createIcons({
+                                attrs: { class: 'lucide-icon' },
+                                nameAttr: 'data-lucide'
+                            }, addBtn);
                         }
                     } catch (e) { console.error(e); }
                 } else {
@@ -2813,7 +2859,10 @@ document.addEventListener('DOMContentLoaded', () => {
                             renderAlbumsSS(libraryState.albums);
                             libraryState.needsAlbumsSync = true;
                             addBtn.innerHTML = '<i data-lucide="check"></i>';
-                            if (window.lucide) lucide.createIcons();
+                            if (window.lucide) lucide.createIcons({
+                                attrs: { class: 'lucide-icon' },
+                                nameAttr: 'data-lucide'
+                            }, addBtn);
                         }
                     } catch (e) { console.error(e); }
                 }
@@ -2834,7 +2883,10 @@ document.addEventListener('DOMContentLoaded', () => {
         content.appendChild(header);
         content.appendChild(scroll);
         syncPlayingHighlights();
-        if(window.lucide) lucide.createIcons();
+        if(window.lucide) lucide.createIcons({
+            attrs: { class: 'lucide-icon' },
+            nameAttr: 'data-lucide'
+        }, els.albumContent);
     }
 
     let overlayOpenTime = 0;
@@ -2949,7 +3001,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const key = String(currentTrackId);
                 const currentMarkers = cutMarkersByTrack.get(key) || [];
                 const updated = currentMarkers.filter(m => Math.abs(m - sec) > 0.01);
-                cutMarkersByTrack.set(key, updated);
+                setCutMarker(key, updated);
                 renderCutMarkers();
                 saveCutsToBackend(key);
             });
@@ -3063,7 +3115,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (progress >= 1) {
                     isIntroAnimating = false;
                     if (els.timeBarProgress) {
-                        els.timeBarProgress.offsetHeight; // Force reflow
                         els.timeBarProgress.style.transition = ''; // Restore CSS transition
                     }
                     if (player.paused) {
@@ -3124,7 +3175,6 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             isIntroAnimating = false;
             if (els.timeBarProgress) {
-                els.timeBarProgress.offsetHeight; // Force reflow
                 els.timeBarProgress.style.transition = ''; // Restore CSS transition
             }
             startLoop(); // Guarantee loop starts on new track load
@@ -3141,7 +3191,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (els.timeBarProgress) {
             els.timeBarProgress.style.transition = 'none';
             els.timeBarProgress.style.width = '0%';
-            els.timeBarProgress.offsetHeight; // Force reflow
         }
         stopLoop();
         playAdjacent('next');
@@ -3170,12 +3219,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const qualitySelect = document.getElementById('quality-selector');
     if (qualitySelect) {
-        qualitySelect.addEventListener('change', (e) => {
+        qualitySelect.addEventListener('change', async (e) => {
             const formatId = e.target.value;
             qualitySetting = {
                 label: e.target.options[e.target.selectedIndex].text,
                 formatId: Number(formatId)
             };
+            
+            // Если сейчас загружен или играет трек - горячая смена качества с текущего места
+            if (playerState.currentTrack) {
+                const currentPos = player.currentTime;
+                await handleTrackClick(playerState.currentTrack, false, true, currentPos);
+            }
         });
     }
     
@@ -4025,10 +4080,26 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // Register WebMCP tools on document.modelContext if supported by the browser runtime
-    if (typeof document.modelContext !== 'undefined') {
-        document.modelContext.play_track = async (args) => {
-            if (args && args.trackId) {
+    // Register WebMCP tools on document.modelContext or navigator.modelContext if supported
+    const modelContext = document.modelContext || navigator.modelContext;
+    if (modelContext && typeof modelContext.registerTool === 'function') {
+        modelContext.registerTool({
+            name: "play_track",
+            description: "Plays a specific track by its ID and metadata.",
+            inputSchema: {
+                type: "object",
+                properties: {
+                    trackId: { type: "string", description: "The ID of the track to play." },
+                    title: { type: "string", description: "The title of the track." },
+                    artist: { type: "string", description: "The artist name." },
+                    album: { type: "string", description: "The album name." },
+                    cover: { type: "string", description: "Optional track cover URL." },
+                    artistId: { type: "string", description: "Optional artist ID." },
+                    albumId: { type: "string", description: "Optional album ID." }
+                },
+                required: ["trackId"]
+            },
+            async execute(args) {
                 const trackData = {
                     trackId: String(args.trackId),
                     title: args.title || 'Unknown Title',
@@ -4041,36 +4112,76 @@ document.addEventListener('DOMContentLoaded', () => {
                 await handleTrackClick(trackData, false, true);
                 return { success: true, message: `Playing track ${args.trackId}` };
             }
-            return { success: false, error: 'Missing trackId' };
-        };
+        });
 
-        document.modelContext.get_player_state = () => {
-            return {
-                isPlaying: playerState.isPlaying,
-                currentTime: playerState.currentTime,
-                duration: playerState.duration,
-                currentTrack: playerState.currentTrack
-            };
-        };
+        modelContext.registerTool({
+            name: "get_player_state",
+            description: "Returns the current playback state and active track metadata.",
+            inputSchema: { type: "object", properties: {} },
+            execute() {
+                return {
+                    isPlaying: playerState.isPlaying,
+                    currentTime: playerState.currentTime,
+                    duration: playerState.duration,
+                    currentTrack: playerState.currentTrack
+                };
+            },
+            annotations: { readOnlyHint: true }
+        });
 
-        document.modelContext.toggle_play = () => {
-            if (playerState.currentTrack) {
-                player.paused ? player.play() : player.pause();
-                return { success: true, isPlaying: playerState.isPlaying };
+        modelContext.registerTool({
+            name: "toggle_play",
+            description: "Toggles between play and pause states.",
+            inputSchema: { type: "object", properties: {} },
+            execute() {
+                if (playerState.currentTrack) {
+                    player.paused ? player.play() : player.pause();
+                    return { success: true, isPlaying: playerState.isPlaying };
+                }
+                return { success: false, error: 'No track loaded' };
             }
-            return { success: false, error: 'No track loaded' };
-        };
+        });
 
-        document.modelContext.next_track = () => {
-            isManualSwitch = true;
-            playAdjacent('next');
-            return { success: true };
-        };
+        modelContext.registerTool({
+            name: "next_track",
+            description: "Skips to the next track in the queue.",
+            inputSchema: { type: "object", properties: {} },
+            execute() {
+                isManualSwitch = true;
+                playAdjacent('next');
+                return { success: true };
+            }
+        });
 
-        document.modelContext.previous_track = () => {
-            isManualSwitch = true;
-            playAdjacent('prev');
-            return { success: true };
-        };
+        modelContext.registerTool({
+            name: "previous_track",
+            description: "Skips to the previous track in the queue.",
+            inputSchema: { type: "object", properties: {} },
+            execute() {
+                isManualSwitch = true;
+                playAdjacent('prev');
+                return { success: true };
+            }
+        });
+
+        modelContext.registerTool({
+            name: "get_player_telemetry",
+            description: "Retrieves browser memory usage, track cache details, and active diagnostics.",
+            inputSchema: { type: "object", properties: {} },
+            execute() {
+                const telemetry = {
+                    heapUsedBytes: 0,
+                    heapLimitBytes: 0,
+                    trackCacheSize: trackCache ? trackCache.cache.size : 0,
+                    cutMarkersCachedTracks: cutMarkersByTrack ? cutMarkersByTrack.size : 0
+                };
+                if (window.performance && window.performance.memory) {
+                    telemetry.heapUsedBytes = window.performance.memory.usedJSHeapSize;
+                    telemetry.heapLimitBytes = window.performance.memory.jsHeapSizeLimit;
+                }
+                return telemetry;
+            },
+            annotations: { readOnlyHint: true }
+        });
     }
 });
