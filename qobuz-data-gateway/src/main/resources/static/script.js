@@ -332,45 +332,78 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         
-        els.tracksLibContainer.innerHTML = tracks.map(item => {
-            const artistId = item.performer?.id || item.artist?.id || item.album?.artist?.id;
-            const albumId = item.album?.id;
-            const isTrackLiked = true;
-            const artistName = item.performer?.name || item.artist?.name || item.album?.artist?.name || (item.performers ? item.performers.split(',')[0].split(' - ')[0].trim() : 'Unknown');
-            const coverUrl = item.album?.image?.large || item.image?.large || '';
-            const smallCoverUrl = item.album?.image?.small || item.image?.small || coverUrl;
-
-            return `
-                <div class="ss-acid-row search-result-track playable-track"
-                     data-track-id="${item.id}"
-                     data-artist-id="${artistId}"
-                     data-album-id="${albumId}"
-                     data-title="${escapeHtml(item.title)}"
-                     data-artist="${escapeHtml(artistName)}"
-                     data-album="${escapeHtml(item.album?.title)}"
-                     data-cover="${coverUrl}">
-                    <img src="${smallCoverUrl}" class="search-result-track-cover" loading="lazy">
-                    <div class="track-info">
-                        <p class="track-title">${escapeHtml(item.title)}</p>
-                        <p class="track-artist">${escapeHtml(artistName)}<span class="track-title-sep"> | </span><span class="track-title-duration">${formatTime(item.duration)}</span></p>
-                    </div>
-                    <div class="track-actions-slide">
-                        <button class="slide-btn btn-like-track ${isTrackLiked ? 'active' : ''}" style="${isTrackLiked ? 'color: coral;' : ''}" title="Like Track">
-                            <i data-lucide="heart" style="${isTrackLiked ? 'fill: coral;' : ''}"></i>
-                        </button>
-                        <button class="slide-btn btn-add-to-playlist" title="Add to Playlist">
-                            <i data-lucide="plus"></i>
-                        </button>
-                    </div>
-                </div>
-            `;
-        }).join('');
+        els.tracksLibContainer.innerHTML = '';
+        els.tracksLibContainer.onscroll = null; // Сброс предыдущего скролла
         
-        syncPlayingHighlights();
-        if (window.lucide) lucide.createIcons({
-            attrs: { class: 'lucide-icon' },
-            nameAttr: 'data-lucide'
-        }, els.tracksLibContainer);
+        let renderedCount = 0;
+        const CHUNK_SIZE = 50;
+
+        function renderNextChunk() {
+            if (renderedCount >= tracks.length) return;
+            
+            const nextChunk = tracks.slice(renderedCount, renderedCount + CHUNK_SIZE);
+            const html = nextChunk.map(item => {
+                const artistId = item.performer?.id || item.artist?.id || item.album?.artist?.id;
+                const albumId = item.album?.id;
+                const isTrackLiked = true;
+                const artistName = item.performer?.name || item.artist?.name || item.album?.artist?.name || (item.performers ? item.performers.split(',')[0].split(' - ')[0].trim() : 'Unknown');
+                const coverUrl = item.album?.image?.large || item.image?.large || '';
+                const smallCoverUrl = item.album?.image?.small || item.image?.small || coverUrl;
+
+                return `
+                    <div class="ss-acid-row search-result-track playable-track"
+                         data-track-id="${item.id}"
+                         data-artist-id="${artistId}"
+                         data-album-id="${albumId}"
+                         data-title="${escapeHtml(item.title)}"
+                         data-artist="${escapeHtml(artistName)}"
+                         data-album="${escapeHtml(item.album?.title)}"
+                         data-cover="${coverUrl}">
+                        <img src="${smallCoverUrl}" class="search-result-track-cover" loading="lazy">
+                        <div class="track-info">
+                            <p class="track-title">${escapeHtml(item.title)}</p>
+                            <p class="track-artist">${escapeHtml(artistName)}<span class="track-title-sep"> | </span><span class="track-title-duration">${formatTime(item.duration)}</span></p>
+                        </div>
+                        <div class="track-actions-slide">
+                            <button class="slide-btn btn-like-track ${isTrackLiked ? 'active' : ''}" style="${isTrackLiked ? 'color: coral;' : ''}" title="Like Track">
+                                <i data-lucide="heart" style="${isTrackLiked ? 'fill: coral;' : ''}"></i>
+                            </button>
+                            <button class="slide-btn btn-add-to-playlist" title="Add to Playlist">
+                                <i data-lucide="plus"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = html;
+            while (tempDiv.firstChild) {
+                els.tracksLibContainer.appendChild(tempDiv.firstChild);
+            }
+
+            syncPlayingHighlights();
+            if (window.lucide) {
+                window.lucide.createIcons({
+                    attrs: { class: 'lucide-icon' },
+                    nameAttr: 'data-lucide'
+                }, els.tracksLibContainer);
+            }
+
+            renderedCount += nextChunk.length;
+        }
+
+        // Рендерим первый блок треков
+        renderNextChunk();
+
+        // Слушатель скролла для подгрузки последующих элементов
+        els.tracksLibContainer.onscroll = () => {
+            if (renderedCount < tracks.length) {
+                if (els.tracksLibContainer.scrollTop + els.tracksLibContainer.clientHeight >= els.tracksLibContainer.scrollHeight - 300) {
+                    renderNextChunk();
+                }
+            }
+        };
     }
 
     function setActiveLibraryTab(tabName) {
@@ -721,23 +754,79 @@ document.addEventListener('DOMContentLoaded', () => {
         // Уникальный ID для контекста (например, data-loaded-id для альбомов/плейлистов)
         const contextId = contextRoot.dataset.loadedId || contextRoot.id;
 
-        // Если контекст тот же самый, не пересобираем очередь из DOM
+        // Если контекст тот же самый, не пересобираем очередь
         if (cachedQueueContext === contextType && cachedQueueId === contextId && currentQueue.length > 0) {
             currentQueueIndex = currentQueue.findIndex(t => String(t.trackId) === String(node.dataset.trackId));
             return;
         }
 
-        // Иначе - собираем заново и кэшируем
-        const nodes = getTrackNodesFromContext(contextType);
-        currentQueue = nodes.map(n => ({
-            trackId: String(n.dataset.trackId),
-            title: n.dataset.title,
-            artist: n.dataset.artist,
-            album: n.dataset.album,
-            cover: n.dataset.cover,
-            artistId: n.dataset.artistId,
-            albumId: n.dataset.albumId
-        }));
+        // Иначе - собираем заново и кэшируем из данных в памяти
+        if (contextType === 'playlist') {
+            const pl = libraryState.playlists.find(p => String(p.id) === String(contextId));
+            if (pl && pl.tracks) {
+                currentQueue = pl.tracks.map(t => {
+                    const rawArtist = t.performers || t.performer?.name || t.artist?.name || t.album?.artist?.name || 'Unknown';
+                    const artistName = rawArtist.split(',')[0].replace(/\s*\(.*?\)/g, '').trim();
+                    return {
+                        trackId: String(t.id),
+                        title: t.title,
+                        artist: artistName,
+                        album: t.album?.title || '',
+                        cover: getImg(t),
+                        artistId: t.performer?.id || t.artist?.id || t.album?.artist?.id || '',
+                        albumId: t.album?.id || ''
+                    };
+                });
+            } else {
+                currentQueue = [];
+            }
+        } else if (contextType === 'album') {
+            const alb = libraryState.albums.find(a => String(a.id) === String(contextId));
+            if (alb && alb.tracks) {
+                currentQueue = alb.tracks.map(t => {
+                    const rawArtist = t.performers || t.performer?.name || t.artist?.name || t.album?.artist?.name || 'Unknown';
+                    const artistName = rawArtist.split(',')[0].replace(/\s*\(.*?\)/g, '').trim();
+                    return {
+                        trackId: String(t.id),
+                        title: t.title,
+                        artist: artistName,
+                        album: t.album?.title || '',
+                        cover: getImg(t),
+                        artistId: t.performer?.id || t.artist?.id || t.album?.artist?.id || '',
+                        albumId: t.album?.id || ''
+                    };
+                });
+            } else {
+                currentQueue = [];
+            }
+        } else if (contextType === 'tracks') {
+            currentQueue = libraryState.likedTracks.map(t => {
+                const rawArtist = t.performers || t.performer?.name || t.artist?.name || t.album?.artist?.name || 'Unknown';
+                const artistName = rawArtist.split(',')[0].replace(/\s*\(.*?\)/g, '').trim();
+                return {
+                    trackId: String(t.id),
+                    title: t.title,
+                    artist: artistName,
+                    album: t.album?.title || '',
+                    cover: getImg(t),
+                    artistId: t.performer?.id || t.artist?.id || t.album?.artist?.id || '',
+                    albumId: t.album?.id || ''
+                };
+            });
+        } else {
+            // Для поиска и профилей артистов собираем из DOM
+            const nodes = getTrackNodesFromContext(contextType);
+            currentQueue = nodes.map(n => ({
+                trackId: String(n.dataset.trackId),
+                title: n.dataset.title,
+                artist: n.dataset.artist,
+                album: n.dataset.album,
+                cover: n.dataset.cover,
+                artistId: n.dataset.artistId,
+                albumId: n.dataset.albumId
+            }));
+        }
+
         currentQueueIndex = currentQueue.findIndex(t => String(t.trackId) === String(node.dataset.trackId));
         
         cachedQueueContext = contextType;
@@ -1385,28 +1474,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         </div>
                     `;
                 } else if (covers.length === 1) {
-                    coverHtml = `
-                        <div class="ss-cover-deck">
-                            <div class="deck-card card-1"><img src="${covers[0]}" alt="cover"></div>
-                        </div>
-                    `;
-                } else if (playlist.coverImage) {
-                    coverHtml = `
-                        <div class="ss-cover-deck">
-                            <div class="deck-card card-1"><img src="${playlist.coverImage}" alt="cover"></div>
-                        </div>
-                    `;
-                } else {
-                    coverHtml = `<div class="ss-cover-deck"><div class="deck-card card-1" style="display:flex;align-items:center;justify-content:center;"><span class="material-symbols-outlined" style="font-size:2rem; color:rgba(255,255,255,0.1)">music_note</span></div></div>`;
-                }
-                coverArtWrapper.innerHTML = coverHtml;
-            }
-        }
-
-        // Обновляем список треков
+                    c        // Обновляем список треков
         const trackList = content.querySelector('.ss-acid-list');
         if (trackList) {
             trackList.replaceChildren();
+            trackList.onscroll = null; // Сброс предыдущего обработчика скролла
             
             if (!playlist.tracks) {
                 const loader = document.createElement('div');
@@ -1421,117 +1493,140 @@ document.addEventListener('DOMContentLoaded', () => {
                 empty.textContent = 'Playlist is empty';
                 trackList.appendChild(empty);
             } else {
-                tracks.forEach((t) => {
-                    trackCache.set(String(t.id), t);
-                    const row = document.createElement('div');
-                    row.className = 'ss-acid-row search-result-track playable-track'; 
+                let renderedCount = 0;
+                const CHUNK_SIZE = 50;
+
+                function renderNextChunk() {
+                    if (renderedCount >= tracks.length) return;
                     
-                    const artistId = t.performer?.id || t.artist?.id || t.album?.artist?.id || '';
-                    const albumId = t.album?.id || '';
-                    const rawArtist = t.performers || t.performer?.name || t.artist?.name || t.album?.artist?.name || 'Unknown';
-                    const artistName = rawArtist.split(',')[0].replace(/\s*\(.*?\)/g, '').trim();
-                    const coverUrl = getImg(t);
+                    const nextChunk = tracks.slice(renderedCount, renderedCount + CHUNK_SIZE);
+                    nextChunk.forEach((t) => {
+                        trackCache.set(String(t.id), t);
+                        const row = document.createElement('div');
+                        row.className = 'ss-acid-row search-result-track playable-track'; 
+                        
+                        const artistId = t.performer?.id || t.artist?.id || t.album?.artist?.id || '';
+                        const albumId = t.album?.id || '';
+                        const rawArtist = t.performers || t.performer?.name || t.artist?.name || t.album?.artist?.name || 'Unknown';
+                        const artistName = rawArtist.split(',')[0].replace(/\s*\(.*?\)/g, '').trim();
+                        const coverUrl = getImg(t);
 
-                    row.setAttribute('data-track-id', t.id);
-                    row.setAttribute('data-artist-id', artistId);
-                    row.setAttribute('data-album-id', albumId);
-                    row.setAttribute('data-title', t.title);
-                    row.setAttribute('data-artist', artistName);
-                    row.setAttribute('data-album', t.album?.title || '');
-                    row.setAttribute('data-cover', coverUrl);
-                    
-                    row.innerHTML = `
-                        <img src="${getImgSmall(t)}" class="search-result-track-cover" loading="lazy">
-                        <div class="track-info">
-                            <p class="track-title">${escapeHtml(t.title)}</p>
-                            <p class="track-artist"><span style="color: var(--accent-primary, coral); font-weight: 500;">${escapeHtml(artistName)}</span><span class="track-title-sep"> | </span><span class="track-title-duration">${formatTime(t.duration)}</span></p>
-                        </div>
-                        <div class="track-actions-slide">
-                            <button class="slide-btn btn-add-to-playlist" title="Add to Playlist">
-                                <i data-lucide="plus"></i>
-                            </button>
-                            <button class="slide-btn btn-delete-track" title="Remove from Playlist" style="color: #ff4a4a;">
-                                <i data-lucide="trash-2"></i>
-                            </button>
-                        </div>
-                    `;
+                        row.setAttribute('data-track-id', t.id);
+                        row.setAttribute('data-artist-id', artistId);
+                        row.setAttribute('data-album-id', albumId);
+                        row.setAttribute('data-title', t.title);
+                        row.setAttribute('data-artist', artistName);
+                        row.setAttribute('data-album', t.album?.title || '');
+                        row.setAttribute('data-cover', coverUrl);
+                        
+                        row.innerHTML = `
+                            <img src="${getImgSmall(t)}" class="search-result-track-cover" loading="lazy">
+                            <div class="track-info">
+                                <p class="track-title">${escapeHtml(t.title)}</p>
+                                <p class="track-artist"><span style="color: var(--accent-primary, coral); font-weight: 500;">${escapeHtml(artistName)}</span><span class="track-title-sep"> | </span><span class="track-title-duration">${formatTime(t.duration)}</span></p>
+                            </div>
+                            <div class="track-actions-slide">
+                                <button class="slide-btn btn-add-to-playlist" title="Add to Playlist">
+                                    <i data-lucide="plus"></i>
+                                </button>
+                                <button class="slide-btn btn-delete-track" title="Remove from Playlist" style="color: #ff4a4a;">
+                                    <i data-lucide="trash-2"></i>
+                                </button>
+                            </div>
+                        `;
 
-                    // Add to Playlist Button
-                    row.querySelector('.btn-add-to-playlist').onclick = (e) => {
-                        e.stopPropagation();
-                        row.classList.remove('show-actions');
-                        openAddToPlaylistModal(t);
-                    };
+                        // Add to Playlist Button
+                        row.querySelector('.btn-add-to-playlist').onclick = (e) => {
+                            e.stopPropagation();
+                            row.classList.remove('show-actions');
+                            openAddToPlaylistModal(t);
+                        };
 
-                    // Delete Logic
-                    row.querySelector('.btn-delete-track').onclick = async (e) => {
-                        e.stopPropagation();
-                        row.classList.remove('show-actions');
-                        try {
-                            const res = await fetch(`/library/playlists/${playlist.id}/tracks/${t.id}`, { method: 'DELETE' });
-                            if (res.ok) {
-                                const rowHeight = row.offsetHeight;
-                                row.style.maxHeight = `${rowHeight}px`;
-                                requestAnimationFrame(() => {
-                                    row.classList.add('is-removing');
-                                    row.style.maxHeight = '0px';
-                                });
+                        // Delete Logic
+                        row.querySelector('.btn-delete-track').onclick = async (e) => {
+                            e.stopPropagation();
+                            row.classList.remove('show-actions');
+                            try {
+                                const res = await fetch(`/library/playlists/${playlist.id}/tracks/${t.id}`, { method: 'DELETE' });
+                                if (res.ok) {
+                                    const rowHeight = row.offsetHeight;
+                                    row.style.maxHeight = `${rowHeight}px`;
+                                    requestAnimationFrame(() => {
+                                        row.classList.add('is-removing');
+                                        row.style.maxHeight = '0px';
+                                    });
 
-                                 const updateStateAndUi = () => {
-                                     if (cachedQueueContext === 'playlist' && String(cachedQueueId) === String(playlist.id)) {
-                                         removeTrackFromQueue(t.id);
-                                     }
-
-                                     const pl = libraryState.playlists.find(p => String(p.id) === String(playlist.id));
-                                     if (pl && pl.tracks) {
-                                         pl.tracks = pl.tracks.filter(track => track.id !== t.id);
-                                         pl.trackCount = Math.max(0, pl.trackCount - 1);
-                                         updatePlaylistCovers(pl);
-                                         saveLibraryToLocal();
-                                         
-                                         // Direct DOM updates to avoid full tracklist redraw and image flickering
-                                         const countEl = els.playlistContent.querySelector('.ss-label-header-count');
-                                         if (countEl) {
-                                             countEl.textContent = `${pl.trackCount} TRACKS`;
+                                     const updateStateAndUi = () => {
+                                         if (cachedQueueContext === 'playlist' && String(cachedQueueId) === String(playlist.id)) {
+                                             removeTrackFromQueue(t.id);
                                          }
-                                         updatePlaylistDetailCoversOnly(pl);
-                                         renderPlaylistsSS(libraryState.playlists);
 
-                                         if (pl.tracks.length === 0) {
-                                              const trackList = els.playlistContent.querySelector('.ss-acid-list');
-                                              if (trackList) {
-                                                  trackList.replaceChildren();
-                                                  const empty = document.createElement('div');
-                                                  empty.className = 'empty-state-ss';
-                                                  empty.style.cssText = 'padding: 40px; text-align: center; opacity: 0.5;';
-                                                  empty.textContent = 'Playlist is empty';
-                                                  trackList.appendChild(empty);
-                                              }
+                                         const pl = libraryState.playlists.find(p => String(p.id) === String(playlist.id));
+                                         if (pl && pl.tracks) {
+                                             pl.tracks = pl.tracks.filter(track => track.id !== t.id);
+                                             pl.trackCount = Math.max(0, pl.trackCount - 1);
+                                             updatePlaylistCovers(pl);
+                                             saveLibraryToLocal();
+                                             
+                                             // Direct DOM updates to avoid full tracklist redraw
+                                             const countEl = els.playlistContent.querySelector('.ss-label-header-count');
+                                             if (countEl) {
+                                                 countEl.textContent = `${pl.trackCount} TRACKS`;
+                                             }
+                                             updatePlaylistDetailCoversOnly(pl);
+                                             renderPlaylistsSS(libraryState.playlists);
+
+                                             if (pl.tracks.length === 0) {
+                                                  const trackList = els.playlistContent.querySelector('.ss-acid-list');
+                                                  if (trackList) {
+                                                      trackList.replaceChildren();
+                                                      const empty = document.createElement('div');
+                                                      empty.className = 'empty-state-ss';
+                                                      empty.style.cssText = 'padding: 40px; text-align: center; opacity: 0.5;';
+                                                      empty.textContent = 'Playlist is empty';
+                                                      trackList.appendChild(empty);
+                                                  }
+                                             }
                                          }
-                                     }
-                                     row.remove();
-                                 };
+                                         row.remove();
+                                     };
 
-                                 const animations = row.getAnimations();
-                                 if (animations.length > 0) {
-                                     Promise.allSettled(animations.map(a => a.finished)).then(updateStateAndUi);
-                                 } else {
-                                     updateStateAndUi();
+                                     const animations = row.getAnimations();
+                                     if (animations.length > 0) {
+                                         Promise.allSettled(animations.map(a => a.finished)).then(updateStateAndUi);
+                                     } else {
+                                         updateStateAndUi();
+                                     }
                                  }
-                             }
-                        } catch (err) { console.error(err); }
-                    };
+                            } catch (err) { console.error(err); }
+                        };
 
-                    trackList.appendChild(row);
-                });
+                        trackList.appendChild(row);
+                    });
+
+                    // Инициализируем иконки Lucide для вновь добавленных элементов
+                    if (window.lucide) {
+                        window.lucide.createIcons({
+                            attrs: { class: 'lucide-icon' },
+                            nameAttr: 'data-lucide'
+                        }, trackList);
+                    }
+
+                    renderedCount += nextChunk.length;
+                }
+
+                // Рендерим первый блок треков
+                renderNextChunk();
+
+                // Слушатель скролла для подгрузки последующих элементов
+                trackList.onscroll = () => {
+                    if (renderedCount < tracks.length) {
+                        if (trackList.scrollTop + trackList.clientHeight >= trackList.scrollHeight - 300) {
+                            renderNextChunk();
+                        }
+                    }
+                };
             }
-
-        }
-
-        if (window.lucide) window.lucide.createIcons({
-            attrs: { class: 'lucide-icon' },
-            nameAttr: 'data-lucide'
-        }, trackList);
         syncPlayingHighlights();
     }
 
