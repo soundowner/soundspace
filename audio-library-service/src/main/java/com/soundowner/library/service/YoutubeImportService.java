@@ -58,9 +58,9 @@ public class YoutubeImportService {
 
     private TrackDto findBestMatch(YoutubeImportRequestDto item) throws Exception {
         String query = item.getArtist() + " " + item.getTitle();
-        String url = "http://qobuz-api-gateway:8082/data/audio/search?query=" + URLEncoder.encode(query, StandardCharsets.UTF_8) + "&type=tracks&limit=5";
+        String url = "http://qobuz-api-gateway:8082/data/audio/search?query={query}&type=tracks&limit=5";
 
-        String responseStr = restTemplate.getForObject(url, String.class);
+        String responseStr = restTemplate.getForObject(url, String.class, query);
         JsonNode tracksNode = objectMapper.readTree(responseStr).path("tracks").path("items");
 
         if (tracksNode.isArray() && tracksNode.size() > 0) {
