@@ -81,6 +81,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentQueueIndex = -1;
     let isManualSwitch = false;
     let lastRemovedCurrentTrackIndex = null;
+    let activeRestoreTimeListener = null;
 
     // Глобальные переменные для оптимизации и предотвращения Race Conditions
     let currentAudioFetchController = null;
@@ -88,15 +89,27 @@ document.addEventListener('DOMContentLoaded', () => {
     let cachedQueueId = null;
 
     const cutMarkersByTrack = new Map();
+    function setCutMarker(trackId, markers) {
+        const key = String(trackId);
+        if (cutMarkersByTrack.has(key)) {
+            cutMarkersByTrack.delete(key);
+        } else if (cutMarkersByTrack.size >= 100) {
+            const firstKey = cutMarkersByTrack.keys().next().value;
+            if (firstKey !== undefined) {
+                cutMarkersByTrack.delete(firstKey);
+            }
+        }
+        cutMarkersByTrack.set(key, markers);
+    }
     try {
         const localCuts = JSON.parse(localStorage.getItem('ss_cut_markers') || '{}');
         for (const [tid, markers] of Object.entries(localCuts)) {
-            cutMarkersByTrack.set(String(tid), markers);
+            setCutMarker(String(tid), markers);
         }
     } catch (e) {
         console.error('Failed to load cut markers from localStorage', e);
     }
-    let qualitySetting = { label: 'FLAC/7', formatId: 7 };
+    let qualitySetting = { label: 'MP3/5', formatId: 5 };
     let libraryLabelTimeout = null;
     
     // --- ELEMENTS ---
@@ -320,43 +333,78 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         
-        els.tracksLibContainer.innerHTML = tracks.map(item => {
-            const artistId = item.performer?.id || item.artist?.id || item.album?.artist?.id;
-            const albumId = item.album?.id;
-            const isTrackLiked = true;
-            const artistName = item.performer?.name || item.artist?.name || item.album?.artist?.name || (item.performers ? item.performers.split(',')[0].split(' - ')[0].trim() : 'Unknown');
-            const coverUrl = item.album?.image?.large || item.image?.large || '';
-            const smallCoverUrl = item.album?.image?.small || item.image?.small || coverUrl;
-
-            return `
-                <div class="ss-acid-row search-result-track playable-track"
-                     data-track-id="${item.id}"
-                     data-artist-id="${artistId}"
-                     data-album-id="${albumId}"
-                     data-title="${escapeHtml(item.title)}"
-                     data-artist="${escapeHtml(artistName)}"
-                     data-album="${escapeHtml(item.album?.title)}"
-                     data-cover="${coverUrl}">
-                    <img src="${smallCoverUrl}" class="search-result-track-cover" loading="lazy">
-                    <div class="track-info">
-                        <p class="track-title">${escapeHtml(item.title)}</p>
-                        <p class="track-artist">${escapeHtml(artistName)}<span class="track-title-sep"> | </span><span class="track-title-duration">${formatTime(item.duration)}</span></p>
-                    </div>
-                    <div class="track-actions-slide">
-                        <button class="slide-btn btn-like-track ${isTrackLiked ? 'active' : ''}" style="${isTrackLiked ? 'color: coral;' : ''}" title="Like Track">
-                            <i data-lucide="heart" style="${isTrackLiked ? 'fill: coral;' : ''}"></i>
-                        </button>
-                        <button class="slide-btn btn-add-to-playlist" title="Add to Playlist">
-                            <i data-lucide="plus"></i>
-                        </button>
-                    </div>
-                </div>
-            `;
-        }).join('');
+        els.tracksLibContainer.innerHTML = '';
+        els.tracksLibContainer.onscroll = null; // Сброс предыдущего скролла
         
-        initSwipeForTrackList(els.tracksLibContainer);
-        syncPlayingHighlights();
-        if (window.lucide) lucide.createIcons();
+        let renderedCount = 0;
+        const CHUNK_SIZE = 50;
+
+        function renderNextChunk() {
+            if (renderedCount >= tracks.length) return;
+            
+            const nextChunk = tracks.slice(renderedCount, renderedCount + CHUNK_SIZE);
+            const html = nextChunk.map(item => {
+                const artistId = item.performer?.id || item.artist?.id || item.album?.artist?.id;
+                const albumId = item.album?.id;
+                const isTrackLiked = true;
+                const artistName = item.performer?.name || item.artist?.name || item.album?.artist?.name || (item.performers ? item.performers.split(',')[0].split(' - ')[0].trim() : 'Unknown');
+                const coverUrl = item.album?.image?.large || item.image?.large || '';
+                const smallCoverUrl = item.album?.image?.small || item.image?.small || coverUrl;
+
+                return `
+                    <div class="ss-acid-row search-result-track playable-track"
+                         data-track-id="${item.id}"
+                         data-artist-id="${artistId}"
+                         data-album-id="${albumId}"
+                         data-title="${escapeHtml(item.title)}"
+                         data-artist="${escapeHtml(artistName)}"
+                         data-album="${escapeHtml(item.album?.title)}"
+                         data-cover="${coverUrl}">
+                        <img src="${smallCoverUrl}" class="search-result-track-cover" loading="lazy">
+                        <div class="track-info">
+                            <p class="track-title">${escapeHtml(item.title)}</p>
+                            <p class="track-artist">${escapeHtml(artistName)}<span class="track-title-sep"> | </span><span class="track-title-duration">${formatTime(item.duration)}</span></p>
+                        </div>
+                        <div class="track-actions-slide">
+                            <button class="slide-btn btn-like-track ${isTrackLiked ? 'active' : ''}" style="${isTrackLiked ? 'color: coral;' : ''}" title="Like Track">
+                                <i data-lucide="heart" style="${isTrackLiked ? 'fill: coral;' : ''}"></i>
+                            </button>
+                            <button class="slide-btn btn-add-to-playlist" title="Add to Playlist">
+                                <i data-lucide="plus"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = html;
+            while (tempDiv.firstChild) {
+                els.tracksLibContainer.appendChild(tempDiv.firstChild);
+            }
+
+            syncPlayingHighlights();
+            if (window.lucide) {
+                window.lucide.createIcons({
+                    attrs: { class: 'lucide-icon' },
+                    nameAttr: 'data-lucide'
+                }, els.tracksLibContainer);
+            }
+
+            renderedCount += nextChunk.length;
+        }
+
+        // Рендерим первый блок треков
+        renderNextChunk();
+
+        // Слушатель скролла для подгрузки последующих элементов
+        els.tracksLibContainer.onscroll = () => {
+            if (renderedCount < tracks.length) {
+                if (els.tracksLibContainer.scrollTop + els.tracksLibContainer.clientHeight >= els.tracksLibContainer.scrollHeight - 300) {
+                    renderNextChunk();
+                }
+            }
+        };
     }
 
     function setActiveLibraryTab(tabName) {
@@ -381,6 +429,7 @@ document.addEventListener('DOMContentLoaded', () => {
             } else if (tabName === 'albums' && containers.albums) {
                 containers.albums.classList.add('active-lib-tab');
                 fetchAlbumsSS();
+
             } else {
                 containers.playlists && containers.playlists.classList.add('active-lib-tab');
                 fetchPlaylistsSS();
@@ -601,7 +650,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (cuts && cuts.length > 0) {
                     const cut = cuts[0];
                     const marker = Number(cut.endTime);
-                    cutMarkersByTrack.set(String(trackId), [marker]);
+                    setCutMarker(String(trackId), [marker]);
                 } else {
                     cutMarkersByTrack.delete(String(trackId));
                 }
@@ -707,23 +756,79 @@ document.addEventListener('DOMContentLoaded', () => {
         // Уникальный ID для контекста (например, data-loaded-id для альбомов/плейлистов)
         const contextId = contextRoot.dataset.loadedId || contextRoot.id;
 
-        // Если контекст тот же самый, не пересобираем очередь из DOM
+        // Если контекст тот же самый, не пересобираем очередь
         if (cachedQueueContext === contextType && cachedQueueId === contextId && currentQueue.length > 0) {
             currentQueueIndex = currentQueue.findIndex(t => String(t.trackId) === String(node.dataset.trackId));
             return;
         }
 
-        // Иначе - собираем заново и кэшируем
-        const nodes = getTrackNodesFromContext(contextType);
-        currentQueue = nodes.map(n => ({
-            trackId: String(n.dataset.trackId),
-            title: n.dataset.title,
-            artist: n.dataset.artist,
-            album: n.dataset.album,
-            cover: n.dataset.cover,
-            artistId: n.dataset.artistId,
-            albumId: n.dataset.albumId
-        }));
+        // Иначе - собираем заново и кэшируем из данных в памяти
+        if (contextType === 'playlist') {
+            const pl = libraryState.playlists.find(p => String(p.id) === String(contextId));
+            if (pl && pl.tracks) {
+                currentQueue = pl.tracks.map(t => {
+                    const rawArtist = t.performers || t.performer?.name || t.artist?.name || t.album?.artist?.name || 'Unknown';
+                    const artistName = rawArtist.split(',')[0].replace(/\s*\(.*?\)/g, '').trim();
+                    return {
+                        trackId: String(t.id),
+                        title: t.title,
+                        artist: artistName,
+                        album: t.album?.title || '',
+                        cover: getImg(t),
+                        artistId: t.performer?.id || t.artist?.id || t.album?.artist?.id || '',
+                        albumId: t.album?.id || ''
+                    };
+                });
+            } else {
+                currentQueue = [];
+            }
+        } else if (contextType === 'album') {
+            const alb = libraryState.albums.find(a => String(a.id) === String(contextId));
+            if (alb && alb.tracks) {
+                currentQueue = alb.tracks.map(t => {
+                    const rawArtist = t.performers || t.performer?.name || t.artist?.name || t.album?.artist?.name || 'Unknown';
+                    const artistName = rawArtist.split(',')[0].replace(/\s*\(.*?\)/g, '').trim();
+                    return {
+                        trackId: String(t.id),
+                        title: t.title,
+                        artist: artistName,
+                        album: t.album?.title || '',
+                        cover: getImg(t),
+                        artistId: t.performer?.id || t.artist?.id || t.album?.artist?.id || '',
+                        albumId: t.album?.id || ''
+                    };
+                });
+            } else {
+                currentQueue = [];
+            }
+        } else if (contextType === 'tracks') {
+            currentQueue = libraryState.likedTracks.map(t => {
+                const rawArtist = t.performers || t.performer?.name || t.artist?.name || t.album?.artist?.name || 'Unknown';
+                const artistName = rawArtist.split(',')[0].replace(/\s*\(.*?\)/g, '').trim();
+                return {
+                    trackId: String(t.id),
+                    title: t.title,
+                    artist: artistName,
+                    album: t.album?.title || '',
+                    cover: getImg(t),
+                    artistId: t.performer?.id || t.artist?.id || t.album?.artist?.id || '',
+                    albumId: t.album?.id || ''
+                };
+            });
+        } else {
+            // Для поиска и профилей артистов собираем из DOM
+            const nodes = getTrackNodesFromContext(contextType);
+            currentQueue = nodes.map(n => ({
+                trackId: String(n.dataset.trackId),
+                title: n.dataset.title,
+                artist: n.dataset.artist,
+                album: n.dataset.album,
+                cover: n.dataset.cover,
+                artistId: n.dataset.artistId,
+                albumId: n.dataset.albumId
+            }));
+        }
+
         currentQueueIndex = currentQueue.findIndex(t => String(t.trackId) === String(node.dataset.trackId));
         
         cachedQueueContext = contextType;
@@ -756,12 +861,12 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    async function handleTrackClick(el, isAutoPlay = false, skipShowActions = false) {
+    async function handleTrackClick(el, isPlaylistGrid = false, isRawData = false, seekTime = 0) {
         if (!el) return;
         document.querySelectorAll('.search-result-track').forEach(n => n.classList.remove('show-actions'));
         
-        const isDomNode = !!(el && el.dataset);
-        const trackId = isDomNode ? el.dataset.trackId : el.trackId;
+        const isDomNode = !isRawData && !!(el && el.dataset);
+        const trackId = isDomNode ? el.dataset.trackId : (el.trackId || el.id);
         currentTrackId = trackId;
         
         // Stop playback and loop immediately, and clear delay timeout
@@ -770,24 +875,21 @@ document.addEventListener('DOMContentLoaded', () => {
             introAnimationTimeout = null;
         }
         stopLoop();
-        player.pause();
-        player.src = "";
-        player.load();
         
         // Пересобираем очередь только при ручном клике. 
         // При Next/Prev индекс уже обновлен в playAdjacent.
-        if (!isAutoPlay && isDomNode) {
+        if (!isPlaylistGrid && isDomNode) {
             buildQueueFromNode(el);
         }
         
         syncPlayingHighlights();
         loadCutsForTrack(currentTrackId);
         
-        if (!isAutoPlay) {
+        if (!isPlaylistGrid) {
             isManualSwitch = true;
         }
         
-        if (isAutoPlay === false && !skipShowActions && isDomNode) {
+        if (isPlaylistGrid === false && !isRawData && isDomNode) {
             requestAnimationFrame(() => {
                 el.classList.add('show-actions');
             });
@@ -806,6 +908,13 @@ document.addEventListener('DOMContentLoaded', () => {
         playerState.currentTrack = meta;
         playerState.isPlaying = true;
         
+        // НЕМЕДЛЕННО прерываем фоновое скачивание предыдущего аудио-потока в браузере
+        player.pause();
+        player.src = "";
+        try {
+            player.load();
+        } catch(e) {}
+        
         // Обновление инфо о качестве
         updateQualityInfoUI(meta.id);
 
@@ -814,7 +923,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (els.timeBarProgress) {
             els.timeBarProgress.style.transition = 'none';
             els.timeBarProgress.style.width = '0%';
-            els.timeBarProgress.offsetHeight; // Force reflow
         }
         if (els.timeCurrent) els.timeCurrent.textContent = '0:00';
         if (els.timeBarContainer) {
@@ -842,24 +950,35 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             
             if (data.url) {
-                player.pause();
-                player.src = "";
-                player.load(); 
-
                 player.src = data.url;
                 
                 isManualSwitch = false;
-                
                 player.volume = 1.0;
+
+                if (activeRestoreTimeListener) {
+                    player.removeEventListener('loadedmetadata', activeRestoreTimeListener);
+                    activeRestoreTimeListener = null;
+                }
+
+                if (seekTime > 0) {
+                    activeRestoreTimeListener = () => {
+                        player.currentTime = seekTime;
+                        player.removeEventListener('loadedmetadata', activeRestoreTimeListener);
+                        activeRestoreTimeListener = null;
+                    };
+                    player.addEventListener('loadedmetadata', activeRestoreTimeListener);
+                }
+
                 if (playerState.isPlaying) {
                     const playPromise = player.play();
                     if (playPromise !== undefined) {
                         playPromise.then(() => {
-                            startLoop(); // Guarantee loop is active
+                            startLoop();
                         }).catch(error => {
                             if (error.name !== 'AbortError' && error.name !== 'NotAllowedError') {
                                 console.error('Playback error:', error);
                             }
+                            playerState.isPlaying = false; // Сбросить статус в UI, если воспроизведение заблокировано
                         });
                     }
                 }
@@ -1380,11 +1499,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 coverArtWrapper.innerHTML = coverHtml;
             }
         }
-
-        // Обновляем список треков
         const trackList = content.querySelector('.ss-acid-list');
         if (trackList) {
             trackList.replaceChildren();
+            trackList.onscroll = null; // Сброс предыдущего обработчика скролла
             
             if (!playlist.tracks) {
                 const loader = document.createElement('div');
@@ -1399,114 +1517,141 @@ document.addEventListener('DOMContentLoaded', () => {
                 empty.textContent = 'Playlist is empty';
                 trackList.appendChild(empty);
             } else {
-                tracks.forEach((t) => {
-                    trackCache.set(String(t.id), t);
-                    const row = document.createElement('div');
-                    row.className = 'ss-acid-row search-result-track playable-track'; 
+                let renderedCount = 0;
+                const CHUNK_SIZE = 50;
+
+                function renderNextChunk() {
+                    if (renderedCount >= tracks.length) return;
                     
-                    const artistId = t.performer?.id || t.artist?.id || t.album?.artist?.id || '';
-                    const albumId = t.album?.id || '';
-                    const rawArtist = t.performers || t.performer?.name || t.artist?.name || t.album?.artist?.name || 'Unknown';
-                    const artistName = rawArtist.split(',')[0].replace(/\s*\(.*?\)/g, '').trim();
-                    const coverUrl = getImg(t);
+                    const nextChunk = tracks.slice(renderedCount, renderedCount + CHUNK_SIZE);
+                    nextChunk.forEach((t) => {
+                        trackCache.set(String(t.id), t);
+                        const row = document.createElement('div');
+                        row.className = 'ss-acid-row search-result-track playable-track'; 
+                        
+                        const artistId = t.performer?.id || t.artist?.id || t.album?.artist?.id || '';
+                        const albumId = t.album?.id || '';
+                        const rawArtist = t.performers || t.performer?.name || t.artist?.name || t.album?.artist?.name || 'Unknown';
+                        const artistName = rawArtist.split(',')[0].replace(/\s*\(.*?\)/g, '').trim();
+                        const coverUrl = getImg(t);
 
-                    row.setAttribute('data-track-id', t.id);
-                    row.setAttribute('data-artist-id', artistId);
-                    row.setAttribute('data-album-id', albumId);
-                    row.setAttribute('data-title', t.title);
-                    row.setAttribute('data-artist', artistName);
-                    row.setAttribute('data-album', t.album?.title || '');
-                    row.setAttribute('data-cover', coverUrl);
-                    
-                    row.innerHTML = `
-                        <img src="${getImgSmall(t)}" class="search-result-track-cover" loading="lazy">
-                        <div class="track-info">
-                            <p class="track-title">${escapeHtml(t.title)}</p>
-                            <p class="track-artist"><span style="color: var(--accent-primary, coral); font-weight: 500;">${escapeHtml(artistName)}</span><span class="track-title-sep"> | </span><span class="track-title-duration">${formatTime(t.duration)}</span></p>
-                        </div>
-                        <div class="track-actions-slide">
-                            <button class="slide-btn btn-add-to-playlist" title="Add to Playlist">
-                                <i data-lucide="plus"></i>
-                            </button>
-                            <button class="slide-btn btn-delete-track" title="Remove from Playlist" style="color: #ff4a4a;">
-                                <i data-lucide="trash-2"></i>
-                            </button>
-                        </div>
-                    `;
+                        row.setAttribute('data-track-id', t.id);
+                        row.setAttribute('data-artist-id', artistId);
+                        row.setAttribute('data-album-id', albumId);
+                        row.setAttribute('data-title', t.title);
+                        row.setAttribute('data-artist', artistName);
+                        row.setAttribute('data-album', t.album?.title || '');
+                        row.setAttribute('data-cover', coverUrl);
+                        
+                        row.innerHTML = `
+                            <img src="${getImgSmall(t)}" class="search-result-track-cover" loading="lazy">
+                            <div class="track-info">
+                                <p class="track-title">${escapeHtml(t.title)}</p>
+                                <p class="track-artist"><span style="color: var(--accent-primary, coral); font-weight: 500;">${escapeHtml(artistName)}</span><span class="track-title-sep"> | </span><span class="track-title-duration">${formatTime(t.duration)}</span></p>
+                            </div>
+                            <div class="track-actions-slide">
+                                <button class="slide-btn btn-add-to-playlist" title="Add to Playlist">
+                                    <i data-lucide="plus"></i>
+                                </button>
+                                <button class="slide-btn btn-delete-track" title="Remove from Playlist" style="color: #ff4a4a;">
+                                    <i data-lucide="trash-2"></i>
+                                </button>
+                            </div>
+                        `;
 
-                    // Add to Playlist Button
-                    row.querySelector('.btn-add-to-playlist').onclick = (e) => {
-                        e.stopPropagation();
-                        row.classList.remove('show-actions');
-                        openAddToPlaylistModal(t);
-                    };
+                        // Add to Playlist Button
+                        row.querySelector('.btn-add-to-playlist').onclick = (e) => {
+                            e.stopPropagation();
+                            row.classList.remove('show-actions');
+                            openAddToPlaylistModal(t);
+                        };
 
-                    // Delete Logic
-                    row.querySelector('.btn-delete-track').onclick = async (e) => {
-                        e.stopPropagation();
-                        row.classList.remove('show-actions');
-                        try {
-                            const res = await fetch(`/library/playlists/${playlist.id}/tracks/${t.id}`, { method: 'DELETE' });
-                            if (res.ok) {
-                                const rowHeight = row.offsetHeight;
-                                row.style.maxHeight = `${rowHeight}px`;
-                                row.offsetHeight; // Force browser reflow
-                                row.classList.add('is-removing');
-                                row.style.maxHeight = '0px';
+                        // Delete Logic
+                        row.querySelector('.btn-delete-track').onclick = async (e) => {
+                            e.stopPropagation();
+                            row.classList.remove('show-actions');
+                            try {
+                                const res = await fetch(`/library/playlists/${playlist.id}/tracks/${t.id}`, { method: 'DELETE' });
+                                if (res.ok) {
+                                    const rowHeight = row.offsetHeight;
+                                    row.style.maxHeight = `${rowHeight}px`;
+                                    requestAnimationFrame(() => {
+                                        row.classList.add('is-removing');
+                                        row.style.maxHeight = '0px';
+                                    });
 
-                                 const updateStateAndUi = () => {
-                                     if (cachedQueueContext === 'playlist' && String(cachedQueueId) === String(playlist.id)) {
-                                         removeTrackFromQueue(t.id);
-                                     }
-
-                                     const pl = libraryState.playlists.find(p => String(p.id) === String(playlist.id));
-                                     if (pl && pl.tracks) {
-                                         pl.tracks = pl.tracks.filter(track => track.id !== t.id);
-                                         pl.trackCount = Math.max(0, pl.trackCount - 1);
-                                         updatePlaylistCovers(pl);
-                                         saveLibraryToLocal();
-                                         
-                                         // Direct DOM updates to avoid full tracklist redraw and image flickering
-                                         const countEl = els.playlistContent.querySelector('.ss-label-header-count');
-                                         if (countEl) {
-                                             countEl.textContent = `${pl.trackCount} TRACKS`;
+                                     const updateStateAndUi = () => {
+                                         if (cachedQueueContext === 'playlist' && String(cachedQueueId) === String(playlist.id)) {
+                                             removeTrackFromQueue(t.id);
                                          }
-                                         updatePlaylistDetailCoversOnly(pl);
-                                         renderPlaylistsSS(libraryState.playlists);
 
-                                         if (pl.tracks.length === 0) {
-                                              const trackList = els.playlistContent.querySelector('.ss-acid-list');
-                                              if (trackList) {
-                                                  trackList.replaceChildren();
-                                                  const empty = document.createElement('div');
-                                                  empty.className = 'empty-state-ss';
-                                                  empty.style.cssText = 'padding: 40px; text-align: center; opacity: 0.5;';
-                                                  empty.textContent = 'Playlist is empty';
-                                                  trackList.appendChild(empty);
-                                              }
+                                         const pl = libraryState.playlists.find(p => String(p.id) === String(playlist.id));
+                                         if (pl && pl.tracks) {
+                                             pl.tracks = pl.tracks.filter(track => track.id !== t.id);
+                                             pl.trackCount = Math.max(0, pl.trackCount - 1);
+                                             updatePlaylistCovers(pl);
+                                             saveLibraryToLocal();
+                                             
+                                             // Direct DOM updates to avoid full tracklist redraw
+                                             const countEl = els.playlistContent.querySelector('.ss-label-header-count');
+                                             if (countEl) {
+                                                 countEl.textContent = `${pl.trackCount} TRACKS`;
+                                             }
+                                             updatePlaylistDetailCoversOnly(pl);
+                                             renderPlaylistsSS(libraryState.playlists);
+
+                                             if (pl.tracks.length === 0) {
+                                                  const trackList = els.playlistContent.querySelector('.ss-acid-list');
+                                                  if (trackList) {
+                                                      trackList.replaceChildren();
+                                                      const empty = document.createElement('div');
+                                                      empty.className = 'empty-state-ss';
+                                                      empty.style.cssText = 'padding: 40px; text-align: center; opacity: 0.5;';
+                                                      empty.textContent = 'Playlist is empty';
+                                                      trackList.appendChild(empty);
+                                                  }
+                                             }
                                          }
-                                     }
-                                     row.remove();
-                                 };
+                                         row.remove();
+                                     };
 
-                                 const animations = row.getAnimations();
-                                 if (animations.length > 0) {
-                                     Promise.allSettled(animations.map(a => a.finished)).then(updateStateAndUi);
-                                 } else {
-                                     updateStateAndUi();
+                                     const animations = row.getAnimations();
+                                     if (animations.length > 0) {
+                                         Promise.allSettled(animations.map(a => a.finished)).then(updateStateAndUi);
+                                     } else {
+                                         updateStateAndUi();
+                                     }
                                  }
-                             }
-                        } catch (err) { console.error(err); }
-                    };
+                            } catch (err) { console.error(err); }
+                        };
 
-                    trackList.appendChild(row);
-                });
+                        trackList.appendChild(row);
+                    });
+
+                    // Инициализируем иконки Lucide для вновь добавленных элементов
+                    if (window.lucide) {
+                        window.lucide.createIcons({
+                            attrs: { class: 'lucide-icon' },
+                            nameAttr: 'data-lucide'
+                        }, trackList);
+                    }
+
+                    renderedCount += nextChunk.length;
+                }
+
+                // Рендерим первый блок треков
+                renderNextChunk();
+
+                // Слушатель скролла для подгрузки последующих элементов
+                trackList.onscroll = () => {
+                    if (renderedCount < tracks.length) {
+                        if (trackList.scrollTop + trackList.clientHeight >= trackList.scrollHeight - 300) {
+                            renderNextChunk();
+                        }
+                    }
+                };
             }
-
-            initSwipeForTrackList(trackList);
         }
-
-        if (window.lucide) window.lucide.createIcons();
         syncPlayingHighlights();
     }
 
@@ -1527,7 +1672,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         renderArtistsSS(libraryState.artists);
                         libraryState.needsArtistsSync = true;
                         els.addArtistToLibBtn.innerHTML = '<i data-lucide="user-plus"></i>';
-                        if (window.lucide) lucide.createIcons();
+                        if (window.lucide) lucide.createIcons({
+                            attrs: { class: 'lucide-icon' },
+                            nameAttr: 'data-lucide'
+                        }, els.addArtistToLibBtn);
                     }
                 } catch (e) { console.error(e); }
             } else {
@@ -1545,7 +1693,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         renderArtistsSS(libraryState.artists);
                         libraryState.needsArtistsSync = true;
                         els.addArtistToLibBtn.innerHTML = '<i data-lucide="check"></i>';
-                        if (window.lucide) lucide.createIcons();
+                        if (window.lucide) lucide.createIcons({
+                            attrs: { class: 'lucide-icon' },
+                            nameAttr: 'data-lucide'
+                        }, els.addArtistToLibBtn);
                     }
                 } catch (e) { console.error(e); }
             }
@@ -1848,9 +1999,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (row) {
                         const rowHeight = row.offsetHeight;
                         row.style.maxHeight = `${rowHeight}px`;
-                        row.offsetHeight; // Force reflow
-                        row.classList.add('is-removing');
-                        row.style.maxHeight = '0px';
+                        requestAnimationFrame(() => {
+                            row.classList.add('is-removing');
+                            row.style.maxHeight = '0px';
+                        });
                         const animations = row.getAnimations();
                         if (animations.length > 0) {
                             Promise.allSettled(animations.map(a => a.finished)).then(updateStateAndUi);
@@ -2025,6 +2177,9 @@ document.addEventListener('DOMContentLoaded', () => {
     
     initSwipeForTrackList(els.artistContent);
     initSwipeForTrackList(els.albumContent);
+    if (els.playlistContent) {
+        initSwipeForTrackList(els.playlistContent);
+    }
 
     if (els.artistContent) {
         els.artistContent.addEventListener('click', (e) => {
@@ -2055,7 +2210,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             const trackRow = e.target.closest('.playable-track');
             if (trackRow && !e.target.closest('.track-actions-slide')) {
-                handleTrackClick(trackRow, false, true); 
+                handleTrackClick(trackRow, false, false);
             }
         });
     }
@@ -2064,7 +2219,7 @@ document.addEventListener('DOMContentLoaded', () => {
         els.playlistContent.addEventListener('click', (e) => {
             const trackRow = e.target.closest('.playable-track');
             if (trackRow && !e.target.closest('.track-actions-slide')) {
-                handleTrackClick(trackRow, false, true);
+                handleTrackClick(trackRow, false, false);
             }
         });
     }
@@ -2300,7 +2455,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         function updateLiveMarker() {
             if (!activeFinetuneKey) return;
-            cutMarkersByTrack.set(activeFinetuneKey, [activeFinetuneTime]);
+            setCutMarker(activeFinetuneKey, [activeFinetuneTime]);
             const node = els.timeBarContainer.querySelector('.cut-marker-node');
             if (node) {
                 node.style.left = `${(activeFinetuneTime / player.duration) * 100}%`;
@@ -2373,7 +2528,7 @@ document.addEventListener('DOMContentLoaded', () => {
             e.stopPropagation();
             if (activeFinetuneKey) {
                 if (originalMarkerState.length > 0) {
-                    cutMarkersByTrack.set(activeFinetuneKey, originalMarkerState);
+                    setCutMarker(activeFinetuneKey, originalMarkerState);
                 } else {
                     cutMarkersByTrack.delete(activeFinetuneKey);
                 }
@@ -2407,7 +2562,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const markers = (cutMarkersByTrack.get(activeFinetuneKey) || []).slice();
             originalMarkerState = markers.slice();
             
-            cutMarkersByTrack.set(activeFinetuneKey, [activeFinetuneTime]);
+            setCutMarker(activeFinetuneKey, [activeFinetuneTime]);
             renderCutMarkers();
             
             if (els.timeCurrent) els.timeCurrent.classList.add('time-current-finetune');
@@ -2439,7 +2594,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (isIntroAnimating) {
                 isIntroAnimating = false;
                 if (els.timeBarProgress) {
-                    els.timeBarProgress.offsetHeight; // Force reflow
                     els.timeBarProgress.style.transition = ''; // Restore CSS transition
                 }
             }
@@ -2569,7 +2723,10 @@ document.addEventListener('DOMContentLoaded', () => {
             `;
         }).join('');
         syncPlayingHighlights();
-        if(window.lucide) lucide.createIcons();
+        if(window.lucide) lucide.createIcons({
+            attrs: { class: 'lucide-icon' },
+            nameAttr: 'data-lucide'
+        }, els.searchResults);
     }
 
     async function loadArtist(id) {
@@ -2581,7 +2738,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (els.addArtistToLibBtn) {
             const isInLib = libraryState.artistIds.has(Number(id));
             els.addArtistToLibBtn.innerHTML = isInLib ? '<i data-lucide="check"></i>' : '<i data-lucide="user-plus"></i>';
-            if (window.lucide) lucide.createIcons();
+            if (window.lucide) lucide.createIcons({
+                attrs: { class: 'lucide-icon' },
+                nameAttr: 'data-lucide'
+            }, els.addArtistToLibBtn);
         }
 
         try {
@@ -2624,8 +2784,9 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderArtistPanel(data) {
         const content = els.artistContent;
         content.replaceChildren();
-        content.className = 'relative bg-black overflow-hidden font-sans';
-        content.style.height = '90%';
+        // Use inline styles instead of Tailwind utilities
+        content.removeAttribute('class');
+        content.style.cssText = 'position:relative; background:#000; overflow:hidden; height:100%; font-family:inherit;';
         const imgUrl = getImg(data);
         const trackList = data.tracks?.items || [];
         
@@ -2635,58 +2796,82 @@ document.addEventListener('DOMContentLoaded', () => {
             trackCache.set(String(t.id), t);
         });
 
+        // Background image
         const bgContainer = document.createElement('div');
-        bgContainer.className = 'absolute inset-0 z-0 pointer-events-none';
-        bgContainer.innerHTML = `<div class="absolute inset-0 bg-cover bg-center transition-opacity duration-700 opacity-0" style="background-image: url('${imgUrl}'); opacity: 0.2;"></div>`;
-        requestAnimationFrame(() => bgContainer.firstElementChild?.classList.remove('opacity-0'));
+        bgContainer.style.cssText = 'position:absolute; inset:0; z-index:0; pointer-events:none;';
+        const bgImg = document.createElement('div');
+        bgImg.style.cssText = `position:absolute; inset:0; background-image:url('${imgUrl}'); background-size:cover; background-position:center top; opacity:0; transition:opacity 0.7s;`;
+        bgContainer.appendChild(bgImg);
+        requestAnimationFrame(() => { bgImg.style.opacity = '0.3'; });
         content.appendChild(bgContainer);
+
+        // Gradient overlay (top to bottom dark fade)
+        const gradOverlay = document.createElement('div');
+        gradOverlay.style.cssText = 'position:absolute; inset:0; z-index:1; pointer-events:none; background:linear-gradient(to bottom, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.55) 30%, rgba(0,0,0,0.92) 65%, #000 100%);';
+        content.appendChild(gradOverlay);
+
+        // Header (artist name)
         const header = document.createElement('div');
-        header.className = 'absolute top-0 left-0 w-full h-[20dvh] z-20 flex flex-col justify-end px-6 pb-4 pointer-events-none select-none';
+        header.style.cssText = 'position:absolute; top:0; left:0; width:100%; height:22dvh; min-height:120px; z-index:20; display:flex; flex-direction:column; justify-content:flex-end; padding:0 24px 16px; pointer-events:none; user-select:none; box-sizing:border-box;';
         header.innerHTML = `
-            <p class="text-[coral] text-[10px] font-extrabold tracking-[0.3em] mb-0.5 leading-none uppercase">ARTIST</p>
-            <h1 class="text-white text-[2.5rem] font-normal uppercase tracking-tighter leading-[0.85] m-0 line-clamp-2 text-ellipsis overflow-hidden">${escapeHtml(data.name)}</h1>
+            <p style="color:coral; font-size:10px; font-weight:800; letter-spacing:0.3em; margin:0 0 4px; text-transform:uppercase; line-height:1;">ARTIST</p>
+            <h1 style="color:#fff; font-size:2.5rem; font-weight:400; text-transform:uppercase; letter-spacing:-0.03em; line-height:0.85; margin:0; overflow:hidden; text-overflow:ellipsis; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;">${escapeHtml(data.name)}</h1>
         `;
         content.appendChild(header);
+
+        // Scrollable area
         const scrollArea = document.createElement('div');
-        scrollArea.className = 'absolute left-0 right-0 bottom-0 z-10 overflow-y-auto no-scrollbar pt-2 pb-32 px-4';
-        scrollArea.style.top = '25%';
+        scrollArea.style.cssText = 'position:absolute; left:0; right:0; bottom:0; top:25%; z-index:10; overflow-y:auto; padding:8px 16px 128px; box-sizing:border-box;';
+        scrollArea.classList.add('no-scrollbar');
+
+        // Track list
         const list = document.createElement('div');
-        list.className = 'flex flex-col w-full space-y-2 mb-12';
+        list.style.cssText = 'display:flex; flex-direction:column; width:100%; margin-bottom:48px;';
+
         trackList.forEach((t) => {
             const row = document.createElement('div');
-            row.className = 'group flex items-center justify-between py-4 px-6 border-b border-white/5 active:bg-white/10 transition-colors cursor-pointer playable-track search-result-track AlbumElementsSS';
+            row.className = 'playable-track search-result-track AlbumElementsSS';
+            row.style.cssText = 'display:flex; align-items:center; justify-content:space-between; padding:14px 20px; border-bottom:1px solid rgba(255,255,255,0.05); cursor:pointer; transition:background 0.15s; box-sizing:border-box;';
             row.dataset.trackId = t.id;
             row.dataset.artistId = data.id;
-            row.dataset.albumId = t.album?.id;
-            row.dataset.title = escapeHtml(t.title);
-            row.dataset.artist = escapeHtml(data.name);
-            row.dataset.album = escapeHtml(t.album?.title);
+            row.dataset.albumId = t.album?.id || '';
+            row.dataset.title = t.title || '';
+            row.dataset.artist = data.name || '';
+            row.dataset.album = t.album?.title || '';
             row.dataset.cover = getImg(t.album);
             const isTrackLiked = libraryState.likedTrackIds.has(String(t.id));
             row.innerHTML = `
-                <div class="flex-1 min-w-0 mr-4">
-                    <h4 class="text-white font-medium text-[20px] truncate leading-tight group-hover:text-white/90">${escapeHtml(t.title)}</h4>
+                <div style="flex:1; min-width:0; margin-right:16px;">
+                    <p style="color:#fff; font-size:17px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin:0; line-height:1.3;">${escapeHtml(t.title)}</p>
                 </div>
-                <div class="text-neutral-500 text-[13px] font-medium whitespace-nowrap">${formatTime(t.duration)}</div>
+                <div style="color:#777; font-size:13px; font-weight:500; white-space:nowrap; margin-right:8px;">${formatTime(t.duration)}</div>
                 <div class="track-actions-slide">
-                    <button class="slide-btn btn-like-track ${isTrackLiked ? 'active' : ''}" style="${isTrackLiked ? 'color: coral;' : ''}"><i data-lucide="heart" style="${isTrackLiked ? 'fill: coral;' : ''}"></i></button>
+                    <button class="slide-btn btn-like-track ${isTrackLiked ? 'active' : ''}" style="${isTrackLiked ? 'color:coral;' : ''}"><i data-lucide="heart" style="${isTrackLiked ? 'fill:coral;' : ''}"></i></button>
                     <button class="slide-btn btn-add-to-playlist"><i data-lucide="plus"></i></button>
                 </div>
             `;
             list.appendChild(row);
         });
         scrollArea.appendChild(list);
+
+        // Albums grid
         if (data.albums?.items?.length) {
+            const gridTitle = document.createElement('p');
+            gridTitle.textContent = 'Albums';
+            gridTitle.style.cssText = 'color:rgba(255,255,255,0.5); font-size:11px; font-weight:700; letter-spacing:0.15em; text-transform:uppercase; margin:16px 0 12px;';
+            scrollArea.appendChild(gridTitle);
+
             const grid = document.createElement('div');
-            grid.className = 'grid grid-cols-2 gap-4 pb-12';
+            grid.style.cssText = 'display:grid; grid-template-columns:1fr 1fr; gap:16px; padding-bottom:48px;';
             data.albums.items.forEach(album => {
                 const card = document.createElement('div');
-                card.className = 'relative aspect-square w-full overflow-hidden rounded-xl bg-white/5 cursor-pointer active:scale-95 transition-transform album-card';
+                card.className = 'album-card';
+                card.style.cssText = 'position:relative; aspect-ratio:1/1; width:100%; overflow:hidden; border-radius:12px; background:rgba(255,255,255,0.05); cursor:pointer; transition:transform 0.15s;';
                 card.dataset.albumId = album.id;
                 card.innerHTML = `
-                    <img src="${getImg(album)}" class="w-full h-full object-cover" loading="lazy" />
-                    <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-transparent"></div>
-                    <div class="absolute bottom-0 left-0 p-3 w-full"><p class="text-[coral] text-sm font-bold truncate leading-tight drop-shadow-md">${escapeHtml(album.title)}</p></div>
+                    <img src="${getImg(album)}" style="width:100%; height:100%; object-fit:cover; display:block;" loading="lazy" />
+                    <div style="position:absolute; inset:0; background:linear-gradient(to top, rgba(0,0,0,0.9) 0%, transparent 60%);"></div>
+                    <div style="position:absolute; bottom:0; left:0; padding:12px; width:100%; box-sizing:border-box;"><p style="color:coral; font-size:13px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin:0;">${escapeHtml(album.title)}</p></div>
                 `;
                 grid.appendChild(card);
             });
@@ -2694,7 +2879,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         content.appendChild(scrollArea);
         syncPlayingHighlights();
-        if(window.lucide) lucide.createIcons();
+        if(window.lucide) lucide.createIcons({
+            attrs: { class: 'lucide-icon' },
+            nameAttr: 'data-lucide'
+        }, els.artistContent);
     }
 
     function renderAlbumPanel(data) {
@@ -2795,7 +2983,10 @@ document.addEventListener('DOMContentLoaded', () => {
                             renderAlbumsSS(libraryState.albums);
                             libraryState.needsAlbumsSync = true;
                             addBtn.innerHTML = '<i data-lucide="plus"></i>';
-                            if (window.lucide) lucide.createIcons();
+                            if (window.lucide) lucide.createIcons({
+                                attrs: { class: 'lucide-icon' },
+                                nameAttr: 'data-lucide'
+                            }, addBtn);
                         }
                     } catch (e) { console.error(e); }
                 } else {
@@ -2813,7 +3004,10 @@ document.addEventListener('DOMContentLoaded', () => {
                             renderAlbumsSS(libraryState.albums);
                             libraryState.needsAlbumsSync = true;
                             addBtn.innerHTML = '<i data-lucide="check"></i>';
-                            if (window.lucide) lucide.createIcons();
+                            if (window.lucide) lucide.createIcons({
+                                attrs: { class: 'lucide-icon' },
+                                nameAttr: 'data-lucide'
+                            }, addBtn);
                         }
                     } catch (e) { console.error(e); }
                 }
@@ -2826,7 +3020,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 e.stopPropagation();
                 const firstTrack = scroll.querySelector('.playable-track');
                 if (firstTrack) {
-                    handleTrackClick(firstTrack, false, true);
+                    handleTrackClick(firstTrack, false, false);
                 }
             });
         }
@@ -2834,7 +3028,10 @@ document.addEventListener('DOMContentLoaded', () => {
         content.appendChild(header);
         content.appendChild(scroll);
         syncPlayingHighlights();
-        if(window.lucide) lucide.createIcons();
+        if(window.lucide) lucide.createIcons({
+            attrs: { class: 'lucide-icon' },
+            nameAttr: 'data-lucide'
+        }, els.albumContent);
     }
 
     let overlayOpenTime = 0;
@@ -2949,7 +3146,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const key = String(currentTrackId);
                 const currentMarkers = cutMarkersByTrack.get(key) || [];
                 const updated = currentMarkers.filter(m => Math.abs(m - sec) > 0.01);
-                cutMarkersByTrack.set(key, updated);
+                setCutMarker(key, updated);
                 renderCutMarkers();
                 saveCutsToBackend(key);
             });
@@ -3007,6 +3204,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function startLoop() {
         if (isLooping) return;
+        if (!els.playerPanel.classList.contains('active')) return;
         isLooping = true;
         if (animationFrameId === null) {
             animationFrameId = requestAnimationFrame(tick);
@@ -3032,7 +3230,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Pause updates if the player panel is not visible
         if (!els.playerPanel.classList.contains('active')) {
             lastPct = -1; // Reset to force update on open
-            animationFrameId = requestAnimationFrame(tick);
+            animationFrameId = null;
             return;
         }
 
@@ -3063,7 +3261,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (progress >= 1) {
                     isIntroAnimating = false;
                     if (els.timeBarProgress) {
-                        els.timeBarProgress.offsetHeight; // Force reflow
                         els.timeBarProgress.style.transition = ''; // Restore CSS transition
                     }
                     if (player.paused) {
@@ -3124,7 +3321,6 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             isIntroAnimating = false;
             if (els.timeBarProgress) {
-                els.timeBarProgress.offsetHeight; // Force reflow
                 els.timeBarProgress.style.transition = ''; // Restore CSS transition
             }
             startLoop(); // Guarantee loop starts on new track load
@@ -3141,7 +3337,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (els.timeBarProgress) {
             els.timeBarProgress.style.transition = 'none';
             els.timeBarProgress.style.width = '0%';
-            els.timeBarProgress.offsetHeight; // Force reflow
         }
         stopLoop();
         playAdjacent('next');
@@ -3170,13 +3365,36 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const qualitySelect = document.getElementById('quality-selector');
     if (qualitySelect) {
-        qualitySelect.addEventListener('change', (e) => {
+        qualitySelect.addEventListener('change', async (e) => {
             const formatId = e.target.value;
             qualitySetting = {
                 label: e.target.options[e.target.selectedIndex].text,
                 formatId: Number(formatId)
             };
+            
+            // Если сейчас загружен или играет трек - горячая смена качества с текущего места
+            if (playerState.currentTrack) {
+                const currentPos = player.currentTime;
+                await handleTrackClick(playerState.currentTrack, false, true, currentPos);
+            }
         });
+    }
+
+    // --- PLAYER PANEL VISIBILITY OBSERVER TO START/STOP ANIMATION LOOP ---
+    const playerPanelObserver = new MutationObserver((mutations) => {
+        mutations.forEach((mutation) => {
+            if (mutation.attributeName === 'class') {
+                const isActive = els.playerPanel.classList.contains('active');
+                if (isActive && !player.paused) {
+                    startLoop();
+                } else if (!isActive) {
+                    stopLoop();
+                }
+            }
+        });
+    });
+    if (els.playerPanel) {
+        playerPanelObserver.observe(els.playerPanel, { attributes: true });
     }
     
     // --- PLAYER PANEL SWIPE GESTURE ---
@@ -4025,10 +4243,26 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // Register WebMCP tools on document.modelContext if supported by the browser runtime
-    if (typeof document.modelContext !== 'undefined') {
-        document.modelContext.play_track = async (args) => {
-            if (args && args.trackId) {
+    // Register WebMCP tools on document.modelContext or navigator.modelContext if supported
+    const modelContext = document.modelContext || navigator.modelContext;
+    if (modelContext && typeof modelContext.registerTool === 'function') {
+        modelContext.registerTool({
+            name: "play_track",
+            description: "Plays a specific track by its ID and metadata.",
+            inputSchema: {
+                type: "object",
+                properties: {
+                    trackId: { type: "string", description: "The ID of the track to play." },
+                    title: { type: "string", description: "The title of the track." },
+                    artist: { type: "string", description: "The artist name." },
+                    album: { type: "string", description: "The album name." },
+                    cover: { type: "string", description: "Optional track cover URL." },
+                    artistId: { type: "string", description: "Optional artist ID." },
+                    albumId: { type: "string", description: "Optional album ID." }
+                },
+                required: ["trackId"]
+            },
+            async execute(args) {
                 const trackData = {
                     trackId: String(args.trackId),
                     title: args.title || 'Unknown Title',
@@ -4041,36 +4275,76 @@ document.addEventListener('DOMContentLoaded', () => {
                 await handleTrackClick(trackData, false, true);
                 return { success: true, message: `Playing track ${args.trackId}` };
             }
-            return { success: false, error: 'Missing trackId' };
-        };
+        });
 
-        document.modelContext.get_player_state = () => {
-            return {
-                isPlaying: playerState.isPlaying,
-                currentTime: playerState.currentTime,
-                duration: playerState.duration,
-                currentTrack: playerState.currentTrack
-            };
-        };
+        modelContext.registerTool({
+            name: "get_player_state",
+            description: "Returns the current playback state and active track metadata.",
+            inputSchema: { type: "object", properties: {} },
+            execute() {
+                return {
+                    isPlaying: playerState.isPlaying,
+                    currentTime: playerState.currentTime,
+                    duration: playerState.duration,
+                    currentTrack: playerState.currentTrack
+                };
+            },
+            annotations: { readOnlyHint: true }
+        });
 
-        document.modelContext.toggle_play = () => {
-            if (playerState.currentTrack) {
-                player.paused ? player.play() : player.pause();
-                return { success: true, isPlaying: playerState.isPlaying };
+        modelContext.registerTool({
+            name: "toggle_play",
+            description: "Toggles between play and pause states.",
+            inputSchema: { type: "object", properties: {} },
+            execute() {
+                if (playerState.currentTrack) {
+                    player.paused ? player.play() : player.pause();
+                    return { success: true, isPlaying: playerState.isPlaying };
+                }
+                return { success: false, error: 'No track loaded' };
             }
-            return { success: false, error: 'No track loaded' };
-        };
+        });
 
-        document.modelContext.next_track = () => {
-            isManualSwitch = true;
-            playAdjacent('next');
-            return { success: true };
-        };
+        modelContext.registerTool({
+            name: "next_track",
+            description: "Skips to the next track in the queue.",
+            inputSchema: { type: "object", properties: {} },
+            execute() {
+                isManualSwitch = true;
+                playAdjacent('next');
+                return { success: true };
+            }
+        });
 
-        document.modelContext.previous_track = () => {
-            isManualSwitch = true;
-            playAdjacent('prev');
-            return { success: true };
-        };
+        modelContext.registerTool({
+            name: "previous_track",
+            description: "Skips to the previous track in the queue.",
+            inputSchema: { type: "object", properties: {} },
+            execute() {
+                isManualSwitch = true;
+                playAdjacent('prev');
+                return { success: true };
+            }
+        });
+
+        modelContext.registerTool({
+            name: "get_player_telemetry",
+            description: "Retrieves browser memory usage, track cache details, and active diagnostics.",
+            inputSchema: { type: "object", properties: {} },
+            execute() {
+                const telemetry = {
+                    heapUsedBytes: 0,
+                    heapLimitBytes: 0,
+                    trackCacheSize: trackCache ? trackCache.cache.size : 0,
+                    cutMarkersCachedTracks: cutMarkersByTrack ? cutMarkersByTrack.size : 0
+                };
+                if (window.performance && window.performance.memory) {
+                    telemetry.heapUsedBytes = window.performance.memory.usedJSHeapSize;
+                    telemetry.heapLimitBytes = window.performance.memory.jsHeapSizeLimit;
+                }
+                return telemetry;
+            },
+            annotations: { readOnlyHint: true }
+        });
     }
 });

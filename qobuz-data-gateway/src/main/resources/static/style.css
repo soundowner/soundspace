@@ -14,6 +14,8 @@
 }
 
 /* --- BASE STYLES --- */
+body, .parent-container { -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none; user-select: none; }
+
 body, html {
     margin: 0;
     padding: 0;
@@ -593,7 +595,7 @@ input, textarea, [contenteditable="true"] {
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
     background: #1818188f;
-    will-change: backdrop-filter, transform;
+    will-change: transform;
     transform: translateZ(0);
     display: flex;
     justify-content: normal;
@@ -708,7 +710,7 @@ input, textarea, [contenteditable="true"] {
     filter: blur(15px);
     transform: scale(1.15) translate3d(0, 0, 0);
     opacity: 0.35; /* Полупрозрачный фон для читаемости интерфейса */
-    will-change: transform, filter;
+    will-change: transform;
     backface-visibility: hidden;
 }
 
@@ -1709,7 +1711,7 @@ color: coral;
     z-index: 111;
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
-    will-change: backdrop-filter, transform;
+    will-change: transform;
     transform: translateZ(0);
     /* border-bottom-left-radius: 11px; */
     /* padding: 20px 5px; */
@@ -1804,6 +1806,7 @@ color: coral;
     scrollbar-width: none;
     box-sizing: border-box;
     z-index: 1;
+    content-visibility: hidden;
     
     /* Perfect CSS Transition */
     opacity: 0;
@@ -1838,6 +1841,7 @@ color: coral;
     visibility: visible !important;
     pointer-events: auto !important;
     z-index: 5 !important;
+    content-visibility: visible !important;
 }
 
 .lib-nav {
@@ -2096,6 +2100,7 @@ color: coral;
     background: coral;
     opacity: 0;
     transition: opacity 0.3s;
+
 }
 
 .playlist-cover-ss {

@@ -2,11 +2,11 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Mobile UI</title>
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet" />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet" />
-    <script src="https://unpkg.com/lucide@latest"></script><script src="tailwindcss.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkcmfRyVX3pBnMFcV7oQPJkl9QevSCWr3W6A==" crossorigin="anonymous" referrerpolicy="no-referrer" />
     <link rel="stylesheet" href="style.css">
@@ -191,28 +191,7 @@
                 <p id="import-loading-subtext" style="color: rgba(255,255,255,0.6); margin-top: 10px; text-align: center;"></p>
             </div>
 
-            <style>
-                @keyframes spin { to { transform: rotate(360deg); } }
-                .yt-playlist-item {
-                    padding: 12px 16px;
-                    background: rgba(255,255,255,0.05);
-                    border-radius: 8px;
-                    cursor: pointer;
-                    transition: all 0.2s;
-                    border: 1px solid transparent;
-                    text-align: left;
-                }
-                .yt-playlist-item:hover {
-                    background: rgba(255,255,255,0.1);
-                    border-color: rgba(255,255,255,0.2);
-                }
-                .yt-playlist-title {
-                    color: white;
-                    font-weight: 500;
-                    display: block;
-                    font-size: 14px;
-                }
-            </style>
+
 
             <div class="panel" id="search-panel">
                 <div id="search-results-container"></div>
@@ -268,7 +247,7 @@
                                         <select id="quality-selector" title="Quality">
                                             <option value="7">FLAC/7</option>
                                             <option value="6">FLAC/6</option>
-                                            <option value="5">MP3/5</option>
+                                            <option value="5" selected>MP3/5</option>
                                         </select>
                                     </div>
                                 </div>
