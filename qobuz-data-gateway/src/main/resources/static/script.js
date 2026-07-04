@@ -429,6 +429,7 @@ document.addEventListener('DOMContentLoaded', () => {
             } else if (tabName === 'albums' && containers.albums) {
                 containers.albums.classList.add('active-lib-tab');
                 fetchAlbumsSS();
+
             } else {
                 containers.playlists && containers.playlists.classList.add('active-lib-tab');
                 fetchPlaylistsSS();
