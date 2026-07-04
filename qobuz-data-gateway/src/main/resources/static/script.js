@@ -783,19 +783,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 currentQueue = [];
             }
         } else if (contextType === 'album') {
-            const alb = libraryState.albums.find(a => String(a.id) === String(contextId));
+            // Prefer library album only if it has a full track list; otherwise use currentAlbumData
+            const albFromLib = libraryState.albums.find(a => String(a.id) === String(contextId));
+            const alb = (albFromLib?.tracks) ? albFromLib : currentAlbumData;
             if (alb && alb.tracks) {
-                currentQueue = alb.tracks.map(t => {
+                const items = Array.isArray(alb.tracks) ? alb.tracks : (alb.tracks.items || []);
+                currentQueue = items.map(t => {
                     const rawArtist = t.performers || t.performer?.name || t.artist?.name || t.album?.artist?.name || 'Unknown';
                     const artistName = rawArtist.split(',')[0].replace(/\s*\(.*?\)/g, '').trim();
                     return {
                         trackId: String(t.id),
                         title: t.title,
                         artist: artistName,
-                        album: t.album?.title || '',
-                        cover: getImg(t),
+                        album: t.album?.title || alb.title || '',
+                        cover: getImg(t) || getImg(alb),
                         artistId: t.performer?.id || t.artist?.id || t.album?.artist?.id || '',
-                        albumId: t.album?.id || ''
+                        albumId: t.album?.id || alb.id || ''
                     };
                 });
             } else {
