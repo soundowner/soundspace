@@ -81,6 +81,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentQueueIndex = -1;
     let isManualSwitch = false;
     let lastRemovedCurrentTrackIndex = null;
+    let activeRestoreTimeListener = null;
 
     // Глобальные переменные для оптимизации и предотвращения Race Conditions
     let currentAudioFetchController = null;
@@ -108,7 +109,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (e) {
         console.error('Failed to load cut markers from localStorage', e);
     }
-    let qualitySetting = { label: 'FLAC/7', formatId: 7 };
+    let qualitySetting = { label: 'MP3/5', formatId: 5 };
     let libraryLabelTimeout = null;
     
     // --- ELEMENTS ---
@@ -953,12 +954,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 isManualSwitch = false;
                 player.volume = 1.0;
 
+                if (activeRestoreTimeListener) {
+                    player.removeEventListener('loadedmetadata', activeRestoreTimeListener);
+                    activeRestoreTimeListener = null;
+                }
+
                 if (seekTime > 0) {
-                    const restoreTime = () => {
+                    activeRestoreTimeListener = () => {
                         player.currentTime = seekTime;
-                        player.removeEventListener('loadedmetadata', restoreTime);
+                        player.removeEventListener('loadedmetadata', activeRestoreTimeListener);
+                        activeRestoreTimeListener = null;
                     };
-                    player.addEventListener('loadedmetadata', restoreTime);
+                    player.addEventListener('loadedmetadata', activeRestoreTimeListener);
                 }
 
                 if (playerState.isPlaying) {
@@ -1643,6 +1650,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 };
             }
+        }
         syncPlayingHighlights();
     }
 
@@ -2201,7 +2209,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             const trackRow = e.target.closest('.playable-track');
             if (trackRow && !e.target.closest('.track-actions-slide')) {
-                handleTrackClick(trackRow, false, true); 
+                handleTrackClick(trackRow, false, false);
             }
         });
     }
@@ -2210,7 +2218,7 @@ document.addEventListener('DOMContentLoaded', () => {
         els.playlistContent.addEventListener('click', (e) => {
             const trackRow = e.target.closest('.playable-track');
             if (trackRow && !e.target.closest('.track-actions-slide')) {
-                handleTrackClick(trackRow, false, true);
+                handleTrackClick(trackRow, false, false);
             }
         });
     }
@@ -2775,8 +2783,9 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderArtistPanel(data) {
         const content = els.artistContent;
         content.replaceChildren();
-        content.className = 'relative bg-black overflow-hidden font-sans';
-        content.style.height = '90%';
+        // Use inline styles instead of Tailwind utilities
+        content.removeAttribute('class');
+        content.style.cssText = 'position:relative; background:#000; overflow:hidden; height:100%; font-family:inherit;';
         const imgUrl = getImg(data);
         const trackList = data.tracks?.items || [];
         
@@ -2786,58 +2795,82 @@ document.addEventListener('DOMContentLoaded', () => {
             trackCache.set(String(t.id), t);
         });
 
+        // Background image
         const bgContainer = document.createElement('div');
-        bgContainer.className = 'absolute inset-0 z-0 pointer-events-none';
-        bgContainer.innerHTML = `<div class="absolute inset-0 bg-cover bg-center transition-opacity duration-700 opacity-0" style="background-image: url('${imgUrl}'); opacity: 0.2;"></div>`;
-        requestAnimationFrame(() => bgContainer.firstElementChild?.classList.remove('opacity-0'));
+        bgContainer.style.cssText = 'position:absolute; inset:0; z-index:0; pointer-events:none;';
+        const bgImg = document.createElement('div');
+        bgImg.style.cssText = `position:absolute; inset:0; background-image:url('${imgUrl}'); background-size:cover; background-position:center top; opacity:0; transition:opacity 0.7s;`;
+        bgContainer.appendChild(bgImg);
+        requestAnimationFrame(() => { bgImg.style.opacity = '0.3'; });
         content.appendChild(bgContainer);
+
+        // Gradient overlay (top to bottom dark fade)
+        const gradOverlay = document.createElement('div');
+        gradOverlay.style.cssText = 'position:absolute; inset:0; z-index:1; pointer-events:none; background:linear-gradient(to bottom, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.55) 30%, rgba(0,0,0,0.92) 65%, #000 100%);';
+        content.appendChild(gradOverlay);
+
+        // Header (artist name)
         const header = document.createElement('div');
-        header.className = 'absolute top-0 left-0 w-full h-[20dvh] z-20 flex flex-col justify-end px-6 pb-4 pointer-events-none select-none';
+        header.style.cssText = 'position:absolute; top:0; left:0; width:100%; height:22dvh; min-height:120px; z-index:20; display:flex; flex-direction:column; justify-content:flex-end; padding:0 24px 16px; pointer-events:none; user-select:none; box-sizing:border-box;';
         header.innerHTML = `
-            <p class="text-[coral] text-[10px] font-extrabold tracking-[0.3em] mb-0.5 leading-none uppercase">ARTIST</p>
-            <h1 class="text-white text-[2.5rem] font-normal uppercase tracking-tighter leading-[0.85] m-0 line-clamp-2 text-ellipsis overflow-hidden">${escapeHtml(data.name)}</h1>
+            <p style="color:coral; font-size:10px; font-weight:800; letter-spacing:0.3em; margin:0 0 4px; text-transform:uppercase; line-height:1;">ARTIST</p>
+            <h1 style="color:#fff; font-size:2.5rem; font-weight:400; text-transform:uppercase; letter-spacing:-0.03em; line-height:0.85; margin:0; overflow:hidden; text-overflow:ellipsis; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;">${escapeHtml(data.name)}</h1>
         `;
         content.appendChild(header);
+
+        // Scrollable area
         const scrollArea = document.createElement('div');
-        scrollArea.className = 'absolute left-0 right-0 bottom-0 z-10 overflow-y-auto no-scrollbar pt-2 pb-32 px-4';
-        scrollArea.style.top = '25%';
+        scrollArea.style.cssText = 'position:absolute; left:0; right:0; bottom:0; top:25%; z-index:10; overflow-y:auto; padding:8px 16px 128px; box-sizing:border-box;';
+        scrollArea.classList.add('no-scrollbar');
+
+        // Track list
         const list = document.createElement('div');
-        list.className = 'flex flex-col w-full space-y-2 mb-12';
+        list.style.cssText = 'display:flex; flex-direction:column; width:100%; margin-bottom:48px;';
+
         trackList.forEach((t) => {
             const row = document.createElement('div');
-            row.className = 'group flex items-center justify-between py-4 px-6 border-b border-white/5 active:bg-white/10 transition-colors cursor-pointer playable-track search-result-track AlbumElementsSS';
+            row.className = 'playable-track search-result-track AlbumElementsSS';
+            row.style.cssText = 'display:flex; align-items:center; justify-content:space-between; padding:14px 20px; border-bottom:1px solid rgba(255,255,255,0.05); cursor:pointer; transition:background 0.15s; box-sizing:border-box;';
             row.dataset.trackId = t.id;
             row.dataset.artistId = data.id;
-            row.dataset.albumId = t.album?.id;
-            row.dataset.title = escapeHtml(t.title);
-            row.dataset.artist = escapeHtml(data.name);
-            row.dataset.album = escapeHtml(t.album?.title);
+            row.dataset.albumId = t.album?.id || '';
+            row.dataset.title = t.title || '';
+            row.dataset.artist = data.name || '';
+            row.dataset.album = t.album?.title || '';
             row.dataset.cover = getImg(t.album);
             const isTrackLiked = libraryState.likedTrackIds.has(String(t.id));
             row.innerHTML = `
-                <div class="flex-1 min-w-0 mr-4">
-                    <h4 class="text-white font-medium text-[20px] truncate leading-tight group-hover:text-white/90">${escapeHtml(t.title)}</h4>
+                <div style="flex:1; min-width:0; margin-right:16px;">
+                    <p style="color:#fff; font-size:17px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin:0; line-height:1.3;">${escapeHtml(t.title)}</p>
                 </div>
-                <div class="text-neutral-500 text-[13px] font-medium whitespace-nowrap">${formatTime(t.duration)}</div>
+                <div style="color:#777; font-size:13px; font-weight:500; white-space:nowrap; margin-right:8px;">${formatTime(t.duration)}</div>
                 <div class="track-actions-slide">
-                    <button class="slide-btn btn-like-track ${isTrackLiked ? 'active' : ''}" style="${isTrackLiked ? 'color: coral;' : ''}"><i data-lucide="heart" style="${isTrackLiked ? 'fill: coral;' : ''}"></i></button>
+                    <button class="slide-btn btn-like-track ${isTrackLiked ? 'active' : ''}" style="${isTrackLiked ? 'color:coral;' : ''}"><i data-lucide="heart" style="${isTrackLiked ? 'fill:coral;' : ''}"></i></button>
                     <button class="slide-btn btn-add-to-playlist"><i data-lucide="plus"></i></button>
                 </div>
             `;
             list.appendChild(row);
         });
         scrollArea.appendChild(list);
+
+        // Albums grid
         if (data.albums?.items?.length) {
+            const gridTitle = document.createElement('p');
+            gridTitle.textContent = 'Albums';
+            gridTitle.style.cssText = 'color:rgba(255,255,255,0.5); font-size:11px; font-weight:700; letter-spacing:0.15em; text-transform:uppercase; margin:16px 0 12px;';
+            scrollArea.appendChild(gridTitle);
+
             const grid = document.createElement('div');
-            grid.className = 'grid grid-cols-2 gap-4 pb-12';
+            grid.style.cssText = 'display:grid; grid-template-columns:1fr 1fr; gap:16px; padding-bottom:48px;';
             data.albums.items.forEach(album => {
                 const card = document.createElement('div');
-                card.className = 'relative aspect-square w-full overflow-hidden rounded-xl bg-white/5 cursor-pointer active:scale-95 transition-transform album-card';
+                card.className = 'album-card';
+                card.style.cssText = 'position:relative; aspect-ratio:1/1; width:100%; overflow:hidden; border-radius:12px; background:rgba(255,255,255,0.05); cursor:pointer; transition:transform 0.15s;';
                 card.dataset.albumId = album.id;
                 card.innerHTML = `
-                    <img src="${getImg(album)}" class="w-full h-full object-cover" loading="lazy" />
-                    <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-transparent"></div>
-                    <div class="absolute bottom-0 left-0 p-3 w-full"><p class="text-[coral] text-sm font-bold truncate leading-tight drop-shadow-md">${escapeHtml(album.title)}</p></div>
+                    <img src="${getImg(album)}" style="width:100%; height:100%; object-fit:cover; display:block;" loading="lazy" />
+                    <div style="position:absolute; inset:0; background:linear-gradient(to top, rgba(0,0,0,0.9) 0%, transparent 60%);"></div>
+                    <div style="position:absolute; bottom:0; left:0; padding:12px; width:100%; box-sizing:border-box;"><p style="color:coral; font-size:13px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin:0;">${escapeHtml(album.title)}</p></div>
                 `;
                 grid.appendChild(card);
             });
@@ -2986,7 +3019,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 e.stopPropagation();
                 const firstTrack = scroll.querySelector('.playable-track');
                 if (firstTrack) {
-                    handleTrackClick(firstTrack, false, true);
+                    handleTrackClick(firstTrack, false, false);
                 }
             });
         }
@@ -3170,6 +3203,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function startLoop() {
         if (isLooping) return;
+        if (!els.playerPanel.classList.contains('active')) return;
         isLooping = true;
         if (animationFrameId === null) {
             animationFrameId = requestAnimationFrame(tick);
@@ -3195,7 +3229,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Pause updates if the player panel is not visible
         if (!els.playerPanel.classList.contains('active')) {
             lastPct = -1; // Reset to force update on open
-            animationFrameId = requestAnimationFrame(tick);
+            animationFrameId = null;
             return;
         }
 
@@ -3343,6 +3377,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 await handleTrackClick(playerState.currentTrack, false, true, currentPos);
             }
         });
+    }
+
+    // --- PLAYER PANEL VISIBILITY OBSERVER TO START/STOP ANIMATION LOOP ---
+    const playerPanelObserver = new MutationObserver((mutations) => {
+        mutations.forEach((mutation) => {
+            if (mutation.attributeName === 'class') {
+                const isActive = els.playerPanel.classList.contains('active');
+                if (isActive && !player.paused) {
+                    startLoop();
+                } else if (!isActive) {
+                    stopLoop();
+                }
+            }
+        });
+    });
+    if (els.playerPanel) {
+        playerPanelObserver.observe(els.playerPanel, { attributes: true });
     }
     
     // --- PLAYER PANEL SWIPE GESTURE ---
