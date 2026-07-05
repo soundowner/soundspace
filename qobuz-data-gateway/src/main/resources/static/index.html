@@ -204,7 +204,13 @@
                 <div id="player-panel-container">
                     <div id="track-cover-and-context-buttons-container">
                         <div id="track-cover-container">
-                            <img id="track-cover" alt="cover" src=""/>
+                            <div id="track-cover-wrapper">
+                                <img id="track-cover" alt="cover" src=""/>
+                                <div id="track-cover-old-wrap" class="hidden">
+                                    <img id="track-cover-old" alt="cover old" src=""/>
+                                </div>
+                                <div id="cover-shadow-overlay"></div>
+                            </div>
                         </div>
 
                         <div id="track-context-buttons-container">
@@ -293,11 +299,14 @@
                         <button id="track-download-btn" title="Download Track">
                             <i class="fa-solid fa-download"></i> DOWNLOAD
                         </button>
+                        <button id="theme-cycle-btn" title="Switch Theme">
+                            <i class="fa-solid fa-palette"></i>
+                        </button>
 
                     </div>
 
-                </div>
-
+                <div id="player-split-shadow-top"></div>
+                <div id="player-split-shadow-bottom"></div>
             </div>
 
             <!-- ARTIST OVERLAY -->

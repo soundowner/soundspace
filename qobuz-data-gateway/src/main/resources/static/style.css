@@ -132,12 +132,6 @@ transition: z-index 0s 0s;
     z-index: 10;
 }
 
-#player-panel {
-    z-index: 200000;
-    transition: transform 0.4s, opacity 0.45s ease-in, visibility 0s 0.35s;
-    transform: translate3d(0, 100%, 0);
-    will-change: transform;
-}
 
 #library-panel.active,
 #search-panel.active {
@@ -147,11 +141,54 @@ transition: z-index 0s 0s;
     transition: opacity 0.35s ease, visibility 0s 0s;
 }
 
+#player-panel {
+    z-index: 200000;
+    opacity: 0;
+    visibility: hidden;
+    clip-path: inset(50% 0 50% 0);
+    transition: clip-path 0.8s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.6s ease-in-out, visibility 0s 0.8s;
+    will-change: clip-path, opacity;
+}
+
 #player-panel.active {
-    transform: translate3d(0, 0, 0) !important;
     opacity: 1;
     visibility: visible;
-    transition: transform 0.4s, opacity 0.45s ease-in, visibility 0s 0s;
+    clip-path: inset(0% 0 0% 0);
+    transition: clip-path 1.6s cubic-bezier(0.16, 1, 0.3, 1), opacity 1.2s ease-in-out, visibility 0s 0s;
+}
+
+/* Split Reveal Shadows */
+#player-split-shadow-top,
+#player-split-shadow-bottom {
+    position: absolute;
+    left: 0;
+    width: 100%;
+    height: 12vh;
+    z-index: 999999;
+    pointer-events: none;
+    will-change: transform;
+    transform: translate3d(0, 0, 0);
+    transition: transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+#player-split-shadow-top {
+    top: calc(50% - 6vh);
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.95) 0%, rgba(0, 0, 0, 0.5) 40%, rgba(0, 0, 0, 0) 100%);
+}
+
+#player-split-shadow-bottom {
+    top: calc(50% - 6vh);
+    background: linear-gradient(to bottom, rgba(0, 0, 0, 0.95) 0%, rgba(0, 0, 0, 0.5) 40%, rgba(0, 0, 0, 0) 100%);
+}
+
+#player-panel.active #player-split-shadow-top {
+    transform: translate3d(0, -50vh, 0);
+    transition: transform 1.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+#player-panel.active #player-split-shadow-bottom {
+    transform: translate3d(0, 50vh, 0);
+    transition: transform 1.6s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 /* Overlay Panels (Artist & Album) */
@@ -596,7 +633,7 @@ transition: z-index 0s 0s;
     transform: translate3d(0, 0, 0);
     opacity: 1;
     transition: transform 0.5s cubic-bezier(0.25, 1, 0.5, 1) calc(0.08s + var(--i, 0) * 0.03s),
-                opacity 0.5s ease calc(0.08s + var(--i, 0) * 0.03s);
+        opacity 0.5s ease calc(0.08s + var(--i, 0) * 0.03s);
 }
 
 #tracks-lib-container .search-result-track-cover {
@@ -3912,4 +3949,846 @@ margin-left: 3px !important;
     font-size: 0.8rem;
     margin-top: 5px;
     text-align: left;
+}
+
+/* ==========================================================================
+   SOUNDSPACE LUXURY PLAYER THEMES (ANTIGRAVITY DESIGN)
+   ========================================================================== */
+
+/* --- THEME CYCLER BUTTON --- */
+#theme-cycle-btn {
+    position: absolute;
+    top: calc(27% + 10px);
+    right: 25px;
+    width: 46px;
+    height: 46px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    z-index: 10000;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+    will-change: transform;
+}
+
+#theme-cycle-btn:hover {
+    transform: scale(1.1);
+    background: rgba(255, 255, 255, 0.15);
+    border-color: rgba(255, 255, 255, 0.35);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.5);
+}
+
+#theme-cycle-btn:active {
+    transform: scale(0.9);
+}
+
+#theme-cycle-btn i {
+    font-size: 19px;
+    transition: transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+    color: coral;
+}
+
+#theme-cycle-btn:hover i {
+    transform: rotate(45deg);
+}
+
+/* --- THEMED CONTAINERS SHARED --- */
+#track-cover-wrapper {
+    position: relative;
+    overflow: hidden;
+    will-change: transform;
+}
+
+#cover-shadow-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 40%;
+    height: 100%;
+    background: linear-gradient(90deg, 
+        rgba(0, 0, 0, 0) 0%, 
+        rgba(0, 0, 0, 0.95) 50%, 
+        rgba(0, 0, 0, 0) 100%
+    );
+    z-index: 5;
+    pointer-events: none;
+    transform: translate3d(-62.5%, 0, 0);
+    will-change: transform;
+}
+
+#cover-shadow-overlay.sweep-active {
+    transform: translate3d(187.5%, 0, 0);
+    transition: transform 1.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+#track-cover-old-wrap {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    z-index: 3;
+    transform: translate3d(0, 0, 0);
+    will-change: transform;
+}
+
+#track-cover-old-wrap.sweep-active {
+    transform: translate3d(100%, 0, 0);
+    transition: transform 1.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+#track-cover-old {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    transform: translate3d(0, 0, 0);
+    will-change: transform;
+}
+
+#track-cover-old.sweep-active {
+    transform: translate3d(-100%, 0, 0);
+    transition: transform 1.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.player-theme-glass #track-cover,
+.player-theme-gold #track-cover,
+.player-theme-cyber #track-cover,
+.player-theme-emerald #track-cover,
+.player-theme-glass #track-cover-old,
+.player-theme-gold #track-cover-old,
+.player-theme-cyber #track-cover-old,
+.player-theme-emerald #track-cover-old {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.player-theme-glass #track-cover-container,
+.player-theme-gold #track-cover-container,
+.player-theme-cyber #track-cover-container,
+.player-theme-emerald #track-cover-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    padding-bottom: 2dvh;
+    box-sizing: border-box;
+}
+
+.player-theme-glass #player-controls-container,
+.player-theme-gold #player-controls-container,
+.player-theme-cyber #player-controls-container,
+.player-theme-emerald #player-controls-container {
+    align-items: center;
+}
+
+.player-theme-glass #track-title-container,
+.player-theme-gold #track-title-container,
+.player-theme-cyber #track-title-container,
+.player-theme-emerald #track-title-container,
+.player-theme-glass #track-info-details,
+.player-theme-gold #track-info-details,
+.player-theme-cyber #track-info-details,
+.player-theme-emerald #track-info-details {
+    opacity: 1;
+    transform: translateY(0);
+    transition: opacity 0.5s cubic-bezier(0.25, 1, 0.5, 1), transform 0.5s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+/* ==========================================================================
+   THEME 1: LIQUID GLASS (Frosted Translucent)
+   ========================================================================== */
+.player-theme-glass #player-panel-container-bg-container img {
+    filter: blur(25px) brightness(0.55);
+    opacity: 0.5;
+}
+
+.player-theme-glass #track-cover-wrapper {
+    position: relative;
+    width: 72vw;
+    height: 72vw;
+    max-width: 290px;
+    max-height: 290px;
+    border-radius: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    box-shadow: 0 20px 45px rgba(0, 0, 0, 0.4), inset 0 0 15px rgba(255, 255, 255, 0.15);
+    transition: transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.player-theme-glass #track-info-details {
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 16px;
+    padding: 12px 16px;
+    height: auto;
+    width: 60%;
+    left: 4%;
+    top: 62%;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+.player-theme-glass #play-button-container {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 50%;
+    width: 60px;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.player-theme-glass #play-button-container i {
+    font-size: 26px !important;
+    color: white;
+}
+
+/* ==========================================================================
+   THEME 2: GOLDEN HORIZON (Charcoal & Polished Gold)
+   ========================================================================== */
+.player-theme-gold {
+    background: radial-gradient(circle at center, rgba(212, 175, 55, 0.12) 0%, #0d0d0e 75%) !important;
+}
+
+.player-theme-gold #player-panel-container-bg-container img {
+    filter: blur(40px) brightness(0.25) grayscale(0.5);
+    opacity: 0.3;
+}
+
+.player-theme-gold #track-cover-wrapper {
+    position: relative;
+    width: 72vw;
+    height: 72vw;
+    max-width: 290px;
+    max-height: 290px;
+    border-radius: 12px;
+    border: 2px solid #d4af37;
+    box-shadow: 0 25px 50px rgba(0, 0, 0, 0.75), 0 0 20px rgba(212, 175, 55, 0.2);
+    transition: transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.player-theme-gold #track-title {
+    font-family: 'Playfair Display', 'Didot', 'Georgia', serif;
+    color: #f7e7ce !important;
+    text-shadow: 0 0 12px rgba(212, 175, 55, 0.35);
+    font-weight: 700;
+}
+
+.player-theme-gold #track-artist-icon i,
+.player-theme-gold #track-album-icon i {
+    color: #d4af37 !important;
+}
+
+.player-theme-gold #track-artist-label,
+.player-theme-gold #track-album-label {
+    color: #f0ebd4;
+}
+
+.player-theme-gold .player-controls-button i {
+    color: #d4af37;
+    text-shadow: 0 0 10px rgba(212, 175, 55, 0.4);
+}
+
+.player-theme-gold #play-button-container {
+    background: rgba(212, 175, 55, 0.12);
+    border: 1.5px solid #d4af37;
+    border-radius: 50%;
+    width: 62px;
+    height: 62px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 0 20px rgba(212, 175, 55, 0.25);
+    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.player-theme-gold #play-button-container i {
+    font-size: 26px !important;
+    color: #d4af37 !important;
+}
+
+/* ==========================================================================
+   THEME 3: OBSIDIAN CYBER (Grid & Acid Cyan)
+   ========================================================================== */
+.player-theme-cyber {
+    background: #030304 !important;
+    background-image: 
+        linear-gradient(0deg, rgba(0, 255, 198, 0.02) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 255, 198, 0.02) 1px, transparent 1px) !important;
+    background-size: 24px 24px !important;
+}
+
+.player-theme-cyber #player-panel-container-bg-container img {
+    filter: blur(10px) brightness(0.15) contrast(1.5);
+    opacity: 0.15;
+}
+
+.player-theme-cyber #track-cover-wrapper {
+    position: relative;
+    width: 72vw;
+    height: 72vw;
+    max-width: 290px;
+    max-height: 290px;
+    border-radius: 0;
+    border: 1.5px solid #00ffc6;
+    box-shadow: 0 0 25px rgba(0, 255, 198, 0.35);
+    transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.player-theme-cyber #track-title-container {
+    clip-path: polygon(0% 0%, 100% 0%, 93% 100%, 0% 100%);
+    background: rgba(0, 255, 198, 0.05);
+    border-left: 3px solid #00ffc6;
+}
+
+.player-theme-cyber #track-title {
+    font-family: 'Courier New', Courier, monospace;
+    color: #ffffff;
+    text-shadow: 0 0 8px rgba(0, 255, 198, 0.6);
+}
+
+.player-theme-cyber #track-artist-label,
+.player-theme-cyber #track-album-label {
+    font-family: 'Courier New', Courier, monospace;
+    color: #00ff69;
+    text-shadow: 0 0 5px rgba(0, 255, 105, 0.5);
+}
+
+.player-theme-cyber .player-controls-button i {
+    color: #00ffc6;
+}
+
+.player-theme-cyber #play-button-container {
+    background: rgba(0, 255, 198, 0.05);
+    border: 1.5px solid #00ffc6;
+    border-radius: 4px;
+    width: 58px;
+    height: 58px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 0 15px rgba(0, 255, 198, 0.3);
+    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.player-theme-cyber #play-button-container i {
+    font-size: 24px !important;
+    color: #00ffc6 !important;
+}
+
+.player-theme-cyber #playing-bars .bar {
+    background-color: #00ffc6;
+    box-shadow: 0 0 8px #00ffc6;
+}
+
+/* ==========================================================================
+   THEME 4: ROYAL VELVET (Amethyst Purple & Deep Emerald)
+   ========================================================================== */
+.player-theme-emerald {
+    background: linear-gradient(135deg, #180829 0%, #041f15 100%) !important;
+}
+
+.player-theme-emerald #player-panel-container-bg-container img {
+    filter: blur(35px) brightness(0.35);
+    opacity: 0.35;
+}
+
+.player-theme-emerald #track-cover-wrapper {
+    position: relative;
+    width: 72vw;
+    height: 72vw;
+    max-width: 290px;
+    max-height: 290px;
+    border-radius: 50%;
+    border: 4px double #e5a93c;
+    box-shadow: 0 25px 55px rgba(0, 0, 0, 0.8), 0 0 10px rgba(229, 169, 60, 0.15);
+    transition: transform 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.player-theme-emerald #track-cover {
+    animation: spin-vinyl 15s linear infinite paused;
+}
+
+.player-theme-emerald.playing #track-cover {
+    animation-play-state: running;
+}
+
+@keyframes spin-vinyl {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.player-theme-emerald #track-title {
+    font-family: 'Georgia', serif;
+    color: #e5a93c !important;
+    font-style: italic;
+}
+
+.player-theme-emerald #track-artist-label {
+    color: #dcb3e8;
+}
+
+.player-theme-emerald #track-album-label {
+    color: #a8d5c2;
+}
+
+.player-theme-emerald .player-controls-button i {
+    color: #e5a93c;
+}
+
+.player-theme-emerald #play-button-container {
+    background: rgba(24, 8, 41, 0.5);
+    border: 1px solid rgba(229, 169, 60, 0.5);
+    border-radius: 50%;
+    width: 64px;
+    height: 64px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5), 0 0 12px rgba(229, 169, 60, 0.2);
+    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.player-theme-emerald #play-button-container i {
+    font-size: 28px !important;
+    color: #e5a93c !important;
+}
+
+/* ==========================================================================
+   THEMED TRACK CHANGE TRANSITIONS / ANIMATIONS
+   ========================================================================== */
+
+/* Theme 1: Glass - subtle drop & scale down */
+.player-theme-glass.track-changing #track-cover-wrapper {
+    transform: translateY(25px) scale(0.92);
+}
+
+/* Theme 2: Gold - 3D rotate Y */
+.player-theme-gold.track-changing #track-cover-wrapper {
+    transform: rotateY(30deg) scale(0.88);
+}
+
+/* Theme 3: Cyber - rapid horizontal slide-out */
+.player-theme-cyber.track-changing #track-cover-wrapper {
+    transform: translate3d(-10vw, 0, 0);
+}
+
+/* Theme 4: Emerald - spring bounce scale */
+.player-theme-emerald.track-changing #track-cover-wrapper {
+    transform: scale(0.8);
+}
+
+/* Fade animation for info text during track changes */
+.player-theme-glass.track-changing #track-title-container,
+.player-theme-glass.track-changing #track-info-details,
+.player-theme-gold.track-changing #track-title-container,
+.player-theme-gold.track-changing #track-info-details,
+.player-theme-cyber.track-changing #track-title-container,
+.player-theme-cyber.track-changing #track-info-details,
+.player-theme-emerald.track-changing #track-title-container,
+.player-theme-emerald.track-changing #track-info-details {
+    opacity: 0;
+    transform: translateY(12px);
+}
+
+.error-msg {
+    display: none;
+    color: #ff4a4a;
+    font-size: 0.8rem;
+    margin-top: 5px;
+    text-align: left;
+}
+
+
+/* --- MAGIC UI PLAYER VARIANTS SYSTEM --- */
+
+.player-variant-switcher {
+    position: absolute;
+    bottom: 12dvh;
+    left: 20px;
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    background: rgba(10, 10, 10, 0.6);
+    backdrop-filter: blur(15px);
+    -webkit-backdrop-filter: blur(15px);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: #ff5213;
+    font-size: 22px;
+    z-index: 10000;
+    cursor: pointer;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.player-variant-switcher:active {
+    transform: scale(0.85) rotate(-30deg);
+}
+
+/* Base Transitions for smooth morphing between variants */
+#player-panel-container,
+#track-cover-and-context-buttons-container,
+#track-cover-container,
+#track-cover,
+#player-panel-container-track-info,
+#now_play_bottom_panel_part,
+#track-context-buttons-container,
+#track-title-container,
+#player-panel-container-bg-container,
+.title-wrapper {
+    transition: all 0.8s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+/* --- VARIANT 1: FLUID AURORA GLASS --- */
+.variant-1 #player-panel-container-bg-container {
+    background: linear-gradient(135deg, #120c1f 0%, #030d1a 50%, #0d1f11 100%);
+    background-size: 400% 400%;
+    animation: aurora-flow 15s ease infinite;
+    opacity: 1;
+}
+
+.variant-1 #player-panel-container-bg-container img {
+    opacity: 0.15;
+    filter: blur(40px) saturate(2);
+}
+
+@keyframes aurora-flow {
+    0% {
+        background-position: 0% 50%
+    }
+
+    50% {
+        background-position: 100% 50%
+    }
+
+    100% {
+        background-position: 0% 50%
+    }
+}
+
+.variant-1 #track-cover-container {
+    transform: perspective(1000px) rotateX(var(--tilt-x, 8deg)) rotateY(var(--tilt-y, 0deg)) translateY(-10px) scale(0.92);
+    box-shadow: 0 30px 60px rgba(0, 0, 0, 0.8), 0 10px 20px rgba(0, 0, 0, 0.4), 0 0 40px rgba(255, 82, 19, 0.15);
+    border-radius: 28px;
+    transform-origin: center;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.variant-1 #track-cover {
+    border-radius: 28px;
+}
+
+.variant-1 #player-panel-container-track-info {
+    backdrop-filter: blur(30px);
+    -webkit-backdrop-filter: blur(30px);
+    background: rgba(10, 10, 10, 0.55);
+    border-top: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 40px 40px 0 0;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.15), 0 -15px 40px rgba(0, 0, 0, 0.6);
+    height: 54dvh;
+    clip-path: none;
+}
+
+.variant-1 #now_play_bottom_panel_part {
+    background: rgba(0, 0, 0, 0.3);
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+/* --- VARIANT 2: CYBERPUNK NEON GRID --- */
+.variant-2 #player-panel-container {
+    background: #020204;
+}
+
+.variant-2 #player-panel-container-bg-container {
+    background: linear-gradient(rgba(46, 236, 155, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(46, 236, 155, 0.03) 1px, transparent 1px);
+    background-size: 25px 25px;
+    background-position: center;
+    opacity: 1;
+}
+
+.variant-2 #player-panel-container-bg-container img {
+    display: none;
+}
+
+.variant-2 #track-cover-container {
+    border: 2px solid #2cec9b;
+    border-radius: 0px;
+    box-shadow: 0 0 20px rgba(46, 236, 155, 0.3), inset 0 0 10px rgba(46, 236, 155, 0.2);
+    transform: scale(0.85) rotate(-2deg);
+}
+
+.variant-2 #track-cover {
+    border-radius: 0px;
+}
+
+.variant-2 #player-panel-container-track-info {
+    background: rgba(2, 2, 4, 0.95);
+    border-top: 2px solid coral;
+    box-shadow: 0 -10px 30px rgba(255, 127, 80, 0.15);
+    border-radius: 0;
+    font-family: 'JetBrains Mono', Courier, monospace;
+    height: 52dvh;
+    clip-path: none;
+}
+
+.variant-2 #track-title {
+    font-family: 'JetBrains Mono', Courier, monospace;
+    font-weight: bold;
+    color: #2cec9b;
+    text-shadow: 0 0 8px rgba(46, 236, 155, 0.5);
+    text-transform: uppercase;
+}
+
+.variant-2 #track-artist-label,
+.variant-2 #track-album-label {
+    font-family: 'JetBrains Mono', Courier, monospace;
+    color: #888;
+}
+
+.variant-2 #now_play_bottom_panel_part {
+    background: rgba(5, 5, 10, 0.9);
+    border-top: 1px solid rgba(46, 236, 155, 0.2);
+    border-radius: 0;
+}
+
+.variant-2 #timebar-progress {
+    background-color: coral !important;
+    box-shadow: 0 0 8px coral;
+}
+
+/* --- VARIANT 3: RETRO-FUTURISM VINYL --- */
+.variant-3 #player-panel-container {
+    background: radial-gradient(circle at center, #1b263b 0%, #0d1b2a 100%);
+}
+
+.variant-3 #player-panel-container-bg-container {
+    opacity: 0.1;
+}
+
+.variant-3 #track-cover-container {
+    width: 68vw;
+    height: 68vw;
+    top: 9vh;
+    left: 16vw;
+    position: absolute;
+    border-radius: 50%;
+    overflow: hidden;
+    /* Rotation controlled in JS (paired with audio play state) */
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1),
+        0 0 0 12px #0f0f10,
+        0 15px 45px rgba(0, 0, 0, 0.8),
+        inset 0 0 30px rgba(0, 0, 0, 0.9);
+    transform: scale(0.95);
+    border: 3px solid #1a1a1c;
+}
+
+/* Vinyl Grooves overlay */
+.variant-3 #track-cover-container::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: radial-gradient(circle, transparent 30%, rgba(0, 0, 0, 0.4) 31%, transparent 32%, rgba(0, 0, 0, 0.4) 45%, transparent 46%, rgba(0, 0, 0, 0.4) 60%, transparent 61%, rgba(255, 255, 255, 0.05) 70%, transparent 71%);
+    pointer-events: none;
+}
+
+.variant-3 #track-cover {
+    border-radius: 50%;
+}
+
+.variant-3 #player-panel-container-track-info {
+    height: 38dvh;
+    background: transparent;
+    box-shadow: none;
+    border: none;
+}
+
+.variant-3 #now_play_bottom_panel_part {
+    background: rgba(13, 27, 42, 0.95);
+    border-radius: 35px 35px 0 0;
+    box-shadow: 0 -15px 40px rgba(0, 0, 0, 0.4);
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.variant-3 #track-title-container {
+    clip-path: none;
+    text-align: center;
+    align-items: center;
+}
+
+.variant-3 .title-wrapper {
+    justify-content: center;
+}
+
+.variant-3 #playing-bars {
+    display: none;
+}
+
+/* --- VARIANT 4: BENTO 2.0 (Spotlight Dashboard) --- */
+.variant-4 #player-panel-container {
+    background: #030303;
+    padding: 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.variant-4 #player-panel-container-bg-container {
+    opacity: 0;
+}
+
+.variant-4 #track-cover-and-context-buttons-container {
+    position: relative;
+    height: 48dvh;
+    top: 1.5dvh;
+}
+
+.variant-4 #track-cover-container {
+    position: absolute;
+    width: 92vw;
+    height: 45dvh;
+    left: 4vw;
+    top: 0;
+    border-radius: 2.5rem;
+    box-shadow: 0 25px 50px rgba(0, 0, 0, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.variant-4 #track-cover {
+    border-radius: 2.5rem;
+}
+
+.variant-4 #player-panel-container-track-info {
+    position: absolute;
+    top: 50dvh;
+    width: 92vw;
+    left: 4vw;
+    height: 20dvh;
+    background: #0d0d0d;
+    border-radius: 2.5rem;
+    box-shadow: none;
+    clip-path: none;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background-image: radial-gradient(circle at var(--spot-x, 50%) var(--spot-y, 50%), rgba(255, 255, 255, 0.06) 0%, transparent 60%);
+}
+
+.variant-4 #now_play_bottom_panel_part {
+    position: absolute;
+    top: 72dvh;
+    width: 92vw;
+    left: 4vw;
+    height: 18dvh;
+    background: #0d0d0d;
+    border-radius: 2.5rem;
+    box-shadow: none;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background-image: radial-gradient(circle at var(--spot-x, 50%) var(--spot-y, 50%), rgba(255, 255, 255, 0.06) 0%, transparent 60%);
+}
+
+.variant-4 #track-context-buttons-container {
+    display: none;
+}
+
+.variant-4 #track-title-container {
+    clip-path: none;
+}
+
+/* --- VARIANT 5: GLOWING BORDER CARD (Border Beam) --- */
+.variant-5 #player-panel-container {
+    background: #000;
+}
+
+.variant-5 #player-panel-container-bg-container {
+    opacity: 0.15;
+    filter: blur(15px);
+}
+
+.variant-5 #track-cover-container {
+    position: absolute;
+    width: 82vw;
+    height: 82vw;
+    top: 6vh;
+    left: 9vw;
+    border-radius: 20px;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.variant-5 #track-cover {
+    border-radius: 20px;
+}
+
+.variant-5 #player-panel-container-track-info {
+    position: absolute;
+    width: 90vw;
+    height: 48dvh;
+    left: 5vw;
+    bottom: 2dvh;
+    background: rgba(10, 10, 10, 0.85);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-radius: 30px;
+    box-shadow: 0 15px 40px rgba(0, 0, 0, 0.8);
+    clip-path: none;
+    overflow: hidden;
+}
+
+/* Border Beam Effect using rotating pseudoelement */
+.variant-5 #player-panel-container-track-info::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 30px;
+    padding: 2px;
+    background: conic-gradient(from var(--beam-angle, 0deg), transparent 70%, #ff5213, #2cec9b, transparent 100%);
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+    animation: rotate-beam 4s linear infinite;
+}
+
+@keyframes rotate-beam {
+    100% {
+        --beam-angle: 360deg;
+    }
+}
+
+@property --beam-angle {
+    syntax: '<angle>';
+    initial-value: 0deg;
+    inherits: false;
+}
+
+.variant-5 #now_play_bottom_panel_part {
+    position: absolute;
+    bottom: 0;
+    height: 20dvh;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+}
+
+.variant-5 #track-title-container {
+    clip-path: none;
 }

@@ -113,6 +113,25 @@ document.addEventListener('DOMContentLoaded', () => {
     let qualitySetting = { label: 'MP3/5', formatId: 5 };
     let libraryLabelTimeout = null;
 
+    let currentThemeIndex = 0;
+    const playerThemes = ['glass', 'gold', 'cyber', 'emerald'];
+    try {
+        const savedTheme = localStorage.getItem('ss_player_theme');
+        if (savedTheme && playerThemes.includes(savedTheme)) {
+            currentThemeIndex = playerThemes.indexOf(savedTheme);
+        }
+    } catch (e) {
+        console.error('Failed to load theme from localStorage', e);
+    }
+
+    function applyPlayerTheme() {
+        if (els.playerPanel) {
+            playerThemes.forEach(t => els.playerPanel.classList.remove(`player-theme-${t}`));
+            const theme = playerThemes[currentThemeIndex];
+            els.playerPanel.classList.add(`player-theme-${theme}`);
+        }
+    }
+
     // --- ELEMENTS ---
     const els = {
         parentContainer: document.querySelector('.parent-container'),
@@ -140,6 +159,10 @@ document.addEventListener('DOMContentLoaded', () => {
         trackArtist: document.getElementById('track-artist-label'),
         trackAlbum: document.getElementById('track-album-label'),
         trackCover: document.getElementById('track-cover'),
+        trackCoverOld: document.getElementById('track-cover-old'),
+        trackCoverOldWrap: document.getElementById('track-cover-old-wrap'),
+        trackCoverWrapper: document.getElementById('track-cover-wrapper'),
+        coverShadowOverlay: document.getElementById('cover-shadow-overlay'),
         trackArtistContainer: document.getElementById('track-artist-container'),
         trackAlbumContainer: document.getElementById('track-album-container'),
 
@@ -147,6 +170,7 @@ document.addEventListener('DOMContentLoaded', () => {
         playingBars: document.getElementById('playing-bars'),
         trackQualityInfo: document.getElementById('track-quality-info'),
         trackDownloadBtn: document.getElementById('track-download-btn'),
+        themeCycleBtn: document.getElementById('theme-cycle-btn'),
 
         artistContent: document.getElementById('artist-content'),
         albumContent: document.getElementById('album-content'),
@@ -605,9 +629,64 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
-    // --- 1. CORE PLAYER LOGIC ---
     function updatePlayerUI(track) {
         if (!track) return;
+
+        applyPlayerTheme();
+        if (els.playerPanel) {
+            els.playerPanel.classList.add('track-changing');
+            setTimeout(() => {
+                els.playerPanel.classList.remove('track-changing');
+            }, 1200);
+        }
+
+        // Set up the old cover image before swapping sources
+        if (els.trackCover && els.trackCover.src && els.trackCover.src !== window.location.href) {
+            if (els.trackCoverOld && els.trackCoverOldWrap) {
+                els.trackCoverOld.src = els.trackCover.src;
+                els.trackCoverOldWrap.classList.remove('hidden');
+                els.trackCoverOldWrap.classList.remove('sweep-active');
+                els.trackCoverOld.classList.remove('sweep-active');
+                void els.trackCoverOldWrap.offsetWidth; // Force layout reflow
+                void els.trackCoverOld.offsetWidth;
+            }
+        }
+
+        if (els.coverShadowOverlay) {
+            els.coverShadowOverlay.classList.remove('sweep-active');
+            void els.coverShadowOverlay.offsetWidth; // Force layout reflow
+        }
+
+        // Immediately update the main cover image to the NEW track's cover (revealed underneath)
+        if (track.cover) {
+            if (els.trackCover) els.trackCover.src = track.cover;
+            if (els.bgImage) els.bgImage.src = track.cover;
+        }
+
+        // Trigger the sweep transitions on the old cover (wrapper slides right, image slides left) and the shadow overlay (slide)
+        if (els.trackCoverOldWrap) {
+            els.trackCoverOldWrap.classList.add('sweep-active');
+        }
+        if (els.trackCoverOld) {
+            els.trackCoverOld.classList.add('sweep-active');
+        }
+        if (els.coverShadowOverlay) {
+            els.coverShadowOverlay.classList.add('sweep-active');
+        }
+
+        // Clean up classes after the transition is complete (1200ms)
+        setTimeout(() => {
+            if (els.trackCoverOldWrap) {
+                els.trackCoverOldWrap.classList.add('hidden');
+                els.trackCoverOldWrap.classList.remove('sweep-active');
+            }
+            if (els.trackCoverOld) {
+                els.trackCoverOld.classList.remove('sweep-active');
+            }
+            if (els.coverShadowOverlay) {
+                els.coverShadowOverlay.classList.remove('sweep-active');
+            }
+        }, 1250);
 
         const fadeElements = [els.trackTitle, els.trackArtist, els.trackAlbum].filter(Boolean);
         fadeElements.forEach(el => el.style.opacity = '0');
@@ -617,12 +696,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (els.trackArtist) els.trackArtist.textContent = track.artist;
             if (els.trackAlbum) els.trackAlbum.textContent = track.album;
             fadeElements.forEach(el => el.style.opacity = '1');
-        }, 250);
-
-        if (track.cover) {
-            if (els.trackCover) els.trackCover.src = track.cover;
-            if (els.bgImage) els.bgImage.src = track.cover;
-        }
+        }, 600);
 
         const isLikedNow = libraryState.likedTrackIds.has(String(track.id));
         const playerBtnLike = document.getElementById('btn-like');
@@ -2317,6 +2391,24 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
+
+    if (els.themeCycleBtn) {
+        els.themeCycleBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            currentThemeIndex = (currentThemeIndex + 1) % playerThemes.length;
+            localStorage.setItem('ss_player_theme', playerThemes[currentThemeIndex]);
+            applyPlayerTheme();
+
+            // Add short scale animation to the button
+            els.themeCycleBtn.style.transform = 'scale(0.85)';
+            setTimeout(() => {
+                els.themeCycleBtn.style.transform = '';
+            }, 150);
+        });
+    }
+
+    // Apply the saved theme immediately at startup
+    applyPlayerTheme();
 
     let isIntroAnimating = false;
     let introAnimationStart = 0;
