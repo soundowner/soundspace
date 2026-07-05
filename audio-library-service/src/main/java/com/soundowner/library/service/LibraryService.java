@@ -58,7 +58,7 @@ public class LibraryService {
     @Transactional
     public void addArtistToLibrary(UUID userId, Artist artist) {
         log.debug("Adding artist {} to library for user {}", artist.getId(), userId);
-        
+
         Artist managedArtist = saveArtistIfNotExist(artist);
 
         // Link user to artist
@@ -78,12 +78,12 @@ public class LibraryService {
     @Transactional
     public void addAlbumToLibrary(UUID userId, Album album, List<Track> tracks) {
         log.debug("Adding album {} to library for user {}", album.getId(), userId);
-        
+
         Artist managedArtist = saveArtistIfNotExist(album.getArtist());
         album.setArtist(managedArtist);
-        
+
         Album managedAlbum = saveAlbumIfNotExist(album);
-        
+
         if (tracks != null) {
             for (Track track : tracks) {
                 track.setAlbum(managedAlbum);
@@ -154,12 +154,12 @@ public class LibraryService {
         }
 
         int maxPos = playlistTrackRepository.findMaxPositionByPlaylistId(playlistId);
-        
+
         PlaylistTrack pt = new PlaylistTrack();
         pt.setPlaylist(playlist);
         pt.setTrack(managedTrack);
         pt.setPosition(maxPos + 1);
-        
+
         playlistTrackRepository.save(pt);
     }
 
@@ -199,7 +199,8 @@ public class LibraryService {
 
     @Transactional(readOnly = true)
     public List<String> getFirst4TrackCovers(UUID playlistId) {
-        return playlistTrackRepository.findFirst4TrackCovers(playlistId, org.springframework.data.domain.PageRequest.of(0, 4));
+        return playlistTrackRepository.findFirst4TrackCovers(playlistId,
+                org.springframework.data.domain.PageRequest.of(0, 4));
     }
 
     @Transactional
@@ -220,19 +221,30 @@ public class LibraryService {
     }
 
     private Artist saveArtistIfNotExist(Artist artist) {
-        if (artist == null) return null;
+        if (artist == null)
+            return null;
         return artistRepository.findById(artist.getId())
+                .map(existing -> {
+                    if ((existing.getImageUrl() == null || existing.getImageUrl().isEmpty())
+                            && artist.getImageUrl() != null && !artist.getImageUrl().isEmpty()) {
+                        existing.setImageUrl(artist.getImageUrl());
+                        return artistRepository.save(existing);
+                    }
+                    return existing;
+                })
                 .orElseGet(() -> artistRepository.save(artist));
     }
 
     private Album saveAlbumIfNotExist(Album album) {
-        if (album == null) return null;
+        if (album == null)
+            return null;
         return albumRepository.findById(album.getId())
                 .orElseGet(() -> albumRepository.save(album));
     }
 
     private Track saveTrackIfNotExist(Track track) {
-        if (track == null) return null;
+        if (track == null)
+            return null;
         return trackRepository.findById(track.getId())
                 .orElseGet(() -> trackRepository.save(track));
     }
