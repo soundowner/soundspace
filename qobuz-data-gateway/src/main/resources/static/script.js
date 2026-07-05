@@ -19,7 +19,7 @@ window.fetch = async (url, options) => {
                 throw err;
             });
         }
-        
+
         try {
             await refreshPromise;
             response = await originalFetch(url, options);
@@ -75,6 +75,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const player = new Audio();
     const trackCache = new LRUCache(200);
+    const albumCache = new LRUCache(20);
     let currentTrackId = null;
     let loadedTrackId = null;
     let currentQueue = [];
@@ -111,20 +112,20 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     let qualitySetting = { label: 'MP3/5', formatId: 5 };
     let libraryLabelTimeout = null;
-    
+
     // --- ELEMENTS ---
     const els = {
         parentContainer: document.querySelector('.parent-container'),
         topSearchPanel: document.getElementById('top-search-panel'),
         searchInput: document.getElementById('search-input'),
         searchResults: document.getElementById('search-results-container'),
-        
+
         playerPanel: document.getElementById('player-panel'),
-        playerControls: document.getElementById('player-controls-container'), 
+        playerControls: document.getElementById('player-controls-container'),
         playBtnContainer: document.getElementById('play-button-container'),
         forwardBtn: document.getElementById('forward-button-container'),
         backwardBtn: document.getElementById('backward-button-container'),
-        
+
         timeBarProgress: document.getElementById('timebar-progress'),
         timeBarContainer: document.getElementById('timebar-progress-container'),
         timeBarWaveform: document.getElementById('timebar-waveform'),
@@ -134,22 +135,22 @@ document.addEventListener('DOMContentLoaded', () => {
         waveformPlayheads: document.querySelectorAll('.waveform-playhead'),
         timeCurrent: document.getElementById('current-time'),
         timeDuration: document.getElementById('duration'),
-        
+
         trackTitle: document.getElementById('track-title'),
         trackArtist: document.getElementById('track-artist-label'),
         trackAlbum: document.getElementById('track-album-label'),
         trackCover: document.getElementById('track-cover'),
-        trackArtistContainer: document.getElementById('track-artist-container'), 
-        trackAlbumContainer: document.getElementById('track-album-container'),   
-        
+        trackArtistContainer: document.getElementById('track-artist-container'),
+        trackAlbumContainer: document.getElementById('track-album-container'),
+
         bgImage: document.querySelector('#player-panel-container-bg-container img'),
         playingBars: document.getElementById('playing-bars'),
         trackQualityInfo: document.getElementById('track-quality-info'),
         trackDownloadBtn: document.getElementById('track-download-btn'),
-        
+
         artistContent: document.getElementById('artist-content'),
         albumContent: document.getElementById('album-content'),
-        
+
         bottomNavbar: document.querySelector('.bottom-navbar'),
 
         // Profile Elements
@@ -175,7 +176,7 @@ document.addEventListener('DOMContentLoaded', () => {
         addToPlaylistModal: document.getElementById('add-to-playlist-modal'),
         selectPlaylistList: document.getElementById('select-playlist-list'),
         addToPlaylistCancel: document.getElementById('add-to-playlist-cancel'),
-        
+
         // New elements for expansion
         playBottomPart: document.getElementById('now_play_bottom_panel_part'),
 
@@ -309,7 +310,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function fetchLikedTracksSS() {
         if (!els.tracksLibContainer) return;
-        if (!libraryState.needsTracksSync && libraryState.likedTracks.length > 0) return;
+        if (!libraryState.needsTracksSync && libraryState.likedTracks.length > 0) {
+            els.tracksLibContainer.classList.add('loaded');
+            return;
+        }
 
         try {
             const res = await fetch('/library/tracks');
@@ -332,18 +336,18 @@ document.addEventListener('DOMContentLoaded', () => {
             els.tracksLibContainer.innerHTML = '<div class="empty-state-ss">No liked tracks yet</div>';
             return;
         }
-        
+
         els.tracksLibContainer.innerHTML = '';
         els.tracksLibContainer.onscroll = null; // Сброс предыдущего скролла
-        
+
         let renderedCount = 0;
         const CHUNK_SIZE = 50;
 
         function renderNextChunk() {
             if (renderedCount >= tracks.length) return;
-            
+
             const nextChunk = tracks.slice(renderedCount, renderedCount + CHUNK_SIZE);
-            const html = nextChunk.map(item => {
+            const html = nextChunk.map((item, index) => {
                 const artistId = item.performer?.id || item.artist?.id || item.album?.artist?.id;
                 const albumId = item.album?.id;
                 const isTrackLiked = true;
@@ -353,6 +357,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 return `
                     <div class="ss-acid-row search-result-track playable-track"
+                         style="--i: ${index};"
                          data-track-id="${item.id}"
                          data-artist-id="${artistId}"
                          data-album-id="${albumId}"
@@ -396,6 +401,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Рендерим первый блок треков
         renderNextChunk();
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                els.tracksLibContainer.classList.add('loaded');
+            });
+        });
 
         // Слушатель скролла для подгрузки последующих элементов
         els.tracksLibContainer.onscroll = () => {
@@ -418,8 +428,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const currentActiveTab = Object.keys(containers).find(key => containers[key] && containers[key].classList.contains('active-lib-tab'));
 
         if (currentActiveTab !== tabName) {
-            Object.values(containers).forEach(c => c && c.classList.remove('active-lib-tab'));
-            
+            Object.values(containers).forEach(c => {
+                if (c) {
+                    c.classList.remove('active-lib-tab');
+                    c.classList.remove('loaded');
+                }
+            });
+
             if (tabName === 'tracks' && containers.tracks) {
                 containers.tracks.classList.add('active-lib-tab');
                 fetchLikedTracksSS();
@@ -467,11 +482,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (libraryLabelTimeout) {
                     clearTimeout(libraryLabelTimeout);
                 }
-                
+
                 // Сбрасываем сдвиг, если он остался инлайново, и запускаем затухание
                 els.currentLibraryLabel.style.transform = '';
                 els.currentLibraryLabel.style.opacity = '0';
-                
+
                 libraryLabelTimeout = setTimeout(() => {
                     els.currentLibraryLabel.textContent = tabName;
                     els.currentLibraryLabel.style.opacity = '1';
@@ -495,7 +510,7 @@ document.addEventListener('DOMContentLoaded', () => {
     syncLibraryIds();
 
     // --- MAPPING HELPERS ---
-    
+
     function mapQobuzImageToDto(qobuzImg) {
         if (!qobuzImg) return null;
         const largeImg = qobuzImg.large || qobuzImg.medium || qobuzImg.small;
@@ -562,7 +577,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function mapToTrackDto(qobuzTrack) {
         if (!qobuzTrack) return null;
-        
+
         // Ensure performers string (Backend uses this field)
         let performers = qobuzTrack.performers;
         if (!performers && qobuzTrack.performer) {
@@ -593,10 +608,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- 1. CORE PLAYER LOGIC ---
     function updatePlayerUI(track) {
         if (!track) return;
-        
+
         const fadeElements = [els.trackTitle, els.trackArtist, els.trackAlbum].filter(Boolean);
         fadeElements.forEach(el => el.style.opacity = '0');
-        
+
         setTimeout(() => {
             if (els.trackTitle) els.trackTitle.textContent = track.title;
             if (els.trackArtist) els.trackArtist.textContent = track.artist;
@@ -624,7 +639,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (els.playerPanel && !els.playerPanel.classList.contains('active') && !document.querySelector('.overlay-panel.active')) {
             const openBtn = document.querySelector('[data-panel="player-panel"]');
-            if (openBtn) openBtn.click(); 
+            if (openBtn) openBtn.click();
         }
 
         if (isFrequencyMode) {
@@ -672,7 +687,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!trackId) return;
         const markers = cutMarkersByTrack.get(String(trackId)) || [];
         saveCutsToLocalStorage();
-        
+
         let bodyPayload = [];
         if (markers.length >= 1) {
             bodyPayload = [{
@@ -680,7 +695,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 endTime: markers[0]
             }];
         }
-        
+
         try {
             await fetch(`/library/cuts?trackId=${encodeURIComponent(trackId)}`, {
                 method: 'POST',
@@ -705,7 +720,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // Плавное исчезновение и проявление за 0.3s (0.15s угасание + 0.15s появление)
             icon.style.transition = 'opacity 0.15s linear';
             icon.style.opacity = '0';
-            
+
             setTimeout(() => {
                 icon.className = isPlaying ? 'fa-solid fa-pause' : 'fa-solid fa-play';
                 icon.style.opacity = '1';
@@ -743,16 +758,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function buildQueueFromNode(node) {
         if (!node) return;
-        
+
         const contextRoot = node.closest('#search-results-container, #artist-content, #album-content, #playlist-content-ss, #tracks-lib-container');
         if (!contextRoot) return;
 
         const contextType = contextRoot.id === 'artist-content' ? 'artist'
             : contextRoot.id === 'album-content' ? 'album'
-            : contextRoot.id === 'playlist-content-ss' ? 'playlist'
-            : contextRoot.id === 'tracks-lib-container' ? 'tracks'
-            : 'search';
-        
+                : contextRoot.id === 'playlist-content-ss' ? 'playlist'
+                    : contextRoot.id === 'tracks-lib-container' ? 'tracks'
+                        : 'search';
+
         // Уникальный ID для контекста (например, data-loaded-id для альбомов/плейлистов)
         const contextId = contextRoot.dataset.loadedId || contextRoot.id;
 
@@ -833,10 +848,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         currentQueueIndex = currentQueue.findIndex(t => String(t.trackId) === String(node.dataset.trackId));
-        
+
         cachedQueueContext = contextType;
         cachedQueueId = contextId;
-        
+
         console.log(`[SoundSpace] Queue rebuilt for context: ${contextType}:${contextId}, size: ${currentQueue.length}`);
     }
 
@@ -867,31 +882,31 @@ document.addEventListener('DOMContentLoaded', () => {
     async function handleTrackClick(el, isPlaylistGrid = false, isRawData = false, seekTime = 0) {
         if (!el) return;
         document.querySelectorAll('.search-result-track').forEach(n => n.classList.remove('show-actions'));
-        
+
         const isDomNode = !isRawData && !!(el && el.dataset);
         const trackId = isDomNode ? el.dataset.trackId : (el.trackId || el.id);
         currentTrackId = trackId;
-        
+
         // Stop playback and loop immediately, and clear delay timeout
         if (introAnimationTimeout) {
             clearTimeout(introAnimationTimeout);
             introAnimationTimeout = null;
         }
         stopLoop();
-        
+
         // Пересобираем очередь только при ручном клике. 
         // При Next/Prev индекс уже обновлен в playAdjacent.
         if (!isPlaylistGrid && isDomNode) {
             buildQueueFromNode(el);
         }
-        
+
         syncPlayingHighlights();
         loadCutsForTrack(currentTrackId);
-        
+
         if (!isPlaylistGrid) {
             isManualSwitch = true;
         }
-        
+
         if (isPlaylistGrid === false && !isRawData && isDomNode) {
             requestAnimationFrame(() => {
                 el.classList.add('show-actions');
@@ -910,14 +925,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
         playerState.currentTrack = meta;
         playerState.isPlaying = true;
-        
+
         // НЕМЕДЛЕННО прерываем фоновое скачивание предыдущего аудио-потока в браузере
         player.pause();
         player.src = "";
         try {
             player.load();
-        } catch(e) {}
-        
+        } catch (e) { }
+
         // Обновление инфо о качестве
         updateQualityInfoUI(meta.id);
 
@@ -943,18 +958,18 @@ document.addEventListener('DOMContentLoaded', () => {
             const res = await fetch(`/data/audio/play?trackId=${meta.id}&formatId=${qualitySetting.formatId}`, {
                 signal: controller.signal
             });
-            
+
             const data = await res.json();
-            
+
             // Verify if this request corresponds to the track currently active
             if (String(trackId) !== String(currentTrackId)) {
                 console.log(`Fetch resolved for track ${trackId}, but current active track is ${currentTrackId}. Aborting player src change.`);
                 return;
             }
-            
+
             if (data.url) {
                 player.src = data.url;
-                
+
                 isManualSwitch = false;
                 player.volume = 1.0;
 
@@ -1002,7 +1017,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const currentTrackIdStr = currentTrackId ? String(currentTrackId) : null;
         let idx = currentQueue.findIndex(t => String(t.trackId) === currentTrackIdStr);
-        
+
         if (idx === -1) {
             // Текущий трек не найден в очереди (он был удален)
             if (lastRemovedCurrentTrackIndex !== null) {
@@ -1011,7 +1026,7 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 idx = currentQueueIndex;
             }
-            
+
             if (direction === 'next') {
                 currentQueueIndex = idx;
             } else {
@@ -1076,7 +1091,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const res = await fetch(`/data/audio/search?query=${encodeURIComponent(query)}&type=tracks`);
             const data = await res.json();
             renderResults(data.tracks?.items || []);
-        } catch (err) { 
+        } catch (err) {
             console.error(err);
             els.searchResults.innerHTML = '<div class="empty-state-ss">Search failed. Try again.</div>';
         }
@@ -1124,7 +1139,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const target = document.getElementById(panelId);
         if (target) {
             const isAlreadyActive = target.classList.contains('active');
-            
+
             const updateDOM = () => {
                 // Clear other panels but keep overlays if needed (or just clear all main panels)
                 document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
@@ -1137,10 +1152,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 updateDOM();
             }
 
-            
+
             if (panelId === 'search-panel') {
                 const hasResults = els.searchResults.children.length > 0;
-                
+
                 if (isAlreadyActive) {
                     // Stage 2: Clicked while search was already active -> show input & focus
                     els.topSearchPanel.classList.add('active');
@@ -1188,11 +1203,11 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateDetailHeaderCover(playlist) {
         const blurBg = document.getElementById('playlist-blur-bg-ss');
         if (!blurBg) return;
-        
+
         const tracks = playlist.tracks || [];
         const covers = playlist.track_covers || tracks.map(t => getImg(t)).filter(Boolean);
         const coverUrl = playlist.coverImage || (covers.length ? covers[0] : '');
-        
+
         if (coverUrl) {
             blurBg.style.backgroundImage = `url('${coverUrl}')`;
             blurBg.style.display = 'block';
@@ -1259,7 +1274,7 @@ document.addEventListener('DOMContentLoaded', () => {
             els.playlistsContainer.innerHTML = '<div class="empty-state-ss">No playlists yet</div>';
             return;
         }
-        
+
         els.playlistsContainer.innerHTML = playlists.map(pl => {
             const tracks = pl.tracks || [];
             const covers = pl.track_covers || tracks.map(t => getImg(t)).filter(Boolean);
@@ -1307,7 +1322,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function handlePlaylistClickSS(id) {
         const pl = libraryState.playlists.find(p => String(p.id) === String(id));
-        
+        const playlistPanel = document.getElementById('playlist-panel');
+        if (playlistPanel) playlistPanel.classList.remove('loaded');
+
         if (pl) {
             // Мгновенная предзагрузка обложек перед открытием
             const tracks = pl.tracks || [];
@@ -1319,11 +1336,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             }
             renderPlaylistDetailSS(pl);
+            if (tracks.length > 0 && playlistPanel) {
+                requestAnimationFrame(() => {
+                    requestAnimationFrame(() => {
+                        playlistPanel.classList.add('loaded');
+                    });
+                });
+            }
         } else {
             els.playlistContent.innerHTML = '<div style="padding:40px; text-align:center">Loading Spirits...</div>';
         }
 
         openOverlay('playlist-panel');
+
+        if (pl && pl.tracks && pl.tracks.length > 0) {
+            return;
+        }
 
         try {
             const res = await fetch(`/library/playlists/${id}/tracks`);
@@ -1337,6 +1365,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else {
                     renderPlaylistDetailSS({ title: 'Playlist', tracks });
                 }
+                if (playlistPanel) {
+                    requestAnimationFrame(() => {
+                        requestAnimationFrame(() => {
+                            playlistPanel.classList.add('loaded');
+                        });
+                    });
+                }
             }
         } catch (e) { console.error(e); }
     }
@@ -1347,11 +1382,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const tracks = playlist.tracks || [];
         const covers = playlist.track_covers || tracks.map(t => getImg(t)).filter(Boolean);
         const coverUrl = playlist.coverImage || (covers.length ? covers[0] : '');
-        
+
         const coversJson = JSON.stringify(covers.slice(0, 4)) + '||' + coverUrl;
         if (content.dataset.renderedCovers !== coversJson) {
             content.dataset.renderedCovers = coversJson;
-            
+
             const blurBg = document.getElementById('playlist-blur-bg-ss');
             if (blurBg) {
                 if (coverUrl) {
@@ -1362,7 +1397,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     blurBg.style.display = 'none';
                 }
             }
-            
+
             const coverArtWrapper = content.querySelector('.ss-playlist-cover-art-wrapper');
             if (coverArtWrapper) {
                 let coverHtml = '';
@@ -1406,15 +1441,15 @@ document.addEventListener('DOMContentLoaded', () => {
         const tracks = playlist.tracks || [];
         const covers = playlist.track_covers || tracks.map(t => getImg(t)).filter(Boolean);
         const coverUrl = playlist.coverImage || (covers.length ? covers[0] : '');
-        
+
         const isSamePlaylist = content.dataset.loadedId === String(playlist.id);
-        
+
         if (!isSamePlaylist) {
             content.replaceChildren();
-            content.className = 'ss-playlist-view'; 
+            content.className = 'ss-playlist-view';
             content.dataset.loadedId = playlist.id;
             content.dataset.renderedCovers = '';
-            
+
             const headerWrapper = document.createElement('div');
             headerWrapper.className = 'ss-playlist-header-wrapper';
             headerWrapper.innerHTML = `
@@ -1433,10 +1468,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const trackList = document.createElement('div');
             trackList.className = 'ss-acid-list no-scrollbar';
-            
+
             content.appendChild(headerWrapper);
             content.appendChild(trackList);
-            
+
             // Play All Logic
             headerWrapper.querySelector('.ss-play-mini-btn').onclick = () => {
                 const first = trackList.querySelector('.playable-track');
@@ -1454,7 +1489,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const coversJson = JSON.stringify(covers.slice(0, 4)) + '||' + coverUrl;
         if (content.dataset.renderedCovers !== coversJson) {
             content.dataset.renderedCovers = coversJson;
-            
+
             const blurBg = document.getElementById('playlist-blur-bg-ss');
             if (blurBg) {
                 if (coverUrl) {
@@ -1506,7 +1541,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (trackList) {
             trackList.replaceChildren();
             trackList.onscroll = null; // Сброс предыдущего обработчика скролла
-            
+
             if (!playlist.tracks) {
                 const loader = document.createElement('div');
                 loader.className = 'loading-tracks-indicator';
@@ -1525,13 +1560,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 function renderNextChunk() {
                     if (renderedCount >= tracks.length) return;
-                    
+
                     const nextChunk = tracks.slice(renderedCount, renderedCount + CHUNK_SIZE);
                     nextChunk.forEach((t) => {
                         trackCache.set(String(t.id), t);
                         const row = document.createElement('div');
-                        row.className = 'ss-acid-row search-result-track playable-track'; 
-                        
+                        row.className = 'ss-acid-row search-result-track playable-track';
+
                         const artistId = t.performer?.id || t.artist?.id || t.album?.artist?.id || '';
                         const albumId = t.album?.id || '';
                         const rawArtist = t.performers || t.performer?.name || t.artist?.name || t.album?.artist?.name || 'Unknown';
@@ -1545,7 +1580,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         row.setAttribute('data-artist', artistName);
                         row.setAttribute('data-album', t.album?.title || '');
                         row.setAttribute('data-cover', coverUrl);
-                        
+
                         row.innerHTML = `
                             <img src="${getImgSmall(t)}" class="search-result-track-cover" loading="lazy">
                             <div class="track-info">
@@ -1583,48 +1618,48 @@ document.addEventListener('DOMContentLoaded', () => {
                                         row.style.maxHeight = '0px';
                                     });
 
-                                     const updateStateAndUi = () => {
-                                         if (cachedQueueContext === 'playlist' && String(cachedQueueId) === String(playlist.id)) {
-                                             removeTrackFromQueue(t.id);
-                                         }
+                                    const updateStateAndUi = () => {
+                                        if (cachedQueueContext === 'playlist' && String(cachedQueueId) === String(playlist.id)) {
+                                            removeTrackFromQueue(t.id);
+                                        }
 
-                                         const pl = libraryState.playlists.find(p => String(p.id) === String(playlist.id));
-                                         if (pl && pl.tracks) {
-                                             pl.tracks = pl.tracks.filter(track => track.id !== t.id);
-                                             pl.trackCount = Math.max(0, pl.trackCount - 1);
-                                             updatePlaylistCovers(pl);
-                                             saveLibraryToLocal();
-                                             
-                                             // Direct DOM updates to avoid full tracklist redraw
-                                             const countEl = els.playlistContent.querySelector('.ss-label-header-count');
-                                             if (countEl) {
-                                                 countEl.textContent = `${pl.trackCount} TRACKS`;
-                                             }
-                                             updatePlaylistDetailCoversOnly(pl);
-                                             renderPlaylistsSS(libraryState.playlists);
+                                        const pl = libraryState.playlists.find(p => String(p.id) === String(playlist.id));
+                                        if (pl && pl.tracks) {
+                                            pl.tracks = pl.tracks.filter(track => track.id !== t.id);
+                                            pl.trackCount = Math.max(0, pl.trackCount - 1);
+                                            updatePlaylistCovers(pl);
+                                            saveLibraryToLocal();
 
-                                             if (pl.tracks.length === 0) {
-                                                  const trackList = els.playlistContent.querySelector('.ss-acid-list');
-                                                  if (trackList) {
-                                                      trackList.replaceChildren();
-                                                      const empty = document.createElement('div');
-                                                      empty.className = 'empty-state-ss';
-                                                      empty.style.cssText = 'padding: 40px; text-align: center; opacity: 0.5;';
-                                                      empty.textContent = 'Playlist is empty';
-                                                      trackList.appendChild(empty);
-                                                  }
-                                             }
-                                         }
-                                         row.remove();
-                                     };
+                                            // Direct DOM updates to avoid full tracklist redraw
+                                            const countEl = els.playlistContent.querySelector('.ss-label-header-count');
+                                            if (countEl) {
+                                                countEl.textContent = `${pl.trackCount} TRACKS`;
+                                            }
+                                            updatePlaylistDetailCoversOnly(pl);
+                                            renderPlaylistsSS(libraryState.playlists);
 
-                                     const animations = row.getAnimations();
-                                     if (animations.length > 0) {
-                                         Promise.allSettled(animations.map(a => a.finished)).then(updateStateAndUi);
-                                     } else {
-                                         updateStateAndUi();
-                                     }
-                                 }
+                                            if (pl.tracks.length === 0) {
+                                                const trackList = els.playlistContent.querySelector('.ss-acid-list');
+                                                if (trackList) {
+                                                    trackList.replaceChildren();
+                                                    const empty = document.createElement('div');
+                                                    empty.className = 'empty-state-ss';
+                                                    empty.style.cssText = 'padding: 40px; text-align: center; opacity: 0.5;';
+                                                    empty.textContent = 'Playlist is empty';
+                                                    trackList.appendChild(empty);
+                                                }
+                                            }
+                                        }
+                                        row.remove();
+                                    };
+
+                                    const animations = row.getAnimations();
+                                    if (animations.length > 0) {
+                                        Promise.allSettled(animations.map(a => a.finished)).then(updateStateAndUi);
+                                    } else {
+                                        updateStateAndUi();
+                                    }
+                                }
                             } catch (err) { console.error(err); }
                         };
 
@@ -1722,7 +1757,7 @@ document.addEventListener('DOMContentLoaded', () => {
         els.playlistTitleInput.addEventListener('input', () => {
             const title = els.playlistTitleInput.value.trim();
             const errorDiv = document.getElementById('playlist-title-error');
-            
+
             if (!title) {
                 els.playlistTitleInput.setCustomValidity('Title is required');
                 if (errorDiv) errorDiv.textContent = 'Playlist title cannot be empty.';
@@ -1733,7 +1768,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (errorDiv) errorDiv.textContent = 'Title must be 50 characters or less.';
                 return;
             }
-            
+
             // Check for case-insensitive duplicate playlist names
             const exists = libraryState.playlists.some(p => p.title.toLowerCase() === title.toLowerCase());
             if (exists) {
@@ -1756,7 +1791,7 @@ document.addEventListener('DOMContentLoaded', () => {
         els.createPlaylistConfirm.addEventListener('click', async () => {
             const title = els.playlistTitleInput.value.trim();
             const errorDiv = document.getElementById('playlist-title-error');
-            
+
             // Re-run validations
             if (!title) {
                 els.playlistTitleInput.setCustomValidity('Title is required');
@@ -1781,7 +1816,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ title })
                 });
-                
+
                 if (res.ok) {
                     const newPl = await res.json();
                     libraryState.playlists.unshift(newPl);
@@ -1798,8 +1833,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (errorDiv) errorDiv.textContent = 'Failed to create playlist. Please try again.';
                     }
                 }
-            } catch (e) { 
-                console.error(e); 
+            } catch (e) {
+                console.error(e);
                 if (errorDiv) errorDiv.textContent = 'Connection error. Please try again.';
             }
         });
@@ -1844,7 +1879,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
             const playlistId = item.dataset.id;
-            
+
             // Map full cached object to Backend DTO
             const trackPayload = mapToTrackDto(trackToAdd);
 
@@ -1856,7 +1891,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 if (res.ok) {
                     els.addToPlaylistModal.classList.add('hidden');
-                    
+
                     // Update local state and UI immediately
                     const pl = libraryState.playlists.find(p => String(p.id) === String(playlistId));
                     if (pl) {
@@ -1969,7 +2004,7 @@ document.addEventListener('DOMContentLoaded', () => {
     async function toggleLikeTrack(track, buttonEl) {
         const trackId = String(track.id);
         const isLiked = libraryState.likedTrackIds.has(trackId);
-        
+
         if (isLiked) {
             try {
                 const res = await fetch(`/library/tracks/${trackId}`, { method: 'DELETE' });
@@ -1979,7 +2014,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const updateStateAndUi = () => {
                         libraryState.likedTrackIds.delete(trackId);
                         libraryState.likedTracks = libraryState.likedTracks.filter(t => String(t.id) !== trackId);
-                        
+
                         if (cachedQueueContext === 'tracks') {
                             removeTrackFromQueue(trackId);
                         }
@@ -2167,7 +2202,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
-    
+
     if (els.tracksLibContainer) {
         initSwipeForTrackList(els.tracksLibContainer);
         els.tracksLibContainer.addEventListener('click', (e) => {
@@ -2177,7 +2212,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
-    
+
     initSwipeForTrackList(els.artistContent);
     initSwipeForTrackList(els.albumContent);
     if (els.playlistContent) {
@@ -2322,56 +2357,56 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function generateAndRenderWaveform() {
         if (!els.waveformBackground || !els.waveformForeground) return;
-        
+
         const N = 120; // Количество полос
         const barWidth = 5;
         const gap = 3;
         const step = barWidth + gap; // 8
         const maxH = 85; // Максимальная высота
         const viewH = 100; // Высота viewBox
-        
+
         let seed = getSeed(String(currentTrackId || "default"));
-        
+
         waveformBars = [];
-        
+
         // Lazy initialize the SVG rect nodes once
         if (els.waveformBackground.children.length === 0) {
             let bgHtml = '';
             let fgHtml = '';
             for (let i = 0; i < N; i++) {
                 const x = i * step + 2;
-                const rectStr = `<rect x="${x}" y="0" width="${barWidth}" height="0" rx="${barWidth/2}" ry="${barWidth/2}" />`;
+                const rectStr = `<rect x="${x}" y="0" width="${barWidth}" height="0" rx="${barWidth / 2}" ry="${barWidth / 2}" />`;
                 bgHtml += rectStr;
                 fgHtml += rectStr;
             }
             els.waveformBackground.innerHTML = bgHtml;
             els.waveformForeground.innerHTML = fgHtml;
         }
-        
+
         const rectsBg = els.waveformBackground.children;
         const rectsFg = els.waveformForeground.children;
-        
+
         for (let i = 0; i < N; i++) {
             const x = i * step + 2;
-            
+
             // Огибающая затухания
             const progress = i / (N - 1);
             let envelope = Math.sin(Math.PI * progress);
-            
+
             // Затухание к краям
             if (progress < 0.1) {
                 envelope = envelope * (progress / 0.1);
             } else if (progress > 0.9) {
                 envelope = envelope * ((1 - progress) / 0.1);
             }
-            
+
             const rand = seededRandom(seed + i);
             let h = 4 + maxH * (0.15 + 0.85 * rand) * envelope;
-            
+
             if (h < 5) h = 5;
-            
+
             const y = (viewH - h) / 2;
-            
+
             // Recycle elements by only updating attributes
             if (rectsBg[i] && rectsFg[i]) {
                 rectsBg[i].setAttribute('y', y.toString());
@@ -2387,10 +2422,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!player.duration || !els.waveformClipRect) return;
         const pct = overridePct !== undefined ? overridePct : (player.currentTime / player.duration) * 100;
         els.waveformClipRect.setAttribute('width', (pct * 10).toString());
-        
+
         if (waveformBars.length > 0 && els.waveformPlayheads && els.waveformPlayheads.length > 0) {
             const activeIndex = Math.min(waveformBars.length - 1, Math.floor((pct / 100) * waveformBars.length));
-            
+
             els.waveformPlayheads.forEach((playhead, i) => {
                 const targetIndex = activeIndex - i;
                 if (targetIndex >= 0 && targetIndex < waveformBars.length && showPlayheads) {
@@ -2463,7 +2498,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (node) {
                 node.style.left = `${(activeFinetuneTime / player.duration) * 100}%`;
                 const timeLabel = node.querySelector('.cut-marker-time');
-                if(timeLabel) timeLabel.textContent = formatTime(activeFinetuneTime);
+                if (timeLabel) timeLabel.textContent = formatTime(activeFinetuneTime);
             } else {
                 renderCutMarkers();
             }
@@ -2482,7 +2517,7 @@ document.addEventListener('DOMContentLoaded', () => {
         dial.addEventListener('pointerdown', (e) => {
             isDraggingDial = true;
             macroDialContainer.classList.add('is-dragging');
-            if(previewTimeout) clearTimeout(previewTimeout);
+            if (previewTimeout) clearTimeout(previewTimeout);
             player.pause();
             dialStartX = e.clientX;
             dialStartTime = activeFinetuneTime;
@@ -2490,12 +2525,12 @@ document.addEventListener('DOMContentLoaded', () => {
             dial.setPointerCapture(e.pointerId);
         });
         dial.addEventListener('pointermove', (e) => {
-            if(!isDraggingDial) return;
+            if (!isDraggingDial) return;
             const deltaX = e.clientX - dialStartX;
             let newTime = dialStartTime - (deltaX * 0.02);
             newTime = Math.max(0, Math.min(player.duration || 0, newTime));
             activeFinetuneTime = newTime;
-            
+
             ticks.style.backgroundPositionX = `${dialStartBgX + deltaX}px`;
             updateLiveMarker();
         });
@@ -2503,11 +2538,11 @@ document.addEventListener('DOMContentLoaded', () => {
             isDraggingDial = false;
             macroDialContainer.classList.remove('is-dragging');
             dial.releasePointerCapture(e.pointerId);
-            
+
             // Auto-preview burst
             player.currentTime = activeFinetuneTime;
             player.play();
-            if(previewTimeout) clearTimeout(previewTimeout);
+            if (previewTimeout) clearTimeout(previewTimeout);
             previewTimeout = setTimeout(() => {
                 if (!isDraggingDial && activeFinetuneKey && !player.paused) {
                     player.pause();
@@ -2524,7 +2559,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 els.timeCurrent.textContent = formatTime(player.currentTime);
             }
             activeFinetuneKey = null;
-            if(previewTimeout) clearTimeout(previewTimeout);
+            if (previewTimeout) clearTimeout(previewTimeout);
         };
 
         document.getElementById('macro-cancel').addEventListener('click', (e) => {
@@ -2561,13 +2596,13 @@ document.addEventListener('DOMContentLoaded', () => {
             player.pause();
             activeFinetuneKey = String(trackId);
             activeFinetuneTime = initialTime;
-            
+
             const markers = (cutMarkersByTrack.get(activeFinetuneKey) || []).slice();
             originalMarkerState = markers.slice();
-            
+
             setCutMarker(activeFinetuneKey, [activeFinetuneTime]);
             renderCutMarkers();
-            
+
             if (els.timeCurrent) els.timeCurrent.classList.add('time-current-finetune');
             macroDialContainer.classList.add('active');
             els.timeBarContainer.classList.add('finetune-active');
@@ -2603,7 +2638,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (player.duration) {
                 const targetTime = (finalX / width) * player.duration;
                 player.currentTime = targetTime;
-                
+
                 if (isFrequencyMode) {
                     triggerPlayheadDelay();
                     const pct = (targetTime / player.duration) * 100;
@@ -2677,8 +2712,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (els.trackArtistContainer) {
         els.trackArtistContainer.addEventListener('click', () => {
             if (playerState.currentTrack?.artistId) {
-                 openOverlay('artist-panel');
-                 loadArtist(playerState.currentTrack.artistId);
+                openOverlay('artist-panel');
+                loadArtist(playerState.currentTrack.artistId);
             }
         });
     }
@@ -2686,8 +2721,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (els.trackAlbumContainer) {
         els.trackAlbumContainer.addEventListener('click', () => {
             if (playerState.currentTrack?.albumId) {
-                 openOverlay('album-panel');
-                 loadAlbum(playerState.currentTrack.albumId);
+                openOverlay('album-panel');
+                loadAlbum(playerState.currentTrack.albumId);
             }
         });
     }
@@ -2726,7 +2761,7 @@ document.addEventListener('DOMContentLoaded', () => {
             `;
         }).join('');
         syncPlayingHighlights();
-        if(window.lucide) lucide.createIcons({
+        if (window.lucide) lucide.createIcons({
             attrs: { class: 'lucide-icon' },
             nameAttr: 'data-lucide'
         }, els.searchResults);
@@ -2736,7 +2771,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (els.artistContent.dataset.loadedId === id) return;
         els.artistContent.dataset.loadedId = id;
         els.artistContent.innerHTML = '<div style="padding:40px; text-align:center">Loading Frequency...</div>';
-        
+
         // Reset button icon based on library state
         if (els.addArtistToLibBtn) {
             const isInLib = libraryState.artistIds.has(Number(id));
@@ -2759,8 +2794,36 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function loadAlbum(id) {
-        if (els.albumContent.dataset.loadedId === id) return;
-        
+        const albumPanel = document.getElementById('album-panel');
+
+        if (albumCache.has(id)) {
+            const data = albumCache.get(id);
+            currentAlbumData = data;
+            els.albumContent.dataset.loadedId = id;
+            renderAlbumPanel(data);
+            if (albumPanel) {
+                requestAnimationFrame(() => {
+                    requestAnimationFrame(() => {
+                        albumPanel.classList.add('loaded');
+                    });
+                });
+            }
+            return;
+        }
+
+        if (els.albumContent.dataset.loadedId === id) {
+            if (albumPanel) {
+                requestAnimationFrame(() => {
+                    requestAnimationFrame(() => {
+                        albumPanel.classList.add('loaded');
+                    });
+                });
+            }
+            return;
+        }
+
+        if (albumPanel) albumPanel.classList.remove('loaded');
+
         // Сразу сбрасываем старый фон для нового альбома
         const blurBg = document.getElementById('album-blur-bg-ss');
         if (blurBg) {
@@ -2775,9 +2838,17 @@ document.addEventListener('DOMContentLoaded', () => {
             const res = await fetch(`/data/audio/album?albumId=${id}`);
             const data = await res.json();
             currentAlbumData = data;
+            albumCache.set(id, data);
 
             if (els.albumContent.dataset.loadedId === id && els.albumContent.closest('.panel').classList.contains('active')) {
                 renderAlbumPanel(data);
+                if (albumPanel) {
+                    requestAnimationFrame(() => {
+                        requestAnimationFrame(() => {
+                            albumPanel.classList.add('loaded');
+                        });
+                    });
+                }
             }
         } catch (e) { console.error(e); }
     }
@@ -2792,7 +2863,7 @@ document.addEventListener('DOMContentLoaded', () => {
         content.style.cssText = 'position:relative; background:#000; overflow:hidden; height:100%; font-family:inherit;';
         const imgUrl = getImg(data);
         const trackList = data.tracks?.items || [];
-        
+
         trackList.forEach(t => {
             // Enrich with artist info for cache
             if (!t.artist) t.artist = { id: data.id, name: data.name, slug: data.slug, image: data.image };
@@ -2882,7 +2953,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         content.appendChild(scrollArea);
         syncPlayingHighlights();
-        if(window.lucide) lucide.createIcons({
+        if (window.lucide) lucide.createIcons({
             attrs: { class: 'lucide-icon' },
             nameAttr: 'data-lucide'
         }, els.artistContent);
@@ -2891,7 +2962,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderAlbumPanel(data) {
         const content = els.albumContent;
         content.replaceChildren();
-        
+
         const imgUrl = getImg(data);
         const blurBg = document.getElementById('album-blur-bg-ss');
         if (blurBg) {
@@ -2907,7 +2978,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const header = document.createElement('div');
         header.className = 'album-header-fixed';
         header.style.cssText = 'display:flex; flex-direction:row; align-items:flex-end; padding:16px 5px 10px; background:linear-gradient(to bottom, rgba(0, 0, 0, 0.45), transparent); gap:20px;';
-        
+
         const isInLib = libraryState.albumIds.has(String(data.id));
         header.innerHTML = `
             <div style="display:flex; flex-direction:column; align-items:center; flex-shrink:0;">
@@ -3031,7 +3102,7 @@ document.addEventListener('DOMContentLoaded', () => {
         content.appendChild(header);
         content.appendChild(scroll);
         syncPlayingHighlights();
-        if(window.lucide) lucide.createIcons({
+        if (window.lucide) lucide.createIcons({
             attrs: { class: 'lucide-icon' },
             nameAttr: 'data-lucide'
         }, els.albumContent);
@@ -3043,6 +3114,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const panel = document.getElementById(id);
         if (!panel) return;
         panel.classList.add('active');
+        panel.classList.remove('loaded');
         overlayOpenTime = performance.now();
         // Добавляем состояние в историю
         history.pushState({ panelId: id }, "", "");
@@ -3052,6 +3124,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const panel = document.getElementById(id);
         if (!panel) return;
         panel.classList.remove('active');
+        panel.classList.remove('loaded');
         // Если закрыли вручную (не через кнопку назад), убираем из истории
         if (!isPopState) {
             // Если в истории был этот же панель, можно сделать history.back(), 
@@ -3115,10 +3188,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderCutMarkers() {
         if (!els.timeBarContainer) return;
-        
+
         // Очищаем старые в любом случае
         els.timeBarContainer.querySelectorAll('.cut-marker-node').forEach(m => m.remove());
-        
+
         // Если плеер еще не загрузил метаданные (readyState < 1) или нет длительности,
         // выходим. Отрисовка произойдет позже по событию 'loadedmetadata'.
         if (!player.duration || isNaN(player.duration) || player.readyState < 1 || !currentTrackId || loadedTrackId !== currentTrackId) return;
@@ -3128,22 +3201,22 @@ document.addEventListener('DOMContentLoaded', () => {
             const markerContainer = document.createElement('div');
             markerContainer.className = 'cut-marker-node';
             markerContainer.style.left = `${(sec / player.duration) * 100}%`;
-            
+
             const dot = document.createElement('div');
             dot.className = 'cut-marker-dot';
-            
+
             const tooltip = document.createElement('div');
             tooltip.className = 'cut-marker-tooltip';
-            
+
             const timeLabel = document.createElement('span');
             timeLabel.className = 'cut-marker-time';
             timeLabel.textContent = formatTime(sec);
-            
+
             const deleteBtn = document.createElement('button');
             deleteBtn.className = 'cut-marker-delete-btn';
             deleteBtn.innerHTML = '<i class="fa-solid fa-trash"></i>';
             deleteBtn.title = "Delete marker";
-            
+
             deleteBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 const key = String(currentTrackId);
@@ -3153,14 +3226,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 renderCutMarkers();
                 saveCutsToBackend(key);
             });
-            
+
             tooltip.addEventListener('click', (e) => {
                 e.stopPropagation();
             });
-            
+
             tooltip.appendChild(timeLabel);
             tooltip.appendChild(deleteBtn);
-            
+
             // Click on time label inside the tooltip opens the fine-tune dial
             timeLabel.style.cursor = 'pointer';
             timeLabel.addEventListener('click', (e) => {
@@ -3175,25 +3248,25 @@ document.addEventListener('DOMContentLoaded', () => {
             markerContainer.addEventListener('click', (e) => {
                 e.stopPropagation();
                 const isActive = markerContainer.classList.contains('active');
-                
+
                 // Close other tooltips
                 document.querySelectorAll('.cut-marker-node.active').forEach(m => {
                     if (m !== markerContainer) m.classList.remove('active');
                 });
-                
+
                 if (isActive) {
                     markerContainer.classList.remove('active');
                 } else {
                     markerContainer.classList.add('active');
                 }
             });
-            
+
             const pincerTop = document.createElement('div');
             pincerTop.className = 'cut-marker-pincer pincer-top';
-            
+
             const pincerBottom = document.createElement('div');
             pincerBottom.className = 'cut-marker-pincer pincer-bottom';
-            
+
             markerContainer.appendChild(dot);
             markerContainer.appendChild(pincerTop);
             markerContainer.appendChild(pincerBottom);
@@ -3250,17 +3323,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 const eased = 1 - Math.pow(1 - progress, 3); // easeOutCubic
                 const visualSec = introAnimationTarget * eased;
                 const pct = (visualSec / player.duration) * 100;
-                
+
                 if (Math.abs(pct - lastPct) > 0.05) {
                     els.timeBarProgress.style.width = `${pct}%`;
                     els.timeCurrent.textContent = formatTime(visualSec);
-                    
+
                     if (isFrequencyMode) {
                         updateWaveformProgress(pct);
                     }
                     lastPct = pct;
                 }
-                
+
                 if (progress >= 1) {
                     isIntroAnimating = false;
                     if (els.timeBarProgress) {
@@ -3273,17 +3346,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             } else {
                 const pct = (player.currentTime / player.duration) * 100;
-                
+
                 // Update timebar width on every frame for liquid smoothness
                 els.timeBarProgress.style.width = `${pct}%`;
-                
+
                 if (isFrequencyMode && Math.abs(pct - lastPct) > 0.05) {
                     updateWaveformProgress();
                     lastPct = pct;
                 }
             }
         }
-        
+
         if (isLooping) {
             animationFrameId = requestAnimationFrame(tick);
         } else {
@@ -3297,19 +3370,19 @@ document.addEventListener('DOMContentLoaded', () => {
         els.timeDuration.textContent = formatTime(player.duration);
         renderCutMarkers();
         triggerPlayheadDelay();
-        
+
         // Auto-start from cut point on load with animation
         const markers = cutMarkersByTrack.get(String(currentTrackId));
         if (markers && markers.length >= 1) {
             const markerTime = markers[0];
             player.currentTime = markerTime;
-            
+
             isIntroAnimating = false; // Keep false during the 150ms delay
             if (els.timeBarProgress) {
                 els.timeBarProgress.style.transition = 'none';
                 els.timeBarProgress.style.width = '0%';
             }
-            
+
             if (introAnimationTimeout) {
                 clearTimeout(introAnimationTimeout);
             }
@@ -3320,7 +3393,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 introAnimationTarget = markerTime;
                 startLoop();
             }, 150); // 0.15s delay
-            
+
         } else {
             isIntroAnimating = false;
             if (els.timeBarProgress) {
@@ -3329,7 +3402,7 @@ document.addEventListener('DOMContentLoaded', () => {
             startLoop(); // Guarantee loop starts on new track load
         }
     });
-    
+
     player.addEventListener('timeupdate', () => {
         if (!isIntroAnimating && player.duration) {
             els.timeCurrent.textContent = formatTime(player.currentTime);
@@ -3374,7 +3447,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 label: e.target.options[e.target.selectedIndex].text,
                 formatId: Number(formatId)
             };
-            
+
             // Если сейчас загружен или играет трек - горячая смена качества с текущего места
             if (playerState.currentTrack) {
                 const currentPos = player.currentTime;
@@ -3399,11 +3472,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (els.playerPanel) {
         playerPanelObserver.observe(els.playerPanel, { attributes: true });
     }
-    
+
     // --- PLAYER PANEL SWIPE GESTURE ---
     let playerSwipeStartY = 0;
     let playerSwipeStartTime = 0;
-    
+
     els.playerPanel.addEventListener('touchstart', (e) => {
         if (e.target.closest('#macro-dial, .macro-btn, .action-btn, #quality-selector, #player-timebar-container')) return;
         playerSwipeStartY = e.touches[0].clientY;
@@ -3414,7 +3487,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!playerSwipeStartY) return;
         const deltaY = e.changedTouches[0].clientY - playerSwipeStartY;
         const deltaTime = Date.now() - playerSwipeStartTime;
-        
+
         // Свайп вниз (от середины или ниже)
         const isFromMiddle = playerSwipeStartY > (window.innerHeight * 0.25);
         if (deltaY > 100 && deltaTime < 400 && isFromMiddle) {
@@ -3436,7 +3509,7 @@ document.addEventListener('DOMContentLoaded', () => {
         els.trackDownloadBtn.addEventListener('click', async () => {
             if (!playerState.currentTrack) return;
             const track = playerState.currentTrack;
-            
+
             let cachedTrack = trackCache.get(String(track.id));
             if ((!cachedTrack || !cachedTrack.album) && track.albumId) {
                 const originalHTML = els.trackDownloadBtn.innerHTML;
@@ -3463,7 +3536,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 cachedTrack = trackCache.get(String(track.id));
             }
-            
+
             showDownloadQualityModal(track, cachedTrack, async (selectedFormatId) => {
                 const originalHTML = els.trackDownloadBtn.innerHTML;
                 els.trackDownloadBtn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> DOWNLOADING...';
@@ -3473,17 +3546,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     // 1. Получаем URL потока с выбранным качеством
                     const resUrl = await fetch(`/data/audio/play?trackId=${track.id}&formatId=${selectedFormatId}`);
                     const data = await resUrl.json();
-                    
+
                     if (!data.url) throw new Error('No stream URL');
 
                     // 2. Скачиваем сам файл как Blob
                     const fileRes = await fetch(data.url);
                     if (!fileRes.ok) throw new Error(`HTTP error! status: ${fileRes.status}`);
                     const blob = await fileRes.blob();
-                    
+
                     // 3. Конвертируем Blob в Uint8Array для тегирования
                     const fileBytes = new Uint8Array(await blob.arrayBuffer());
-                    
+
                     // 4. Скачиваем обложку
                     let coverBytes = null;
                     let coverMime = "image/jpeg";
@@ -3503,7 +3576,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             console.error("Failed to fetch cover image", e);
                         }
                     }
-                    
+
                     // 5. Тегируем в зависимости от формата
                     const ext = selectedFormatId === 5 ? 'mp3' : 'flac';
                     let taggedBytes;
@@ -3512,7 +3585,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (dateStr && dateStr.length >= 4) {
                         yearStr = dateStr.substring(0, 4);
                     }
-                    
+
                     let genreStr = '';
                     const genreObj = cachedTrack?.album?.genre || cachedTrack?.genre;
                     if (genreObj) {
@@ -3548,7 +3621,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         hires: selectedFormatId === 7 ? "1" : "0",
                         genre: genreStr
                     };
-                    
+
                     if (ext === 'mp3') {
                         taggedBytes = tagMp3File(fileBytes, metadata, coverBytes, coverMime);
                     } else if (ext === 'flac') {
@@ -3556,7 +3629,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     } else {
                         taggedBytes = fileBytes;
                     }
-                    
+
                     // 6. Создаем временную ссылку на Blob и кликаем по ней
                     const taggedBlob = new Blob([taggedBytes], { type: ext === 'mp3' ? 'audio/mpeg' : 'audio/flac' });
                     const blobUrl = window.URL.createObjectURL(taggedBlob);
@@ -3564,14 +3637,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     a.style.display = 'none';
                     a.href = blobUrl;
                     a.download = `${track.artist} - ${track.title}.${ext}`;
-                    
+
                     document.body.appendChild(a);
                     a.click();
-                    
+
                     // Чистим за собой
                     window.URL.revokeObjectURL(blobUrl);
                     document.body.removeChild(a);
-                    
+
                     els.trackDownloadBtn.innerHTML = '<i class="fa-solid fa-check"></i> SAVED';
                 } catch (err) {
                     console.error('Download failed', err);
@@ -3588,7 +3661,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function updateQualityInfoUI(trackId) {
         if (!els.trackQualityInfo) return;
-        
+
         const track = trackCache.get(String(trackId));
         const formatId = qualitySetting.formatId;
 
@@ -3602,12 +3675,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if (track) {
             let bit = track.maximum_bit_depth || 16;
             let rate = track.maximum_sampling_rate || 44.1;
-            
+
             // Если выбран формат 6 (CD), ограничиваем вывод до 16/44.1
             if (formatId === 6) {
                 bit = 16;
                 rate = 44.1;
-            } 
+            }
             // Если выбран 7 (Hi-Res 96), ограничиваем частоту до 96, если она выше
             else if (formatId === 7 && rate > 96) {
                 rate = 96;
@@ -3628,7 +3701,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    if(window.lucide) window.lucide.createIcons();
+    if (window.lucide) window.lucide.createIcons();
 
     // --- AUDIO TAGGING UTILITIES (FRONTEND-ONLY) ---
 
@@ -3653,15 +3726,15 @@ document.addEventListener('DOMContentLoaded', () => {
         const frame = new Uint8Array(10 + payload.length);
         const encoder = new TextEncoder();
         frame.set(encoder.encode(frameId), 0);
-        
+
         frame[4] = (payload.length >> 24) & 0xFF;
         frame[5] = (payload.length >> 16) & 0xFF;
         frame[6] = (payload.length >> 8) & 0xFF;
         frame[7] = payload.length & 0xFF;
-        
+
         frame[8] = 0x00;
         frame[9] = 0x00;
-        
+
         frame.set(payload, 10);
         return frame;
     }
@@ -3670,7 +3743,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const encoder = new TextEncoder();
         const mimeBytes = encoder.encode(mimeType || "image/jpeg");
         const descBytes = encoder.encode("Cover");
-        
+
         const payload = new Uint8Array(1 + mimeBytes.length + 1 + 1 + descBytes.length + 1 + coverBytes.byteLength);
         payload[0] = 0x00;
         let offset = 1;
@@ -3685,7 +3758,7 @@ document.addEventListener('DOMContentLoaded', () => {
         payload[offset] = 0x00;
         offset += 1;
         payload.set(new Uint8Array(coverBytes), offset);
-        
+
         return payload;
     }
 
@@ -3694,22 +3767,22 @@ document.addEventListener('DOMContentLoaded', () => {
         for (const frame of frames) {
             totalFramesSize += frame.length;
         }
-        
+
         const tag = new Uint8Array(10 + totalFramesSize);
         tag.set([0x49, 0x44, 0x33, 0x03, 0x00, 0x00], 0);
-        
+
         let size = totalFramesSize;
         tag[6] = (size >> 21) & 0x7F;
         tag[7] = (size >> 14) & 0x7F;
         tag[8] = (size >> 7) & 0x7F;
         tag[9] = size & 0x7F;
-        
+
         let offset = 10;
         for (const frame of frames) {
             tag.set(frame, offset);
             offset += frame.length;
         }
-        
+
         return tag;
     }
 
@@ -3717,19 +3790,19 @@ document.addEventListener('DOMContentLoaded', () => {
         const encoder = new TextEncoder();
         const descBytes = encoder.encode(description);
         const valBytes = encoder.encode(value);
-        
+
         const payload = new Uint8Array(1 + descBytes.length + 1 + valBytes.length);
         payload[0] = 0x00; // ISO-8859-1
         payload.set(descBytes, 1);
         payload[1 + descBytes.length] = 0x00; // NULL
         payload.set(valBytes, 1 + descBytes.length + 1);
-        
+
         return createFrame("TXXX", payload);
     }
 
     function tagMp3File(audioBytes, tags, coverBytes, coverMime) {
         const frames = [];
-        
+
         if (tags.title) {
             const titlePayload = new Uint8Array([0x01, 0xFE, 0xFF, ...encodeUTF16BE(tags.title)]);
             frames.push(createFrame("TIT2", titlePayload));
@@ -3749,7 +3822,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (tags.date) {
             const datePayload = new Uint8Array([0x01, 0xFE, 0xFF, ...encodeUTF16BE(tags.date)]);
             frames.push(createFrame("TDRC", datePayload));
-            
+
             if (tags.date.length >= 10) {
                 const dayMonthStr = tags.date.substring(8, 10) + tags.date.substring(5, 7);
                 const tdatPayload = new Uint8Array([0x01, 0xFE, 0xFF, ...encodeUTF16BE(dayMonthStr)]);
@@ -3786,9 +3859,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const apicPayload = createApicFrame(coverBytes, coverMime);
             frames.push(createFrame("APIC", apicPayload));
         }
-        
+
         const id3Tag = createId3Tag(frames);
-        
+
         let startOffset = 0;
         if (audioBytes.length > 10 && audioBytes[0] === 0x49 && audioBytes[1] === 0x44 && audioBytes[2] === 0x33) {
             const s1 = audioBytes[6] & 0x7F;
@@ -3798,52 +3871,52 @@ document.addEventListener('DOMContentLoaded', () => {
             const existingSize = (s1 << 21) | (s2 << 14) | (s3 << 7) | s4;
             startOffset = 10 + existingSize;
         }
-        
+
         const mp3Frames = audioBytes.slice(startOffset);
-        
+
         const result = new Uint8Array(id3Tag.length + mp3Frames.length);
         result.set(id3Tag, 0);
         result.set(mp3Frames, id3Tag.length);
-        
+
         return result;
     }
 
     function createVorbisCommentBlock(tags) {
         const encoder = new TextEncoder();
         const vendorBytes = encoder.encode("reference libFLAC 1.3.2 20170101");
-        
+
         const commentStrings = [];
         for (const [key, value] of Object.entries(tags)) {
             if (value !== undefined && value !== null && value !== "") {
                 commentStrings.push(`${key.toUpperCase()}=${value}`);
             }
         }
-        
+
         let size = 4 + vendorBytes.length + 4;
         const encodedComments = commentStrings.map(str => encoder.encode(str));
         for (const bytes of encodedComments) {
             size += 4 + bytes.length;
         }
-        
+
         const payload = new Uint8Array(size);
         const view = new DataView(payload.buffer);
-        
+
         let offset = 0;
         view.setUint32(offset, vendorBytes.length, true);
         offset += 4;
         payload.set(vendorBytes, offset);
         offset += vendorBytes.length;
-        
+
         view.setUint32(offset, encodedComments.length, true);
         offset += 4;
-        
+
         for (const bytes of encodedComments) {
             view.setUint32(offset, bytes.length, true);
             offset += 4;
             payload.set(bytes, offset);
             offset += bytes.length;
         }
-        
+
         return payload;
     }
 
@@ -3851,25 +3924,25 @@ document.addEventListener('DOMContentLoaded', () => {
         const encoder = new TextEncoder();
         const mimeBytes = encoder.encode(mimeType || "image/jpeg");
         const descBytes = encoder.encode("Cover");
-        
+
         const size = 4 + 4 + mimeBytes.length + 4 + descBytes.length + 4 + 4 + 4 + 4 + 4 + imageBytes.byteLength;
         const payload = new Uint8Array(size);
         const view = new DataView(payload.buffer);
-        
+
         let offset = 0;
         view.setUint32(offset, 3, false);
         offset += 4;
-        
+
         view.setUint32(offset, mimeBytes.length, false);
         offset += 4;
         payload.set(mimeBytes, offset);
         offset += mimeBytes.length;
-        
+
         view.setUint32(offset, descBytes.length, false);
         offset += 4;
         payload.set(descBytes, offset);
         offset += descBytes.length;
-        
+
         view.setUint32(offset, 0, false);
         offset += 4;
         view.setUint32(offset, 0, false);
@@ -3878,11 +3951,11 @@ document.addEventListener('DOMContentLoaded', () => {
         offset += 4;
         view.setUint32(offset, 0, false);
         offset += 4;
-        
+
         view.setUint32(offset, imageBytes.byteLength, false);
         offset += 4;
         payload.set(new Uint8Array(imageBytes), offset);
-        
+
         return payload;
     }
 
@@ -3890,36 +3963,36 @@ document.addEventListener('DOMContentLoaded', () => {
         let offset = 4;
         let blocks = [];
         let isLast = false;
-        
+
         while (!isLast) {
             if (offset + 4 > audioBytes.length) break;
             const headerByte = audioBytes[offset];
             isLast = (headerByte & 0x80) !== 0;
             const blockType = headerByte & 0x7F;
             const blockLength = (audioBytes[offset + 1] << 16) | (audioBytes[offset + 2] << 8) | audioBytes[offset + 3];
-            
+
             if (offset + 4 + blockLength > audioBytes.length) break;
-            
+
             const blockData = audioBytes.slice(offset + 4, offset + 4 + blockLength);
-            
+
             if (blockType !== 4 && blockType !== 6) {
                 blocks.push({
                     type: blockType,
                     data: blockData
                 });
             }
-            
+
             offset += 4 + blockLength;
         }
-        
+
         const audioFrames = audioBytes.slice(offset);
-        
+
         const commentPayload = createVorbisCommentBlock(tags);
         blocks.push({
             type: 4,
             data: commentPayload
         });
-        
+
         if (coverBytes && coverBytes.byteLength > 0) {
             const picturePayload = createPictureBlock(coverBytes, coverMime);
             blocks.push({
@@ -3927,44 +4000,44 @@ document.addEventListener('DOMContentLoaded', () => {
                 data: picturePayload
             });
         }
-        
+
         let totalSize = 4;
         for (const block of blocks) {
             totalSize += 4 + block.data.length;
         }
         totalSize += audioFrames.length;
-        
+
         const result = new Uint8Array(totalSize);
         result.set([0x66, 0x4C, 0x61, 0x43], 0);
-        
+
         let writeOffset = 4;
         for (let i = 0; i < blocks.length; i++) {
             const block = blocks[i];
             const isLastBlock = (i === blocks.length - 1);
-            
+
             const headerByte = (isLastBlock ? 0x80 : 0x00) | (block.type & 0x7F);
             result[writeOffset] = headerByte;
             result[writeOffset + 1] = (block.data.length >> 16) & 0xFF;
             result[writeOffset + 2] = (block.data.length >> 8) & 0xFF;
             result[writeOffset + 3] = block.data.length & 0xFF;
             writeOffset += 4;
-            
+
             result.set(block.data, writeOffset);
             writeOffset += block.data.length;
         }
-        
+
         result.set(audioFrames, writeOffset);
-        
+
         return result;
     }
 
     function showDownloadQualityModal(track, cachedTrack, onSelect) {
         const isHiRes = cachedTrack?.hires === true || (cachedTrack?.maximum_bit_depth && cachedTrack.maximum_bit_depth > 16);
-        
+
         const overlay = document.createElement('div');
         overlay.id = 'download-modal-overlay';
         overlay.className = 'fixed inset-0 z-[9999] flex items-center justify-center bg-black/85 backdrop-blur-sm transition-opacity duration-300 opacity-0';
-        
+
         const bitDepth = cachedTrack?.maximum_bit_depth || 24;
         let rawSampleRate = cachedTrack?.maximum_sampling_rate || 48.0;
         if (rawSampleRate > 1000) {
@@ -3972,7 +4045,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         const sampleRate = rawSampleRate;
         const maxQualityLabel = isHiRes ? `Hi-Res (${bitDepth}-bit / ${sampleRate} kHz)` : `CD (16-bit / 44.1 kHz)`;
-        
+
         overlay.innerHTML = `
             <div class="bg-[#121212] border border-emerald-500/20 rounded-2xl p-6 w-[90%] max-w-sm shadow-[0_0_40px_rgba(16,185,129,0.15)] transform scale-95 transition-all duration-300 text-neutral-200 font-sans">
                 <h3 class="text-white text-base font-semibold mb-1">Select Download Quality</h3>
@@ -4007,14 +4080,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 <button id="close-download-modal" class="mt-4 w-full py-2.5 rounded-xl bg-neutral-900 hover:bg-neutral-800 border border-neutral-800/80 text-neutral-400 text-xs font-semibold transition-all">Cancel</button>
             </div>
         `;
-        
+
         document.body.appendChild(overlay);
-        
+
         requestAnimationFrame(() => {
             overlay.classList.remove('opacity-0');
             overlay.querySelector('div').classList.remove('scale-95');
         });
-        
+
         const closeModal = () => {
             overlay.classList.add('opacity-0');
             overlay.querySelector('div').classList.add('scale-95');
@@ -4022,13 +4095,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 overlay.remove();
             }, 300);
         };
-        
+
         overlay.addEventListener('click', (e) => {
             if (e.target === overlay) closeModal();
         });
-        
+
         overlay.querySelector('#close-download-modal').addEventListener('click', closeModal);
-        
+
         overlay.querySelectorAll('.quality-opt-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 const formatId = Number(btn.dataset.formatId);
@@ -4040,7 +4113,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- YOUTUBE IMPORT LOGIC ---
     let tokenClient;
-    
+
     function initGoogleAuth() {
         try {
             if (window.google && google.accounts && google.accounts.oauth2) {
@@ -4060,14 +4133,14 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error("Failed to initialize Google Auth client:", e);
         }
     }
-    
+
     initGoogleAuth();
 
     if (els.importYoutubeBtn) {
         els.importYoutubeBtn.addEventListener('click', (e) => {
             e.preventDefault();
             e.stopPropagation();
-            
+
             // Try to initialize client if it hasn't been loaded yet
             if (!tokenClient) {
                 initGoogleAuth();
@@ -4090,9 +4163,9 @@ document.addEventListener('DOMContentLoaded', () => {
     async function handleYoutubeImport(accessToken) {
         try {
             els.youtubeImportStatus.textContent = "Fetching playlists...";
-            
+
             let availablePlaylists = [];
-            
+
             // 1. Fetch system playlists (like "Liked Videos")
             try {
                 const channelRes = await fetch('https://www.googleapis.com/youtube/v3/channels?part=contentDetails&mine=true', {
@@ -4114,7 +4187,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 headers: { 'Authorization': `Bearer ${accessToken}` }
             });
             const plData = await plRes.json();
-            
+
             if (plData.items) {
                 plData.items.forEach(p => {
                     availablePlaylists.push({ id: p.id, title: p.snippet.title });
@@ -4141,7 +4214,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const modal = document.getElementById('youtube-playlist-modal');
         const container = document.getElementById('youtube-playlists-container');
         const closeBtn = document.getElementById('close-youtube-modal');
-        
+
         container.innerHTML = '';
         playlists.forEach(pl => {
             const item = document.createElement('div');
@@ -4169,7 +4242,7 @@ document.addEventListener('DOMContentLoaded', () => {
     async function startPlaylistImport(playlistId, playlistTitle, accessToken) {
         const overlay = document.getElementById('import-loading-overlay');
         const subtext = document.getElementById('import-loading-subtext');
-        
+
         overlay.classList.remove('hidden');
         overlay.style.display = 'flex';
         subtext.textContent = "Fetching tracks from YouTube...";
@@ -4177,7 +4250,7 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             let allItems = [];
             let nextPageToken = "";
-            
+
             do {
                 const itemsRes = await fetch(`https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&maxResults=50&playlistId=${playlistId}${nextPageToken ? `&pageToken=${nextPageToken}` : ''}`, {
                     headers: { 'Authorization': `Bearer ${accessToken}` }
@@ -4190,7 +4263,7 @@ document.addEventListener('DOMContentLoaded', () => {
             } while (nextPageToken);
 
             subtext.textContent = `Matching ${allItems.length} tracks with Qobuz...`;
-            
+
             const normalizedTracks = allItems.map(item => {
                 const rawTitle = item.snippet.title;
                 const channelTitle = item.snippet.videoOwnerChannelTitle || "";
