@@ -585,14 +585,18 @@ transition: z-index 0s 0s;
 #tracks-lib-container .search-result-track,
 #tracks-lib-container .ss-acid-row {
     padding: 9px 18px;
+}
+
+#tracks-lib-container .search-result-track.slide-anim-item,
+#tracks-lib-container .ss-acid-row.slide-anim-item {
     transform: translate3d(-100vw, 0, 0);
     opacity: 0;
     will-change: transform, opacity;
     transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1) 0s, opacity 0.4s ease 0s;
 }
 
-#tracks-lib-container.active-lib-tab.loaded .search-result-track,
-#tracks-lib-container.active-lib-tab.loaded .ss-acid-row {
+#tracks-lib-container.active-lib-tab.loaded .search-result-track.slide-anim-item,
+#tracks-lib-container.active-lib-tab.loaded .ss-acid-row.slide-anim-item {
     transform: translate3d(0, 0, 0);
     opacity: 1;
     transition: transform 0.5s cubic-bezier(0.25, 1, 0.5, 1) calc(0.08s + var(--i, 0) * 0.03s),
@@ -2108,7 +2112,10 @@ transition: z-index 0s 0s;
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+                background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+                border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+                color 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 #playlists-grid-ss,

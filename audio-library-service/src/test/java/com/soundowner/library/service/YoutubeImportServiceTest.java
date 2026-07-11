@@ -108,5 +108,5 @@ class YoutubeImportServiceTest {
 
         assertFalse(result.join());
         verify(libraryService, never()).addTrackToLibrary(any(), any());
-    }*/
+    }
 }
