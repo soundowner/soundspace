@@ -338,7 +338,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         els.tracksLibContainer.innerHTML = '';
-        els.tracksLibContainer.onscroll = null; // Сброс предыдущего скролла
+        if (els.tracksLibContainer._observer) {
+            els.tracksLibContainer._observer.disconnect();
+            els.tracksLibContainer._observer = null;
+        }
 
         let renderedCount = 0;
         const CHUNK_SIZE = 50;
@@ -348,6 +351,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const nextChunk = tracks.slice(renderedCount, renderedCount + CHUNK_SIZE);
             const html = nextChunk.map((item, index) => {
+                const overallIndex = renderedCount + index;
+                const isSlideAnim = overallIndex < 10;
                 const artistId = item.performer?.id || item.artist?.id || item.album?.artist?.id;
                 const albumId = item.album?.id;
                 const isTrackLiked = true;
@@ -356,7 +361,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const smallCoverUrl = item.album?.image?.small || item.image?.small || coverUrl;
 
                 return `
-                    <div class="ss-acid-row search-result-track playable-track"
+                    <div class="ss-acid-row search-result-track playable-track ${isSlideAnim ? 'slide-anim-item' : ''}"
                          style="--i: ${index};"
                          data-track-id="${item.id}"
                          data-artist-id="${artistId}"
@@ -407,14 +412,24 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
 
-        // Слушатель скролла для подгрузки последующих элементов
-        els.tracksLibContainer.onscroll = () => {
-            if (renderedCount < tracks.length) {
-                if (els.tracksLibContainer.scrollTop + els.tracksLibContainer.clientHeight >= els.tracksLibContainer.scrollHeight - 300) {
+        if (tracks.length > CHUNK_SIZE) {
+            const sentinel = document.createElement('div');
+            sentinel.className = 'sentinel-ss';
+            sentinel.style.cssText = 'height: 20px; width: 100%; pointer-events: none;';
+            els.tracksLibContainer.appendChild(sentinel);
+
+            const observer = new IntersectionObserver((entries) => {
+                if (entries[0].isIntersecting && renderedCount < tracks.length) {
                     renderNextChunk();
+                    els.tracksLibContainer.appendChild(sentinel);
                 }
-            }
-        };
+            }, {
+                root: els.tracksLibContainer,
+                rootMargin: '300px'
+            });
+            observer.observe(sentinel);
+            els.tracksLibContainer._observer = observer;
+        }
     }
 
     function setActiveLibraryTab(tabName) {
@@ -1477,6 +1492,81 @@ document.addEventListener('DOMContentLoaded', () => {
                 const first = trackList.querySelector('.playable-track');
                 if (first) handleTrackClick(first, false);
             };
+
+            // Event delegation on trackList for action buttons (Add to Playlist / Delete)
+            trackList.addEventListener('click', async (e) => {
+                const addBtn = e.target.closest('.btn-add-to-playlist');
+                const deleteBtn = e.target.closest('.btn-delete-track');
+                if (!addBtn && !deleteBtn) return;
+
+                const row = e.target.closest('.search-result-track');
+                if (!row) return;
+
+                const trackId = row.dataset.trackId;
+                const t = trackCache.get(String(trackId));
+                if (!t) return;
+
+                if (addBtn) {
+                    e.stopPropagation();
+                    row.classList.remove('show-actions');
+                    openAddToPlaylistModal(t);
+                } else if (deleteBtn) {
+                    e.stopPropagation();
+                    row.classList.remove('show-actions');
+                    try {
+                        const res = await fetch(`/library/playlists/${playlist.id}/tracks/${t.id}`, { method: 'DELETE' });
+                        if (res.ok) {
+                            const rowHeight = row.offsetHeight;
+                            row.style.maxHeight = `${rowHeight}px`;
+                            requestAnimationFrame(() => {
+                                row.classList.add('is-removing');
+                                row.style.maxHeight = '0px';
+                            });
+
+                            const updateStateAndUi = () => {
+                                if (cachedQueueContext === 'playlist' && String(cachedQueueId) === String(playlist.id)) {
+                                    removeTrackFromQueue(t.id);
+                                }
+
+                                const pl = libraryState.playlists.find(p => String(p.id) === String(playlist.id));
+                                if (pl && pl.tracks) {
+                                    pl.tracks = pl.tracks.filter(track => track.id !== t.id);
+                                    pl.trackCount = Math.max(0, pl.trackCount - 1);
+                                    updatePlaylistCovers(pl);
+                                    saveLibraryToLocal();
+
+                                    const countEl = els.playlistContent.querySelector('.ss-label-header-count');
+                                    if (countEl) {
+                                        countEl.textContent = `${pl.trackCount} TRACKS`;
+                                    }
+                                    updatePlaylistDetailCoversOnly(pl);
+                                    renderPlaylistsSS(libraryState.playlists);
+
+                                    if (pl.tracks.length === 0) {
+                                        const trackListEl = els.playlistContent.querySelector('.ss-acid-list');
+                                        if (trackListEl) {
+                                            trackListEl.replaceChildren();
+                                            const empty = document.createElement('div');
+                                            empty.className = 'empty-state-ss';
+                                            empty.style.cssText = 'padding: 40px; text-align: center; opacity: 0.5;';
+                                            empty.textContent = 'Playlist is empty';
+                                            trackListEl.appendChild(empty);
+                                        }
+                                    }
+                                }
+                                row.remove();
+                            };
+
+                            const animations = row.getAnimations();
+                            if (animations.length > 0) {
+                                Promise.allSettled(animations.map(a => a.finished)).then(updateStateAndUi);
+                            } else {
+                                updateStateAndUi();
+                            }
+                        }
+                    } catch (err) { console.error(err); }
+                }
+            });
         }
 
         // Обновляем количество треков в шапке
@@ -1540,7 +1630,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const trackList = content.querySelector('.ss-acid-list');
         if (trackList) {
             trackList.replaceChildren();
-            trackList.onscroll = null; // Сброс предыдущего обработчика скролла
+            if (trackList._observer) {
+                trackList._observer.disconnect();
+                trackList._observer = null;
+            }
 
             if (!playlist.tracks) {
                 const loader = document.createElement('div');
@@ -1597,72 +1690,6 @@ document.addEventListener('DOMContentLoaded', () => {
                             </div>
                         `;
 
-                        // Add to Playlist Button
-                        row.querySelector('.btn-add-to-playlist').onclick = (e) => {
-                            e.stopPropagation();
-                            row.classList.remove('show-actions');
-                            openAddToPlaylistModal(t);
-                        };
-
-                        // Delete Logic
-                        row.querySelector('.btn-delete-track').onclick = async (e) => {
-                            e.stopPropagation();
-                            row.classList.remove('show-actions');
-                            try {
-                                const res = await fetch(`/library/playlists/${playlist.id}/tracks/${t.id}`, { method: 'DELETE' });
-                                if (res.ok) {
-                                    const rowHeight = row.offsetHeight;
-                                    row.style.maxHeight = `${rowHeight}px`;
-                                    requestAnimationFrame(() => {
-                                        row.classList.add('is-removing');
-                                        row.style.maxHeight = '0px';
-                                    });
-
-                                    const updateStateAndUi = () => {
-                                        if (cachedQueueContext === 'playlist' && String(cachedQueueId) === String(playlist.id)) {
-                                            removeTrackFromQueue(t.id);
-                                        }
-
-                                        const pl = libraryState.playlists.find(p => String(p.id) === String(playlist.id));
-                                        if (pl && pl.tracks) {
-                                            pl.tracks = pl.tracks.filter(track => track.id !== t.id);
-                                            pl.trackCount = Math.max(0, pl.trackCount - 1);
-                                            updatePlaylistCovers(pl);
-                                            saveLibraryToLocal();
-
-                                            // Direct DOM updates to avoid full tracklist redraw
-                                            const countEl = els.playlistContent.querySelector('.ss-label-header-count');
-                                            if (countEl) {
-                                                countEl.textContent = `${pl.trackCount} TRACKS`;
-                                            }
-                                            updatePlaylistDetailCoversOnly(pl);
-                                            renderPlaylistsSS(libraryState.playlists);
-
-                                            if (pl.tracks.length === 0) {
-                                                const trackList = els.playlistContent.querySelector('.ss-acid-list');
-                                                if (trackList) {
-                                                    trackList.replaceChildren();
-                                                    const empty = document.createElement('div');
-                                                    empty.className = 'empty-state-ss';
-                                                    empty.style.cssText = 'padding: 40px; text-align: center; opacity: 0.5;';
-                                                    empty.textContent = 'Playlist is empty';
-                                                    trackList.appendChild(empty);
-                                                }
-                                            }
-                                        }
-                                        row.remove();
-                                    };
-
-                                    const animations = row.getAnimations();
-                                    if (animations.length > 0) {
-                                        Promise.allSettled(animations.map(a => a.finished)).then(updateStateAndUi);
-                                    } else {
-                                        updateStateAndUi();
-                                    }
-                                }
-                            } catch (err) { console.error(err); }
-                        };
-
                         trackList.appendChild(row);
                     });
 
@@ -1680,14 +1707,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Рендерим первый блок треков
                 renderNextChunk();
 
-                // Слушатель скролла для подгрузки последующих элементов
-                trackList.onscroll = () => {
-                    if (renderedCount < tracks.length) {
-                        if (trackList.scrollTop + trackList.clientHeight >= trackList.scrollHeight - 300) {
+                if (tracks.length > CHUNK_SIZE) {
+                    const sentinel = document.createElement('div');
+                    sentinel.className = 'sentinel-ss';
+                    sentinel.style.cssText = 'height: 20px; width: 100%; pointer-events: none;';
+                    trackList.appendChild(sentinel);
+
+                    const observer = new IntersectionObserver((entries) => {
+                        if (entries[0].isIntersecting && renderedCount < tracks.length) {
                             renderNextChunk();
+                            trackList.appendChild(sentinel);
                         }
-                    }
-                };
+                    }, {
+                        root: trackList,
+                        rootMargin: '300px'
+                    });
+                    observer.observe(sentinel);
+                    trackList._observer = observer;
+                }
             }
         }
         syncPlayingHighlights();
@@ -3110,6 +3147,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let overlayOpenTime = 0;
 
+    let ignoreNextPopState = false;
+
     function openOverlay(id) {
         const panel = document.getElementById(id);
         if (!panel) return;
@@ -3127,13 +3166,17 @@ document.addEventListener('DOMContentLoaded', () => {
         panel.classList.remove('loaded');
         // Если закрыли вручную (не через кнопку назад), убираем из истории
         if (!isPopState) {
-            // Если в истории был этот же панель, можно сделать history.back(), 
-            // но для простоты просто закрываем.
+            ignoreNextPopState = true;
+            history.back();
         }
     }
 
     // Обработка кнопки "Назад"
     window.addEventListener('popstate', (event) => {
+        if (ignoreNextPopState) {
+            ignoreNextPopState = false;
+            return;
+        }
         const activeOverlays = document.querySelectorAll('.panel.overlay-panel.active');
         if (activeOverlays.length > 0) {
             // Закрываем самый верхний оверлей
