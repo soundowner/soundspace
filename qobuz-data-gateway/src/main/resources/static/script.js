@@ -355,8 +355,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 const coverUrl = item.album?.image?.large || item.image?.large || '';
                 const smallCoverUrl = item.album?.image?.small || item.image?.small || coverUrl;
 
+                const isAnimated = (renderedCount + index) < 10;
+                const animClass = isAnimated ? 'slide-anim-item' : '';
+
                 return `
-                    <div class="ss-acid-row search-result-track playable-track"
+                    <div class="ss-acid-row search-result-track playable-track ${animClass}"
                          style="--i: ${index};"
                          data-track-id="${item.id}"
                          data-artist-id="${artistId}"
@@ -401,11 +404,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Рендерим первый блок треков
         renderNextChunk();
-        requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
-                els.tracksLibContainer.classList.add('loaded');
-            });
-        });
+        triggerVisibleTracksAnimation(els.tracksLibContainer);
 
         // Слушатель скролла для подгрузки последующих элементов
         els.tracksLibContainer.onscroll = () => {
@@ -416,7 +415,38 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         };
     }
-
+ 
+    function triggerVisibleTracksAnimation(container) {
+        container.classList.remove('loaded');
+        const rows = Array.from(container.querySelectorAll('.search-result-track'));
+        if (rows.length === 0) return;
+ 
+        const scrollTop = container.scrollTop;
+        const containerHeight = container.clientHeight || window.innerHeight;
+        let visibleIndex = 0;
+ 
+        rows.forEach(row => {
+            const rowTop = row.offsetTop;
+            const rowHeight = row.offsetHeight || 72;
+            const isVisible = (rowTop + rowHeight >= scrollTop) && (rowTop <= scrollTop + containerHeight);
+ 
+            if (isVisible) {
+                row.classList.add('slide-anim-item');
+                row.style.setProperty('--i', String(visibleIndex));
+                visibleIndex++;
+            } else {
+                row.classList.remove('slide-anim-item');
+                row.style.removeProperty('--i');
+            }
+        });
+ 
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                container.classList.add('loaded');
+            });
+        });
+    }
+ 
     function setActiveLibraryTab(tabName) {
         const containers = {
             tracks: els.tracksLibContainer,
@@ -437,8 +467,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (tabName === 'tracks' && containers.tracks) {
                 containers.tracks.classList.add('active-lib-tab');
-                fetchLikedTracksSS();
-            } else if (tabName === 'artists' && containers.artists) {
+                triggerVisibleTracksAnimation(containers.tracks);
+                fetchLikedTracksSS();} else if (tabName === 'artists' && containers.artists) {
                 containers.artists.classList.add('active-lib-tab');
                 fetchArtistsSS();
             } else if (tabName === 'albums' && containers.albums) {
@@ -535,6 +565,13 @@ document.addEventListener('DOMContentLoaded', () => {
             const firstAlbum = qobuzArtist.albums.items[0];
             const albumImg = firstAlbum.image || (firstAlbum.picture ? { large: firstAlbum.picture, medium: firstAlbum.picture, small: firstAlbum.picture } : null);
             img = mapQobuzImageToDto(albumImg);
+        }
+        if (!img && qobuzArtist.tracks && qobuzArtist.tracks.items && qobuzArtist.tracks.items.length > 0) {
+            const firstTrack = qobuzArtist.tracks.items[0];
+            if (firstTrack.album) {
+                const albumImg = firstTrack.album.image || (firstTrack.album.picture ? { large: firstTrack.album.picture, medium: firstTrack.album.picture, small: firstTrack.album.picture } : null);
+                img = mapQobuzImageToDto(albumImg);
+            }
         }
         const genreName = qobuzArtist.genre?.name || (qobuzArtist.albums?.items?.[0]?.genre?.name) || 'Music';
         return {
@@ -1870,6 +1907,15 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    if (els.addToPlaylistModal) {
+        els.addToPlaylistModal.addEventListener('click', (e) => {
+            if (e.target === els.addToPlaylistModal) {
+                els.addToPlaylistModal.classList.add('hidden');
+                trackToAdd = null;
+            }
+        });
+    }
+
     if (els.selectPlaylistList) {
         els.selectPlaylistList.addEventListener('click', async (e) => {
             const item = e.target.closest('.ss-playlist-select-item');
@@ -3168,6 +3214,13 @@ document.addEventListener('DOMContentLoaded', () => {
             const firstAlbum = item.albums.items[0];
             if (firstAlbum.image) return firstAlbum.image.large || firstAlbum.image.medium || firstAlbum.image.small || '';
             if (firstAlbum.picture) return firstAlbum.picture;
+        }
+        if (item.tracks && item.tracks.items && item.tracks.items.length > 0) {
+            const firstTrack = item.tracks.items[0];
+            if (firstTrack.album) {
+                const trackAlbImg = getImg(firstTrack.album);
+                if (trackAlbImg) return trackAlbImg;
+            }
         }
         return '';
     }
