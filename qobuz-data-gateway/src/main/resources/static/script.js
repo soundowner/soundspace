@@ -3204,7 +3204,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!str) return '';
         return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
     }
-    function getImg(item) {
+    function getImg(item, isFallback = false) {
         if (!item) return '';
         if (item.image) return item.image.large || item.image.medium || item.image.small || '';
         if (item.picture) return item.picture;
@@ -3215,10 +3215,10 @@ document.addEventListener('DOMContentLoaded', () => {
             if (firstAlbum.image) return firstAlbum.image.large || firstAlbum.image.medium || firstAlbum.image.small || '';
             if (firstAlbum.picture) return firstAlbum.picture;
         }
-        if (item.tracks && item.tracks.items && item.tracks.items.length > 0) {
+        if (!isFallback && item.tracks && item.tracks.items && item.tracks.items.length > 0) {
             const firstTrack = item.tracks.items[0];
             if (firstTrack.album) {
-                const trackAlbImg = getImg(firstTrack.album);
+                const trackAlbImg = getImg(firstTrack.album, true);
                 if (trackAlbImg) return trackAlbImg;
             }
         }
