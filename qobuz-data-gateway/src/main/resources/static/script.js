@@ -818,7 +818,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (contextType === 'playlist') {
             const pl = libraryState.playlists.find(p => String(p.id) === String(contextId));
             if (pl && pl.tracks) {
-                currentQueue = pl.tracks.map(t => {
+                const reversedTracks = [...pl.tracks].reverse();
+                currentQueue = reversedTracks.map(t => {
                     const rawArtist = t.performers || t.performer?.name || t.artist?.name || t.album?.artist?.name || 'Unknown';
                     const artistName = rawArtist.split(',')[0].replace(/\s*\(.*?\)/g, '').trim();
                     return {
@@ -1222,17 +1223,15 @@ document.addEventListener('DOMContentLoaded', () => {
     function updatePlaylistCovers(pl, newTrack = null) {
         if (!pl) return;
         if (pl.tracks) {
-            const covers = pl.tracks
+            const covers = [...pl.tracks].reverse()
                 .map(t => t.album?.image?.small || t.image?.small || t.album?.image?.large || t.image?.large || '')
                 .filter(Boolean);
             pl.track_covers = covers.slice(0, 4);
         } else if (newTrack) {
             if (!pl.track_covers) pl.track_covers = [];
-            if (pl.track_covers.length < 4) {
-                const cover = newTrack.album?.image?.small || newTrack.image?.small || newTrack.album?.image?.large || newTrack.image?.large || '';
-                if (cover && !pl.track_covers.includes(cover)) {
-                    pl.track_covers.push(cover);
-                }
+            const cover = newTrack.album?.image?.small || newTrack.image?.small || newTrack.album?.image?.large || newTrack.image?.large || '';
+            if (cover) {
+                pl.track_covers = [cover, ...pl.track_covers].filter((val, index, self) => self.indexOf(val) === index).slice(0, 4);
             }
         }
     }
@@ -1241,7 +1240,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const blurBg = document.getElementById('playlist-blur-bg-ss');
         if (!blurBg) return;
 
-        const tracks = playlist.tracks || [];
+        const tracks = playlist.tracks ? [...playlist.tracks].reverse() : [];
         const covers = playlist.track_covers || tracks.map(t => getImg(t)).filter(Boolean);
         const coverUrl = playlist.coverImage || (covers.length ? covers[0] : '');
 
@@ -1416,7 +1415,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function updatePlaylistDetailCoversOnly(playlist) {
         const content = els.playlistContent;
         if (!content || content.dataset.loadedId !== String(playlist.id)) return;
-        const tracks = playlist.tracks || [];
+        const tracks = playlist.tracks ? [...playlist.tracks].reverse() : [];
         const covers = playlist.track_covers || tracks.map(t => getImg(t)).filter(Boolean);
         const coverUrl = playlist.coverImage || (covers.length ? covers[0] : '');
 
@@ -1475,7 +1474,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderPlaylistDetailSS(playlist) {
         const content = els.playlistContent;
-        const tracks = playlist.tracks || [];
+        const tracks = playlist.tracks ? [...playlist.tracks].reverse() : [];
         const covers = playlist.track_covers || tracks.map(t => getImg(t)).filter(Boolean);
         const coverUrl = playlist.coverImage || (covers.length ? covers[0] : '');
 
