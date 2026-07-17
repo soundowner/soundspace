@@ -2814,8 +2814,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function loadArtist(id) {
-        if (els.artistContent.dataset.loadedId === id) return;
-        els.artistContent.dataset.loadedId = id;
+        const idStr = String(id);
+        if (els.artistContent.dataset.loadedId === idStr) return;
+        els.artistContent.dataset.loadedId = idStr;
         els.artistContent.innerHTML = '<div style="padding:40px; text-align:center">Loading Frequency...</div>';
 
         // Reset button icon based on library state
@@ -2833,19 +2834,20 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await res.json();
             currentArtistData = data;
 
-            if (els.artistContent.dataset.loadedId === id && els.artistContent.closest('.panel').classList.contains('active')) {
+            if (els.artistContent.dataset.loadedId === idStr && els.artistContent.closest('.panel').classList.contains('active')) {
                 renderArtistPanel(data);
             }
         } catch (e) { console.error(e); }
     }
 
     async function loadAlbum(id) {
+        const idStr = String(id);
         const albumPanel = document.getElementById('album-panel');
 
-        if (albumCache.has(id)) {
-            const data = albumCache.get(id);
+        if (albumCache.has(idStr)) {
+            const data = albumCache.get(idStr);
             currentAlbumData = data;
-            els.albumContent.dataset.loadedId = id;
+            els.albumContent.dataset.loadedId = idStr;
             renderAlbumPanel(data);
             if (albumPanel) {
                 requestAnimationFrame(() => {
@@ -2857,7 +2859,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        if (els.albumContent.dataset.loadedId === id) {
+        if (els.albumContent.dataset.loadedId === idStr) {
             if (albumPanel) {
                 requestAnimationFrame(() => {
                     requestAnimationFrame(() => {
@@ -2877,16 +2879,16 @@ document.addEventListener('DOMContentLoaded', () => {
             blurBg.style.display = 'none';
         }
 
-        els.albumContent.dataset.loadedId = id;
+        els.albumContent.dataset.loadedId = idStr;
         els.albumContent.innerHTML = '<div style="padding:40px; text-align:center">Loading Geometry...</div>';
 
         try {
             const res = await fetch(`/data/audio/album?albumId=${id}`);
             const data = await res.json();
             currentAlbumData = data;
-            albumCache.set(id, data);
+            albumCache.set(idStr, data);
 
-            if (els.albumContent.dataset.loadedId === id && els.albumContent.closest('.panel').classList.contains('active')) {
+            if (els.albumContent.dataset.loadedId === idStr && els.albumContent.closest('.panel').classList.contains('active')) {
                 renderAlbumPanel(data);
                 if (albumPanel) {
                     requestAnimationFrame(() => {
