@@ -86,6 +86,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Глобальные переменные для оптимизации и предотвращения Race Conditions
     let currentAudioFetchController = null;
+    let searchAbortController = null;
+    let artistAbortController = null;
+    let albumAbortController = null;
     let cachedQueueContext = null;
     let cachedQueueId = null;
 
@@ -414,6 +417,42 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
         };
+    }
+
+    function createLikedTrackRowDOM(item) {
+        const artistId = item.performer?.id || item.artist?.id || item.album?.artist?.id;
+        const albumId = item.album?.id;
+        const isTrackLiked = true;
+        const artistName = item.performer?.name || item.artist?.name || item.album?.artist?.name || (item.performers ? item.performers.split(',')[0].split(' - ')[0].trim() : 'Unknown');
+        const coverUrl = item.album?.image?.large || item.image?.large || '';
+        const smallCoverUrl = item.album?.image?.small || item.image?.small || coverUrl;
+
+        const row = document.createElement('div');
+        row.className = 'ss-acid-row search-result-track playable-track';
+        row.dataset.trackId = item.id;
+        row.dataset.artistId = artistId;
+        row.dataset.albumId = albumId;
+        row.dataset.title = escapeHtml(item.title);
+        row.dataset.artist = escapeHtml(artistName);
+        row.dataset.album = escapeHtml(item.album?.title || '');
+        row.dataset.cover = coverUrl;
+
+        row.innerHTML = `
+            <img src="${smallCoverUrl}" class="search-result-track-cover" loading="lazy">
+            <div class="track-info">
+                <p class="track-title">${escapeHtml(item.title)}</p>
+                <p class="track-artist">${escapeHtml(artistName)}<span class="track-title-sep"> | </span><span class="track-title-duration">${formatTime(item.duration)}</span></p>
+            </div>
+            <div class="track-actions-slide">
+                <button class="slide-btn btn-like-track ${isTrackLiked ? 'active' : ''}" style="${isTrackLiked ? 'color: coral;' : ''}" title="Like Track">
+                    <i data-lucide="heart" style="${isTrackLiked ? 'fill: coral;' : ''}"></i>
+                </button>
+                <button class="slide-btn btn-add-to-playlist" title="Add to Playlist">
+                    <i data-lucide="plus"></i>
+                </button>
+            </div>
+        `;
+        return row;
     }
  
     function triggerVisibleTracksAnimation(container) {
@@ -1125,13 +1164,22 @@ document.addEventListener('DOMContentLoaded', () => {
         // Показываем спиннер
         els.searchResults.innerHTML = '<div class="search-spinner-container"><div class="search-spinner-ss"></div><p>Searching Qobuz...</p></div>';
 
+        if (searchAbortController) {
+            searchAbortController.abort();
+        }
+        searchAbortController = new AbortController();
+
         try {
-            const res = await fetch(`/data/audio/search?query=${encodeURIComponent(query)}&type=tracks`);
+            const res = await fetch(`/data/audio/search?query=${encodeURIComponent(query)}&type=tracks`, {
+                signal: searchAbortController.signal
+            });
             const data = await res.json();
             renderResults(data.tracks?.items || []);
         } catch (err) {
-            console.error(err);
-            els.searchResults.innerHTML = '<div class="empty-state-ss">Search failed. Try again.</div>';
+            if (err.name !== 'AbortError') {
+                console.error(err);
+                els.searchResults.innerHTML = '<div class="empty-state-ss">Search failed. Try again.</div>';
+            }
         }
     });
 
@@ -2116,8 +2164,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     libraryState.likedTracks.unshift(payload);
                     updateHeartIcons(trackId, true);
                     if (els.tracksLibContainer) {
-                        if (typeof renderLikedTracksSS === 'function') {
-                            renderLikedTracksSS();
+                        const emptyState = els.tracksLibContainer.querySelector('.empty-state-ss');
+                        if (emptyState) {
+                            els.tracksLibContainer.innerHTML = '';
+                        }
+                        const newRow = createLikedTrackRowDOM(payload);
+                        els.tracksLibContainer.prepend(newRow);
+                        syncPlayingHighlights();
+                        if (window.lucide) {
+                            window.lucide.createIcons({
+                                attrs: { class: 'lucide-icon' },
+                                nameAttr: 'data-lucide'
+                            }, newRow);
                         }
                     }
                 }
@@ -2265,6 +2323,62 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (els.albumContent) {
         els.albumContent.addEventListener('click', (e) => {
+            const addAlbumBtn = e.target.closest('#add-album-to-lib');
+            if (addAlbumBtn && currentAlbumData) {
+                e.stopPropagation();
+                const albumId = String(currentAlbumData.id);
+                const currentIsInLib = libraryState.albumIds.has(albumId);
+                if (currentIsInLib) {
+                    try {
+                        fetch(`/library/albums/${albumId}`, { method: 'DELETE' }).then(res => {
+                            if (res.ok) {
+                                libraryState.albumIds.delete(albumId);
+                                libraryState.albums = libraryState.albums.filter(a => String(a.id) !== albumId);
+                                renderAlbumsSS(libraryState.albums);
+                                libraryState.needsAlbumsSync = true;
+                                addAlbumBtn.innerHTML = '<i data-lucide="plus" style="width: 15px; height: 15px;"></i><span>Add</span>';
+                                if (window.lucide) lucide.createIcons({
+                                    attrs: { class: 'lucide-icon' },
+                                    nameAttr: 'data-lucide'
+                                }, addAlbumBtn);
+                            }
+                        }).catch(err => console.error(err));
+                    } catch (err) { console.error(err); }
+                } else {
+                    const payload = mapToAlbumDto(currentAlbumData);
+                    try {
+                        fetch('/library/albums', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                        }).then(res => {
+                            if (res.ok) {
+                                libraryState.albumIds.add(albumId);
+                                libraryState.albums.unshift(payload);
+                                renderAlbumsSS(libraryState.albums);
+                                libraryState.needsAlbumsSync = true;
+                                addAlbumBtn.innerHTML = '<i data-lucide="check" style="width: 15px; height: 15px;"></i><span>Library</span>';
+                                if (window.lucide) lucide.createIcons({
+                                    attrs: { class: 'lucide-icon' },
+                                    nameAttr: 'data-lucide'
+                                }, addAlbumBtn);
+                            }
+                        }).catch(err => console.error(err));
+                    } catch (err) { console.error(err); }
+                }
+                return;
+            }
+
+            const playAlbumBtn = e.target.closest('#play-album-start');
+            if (playAlbumBtn) {
+                e.stopPropagation();
+                const firstTrack = els.albumContent.querySelector('.track-list-scroll .playable-track');
+                if (firstTrack) {
+                    handleTrackClick(firstTrack, false, false);
+                }
+                return;
+            }
+
             const addBtn = e.target.closest('.btn-add');
             if (addBtn) {
                 const trackRow = addBtn.closest('.search-result-track');
@@ -2676,6 +2790,50 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         els.timeBarContainer.addEventListener('click', (e) => {
+            const markerNode = e.target.closest('.cut-marker-node');
+            if (markerNode) {
+                e.stopPropagation();
+                
+                const deleteBtn = e.target.closest('.cut-marker-delete-btn');
+                if (deleteBtn) {
+                    const sec = parseFloat(markerNode.dataset.seconds);
+                    const key = String(currentTrackId);
+                    const currentMarkers = cutMarkersByTrack.get(key) || [];
+                    const updated = currentMarkers.filter(m => Math.abs(m - sec) > 0.01);
+                    setCutMarker(key, updated);
+                    renderCutMarkers();
+                    saveCutsToBackend(key);
+                    return;
+                }
+
+                const timeLabel = e.target.closest('.cut-marker-time');
+                if (timeLabel) {
+                    const sec = parseFloat(markerNode.dataset.seconds);
+                    if (typeof window.openFinetuneDock === 'function') {
+                        window.openFinetuneDock(currentTrackId, sec);
+                    }
+                    markerNode.classList.remove('active');
+                    return;
+                }
+
+                const tooltip = e.target.closest('.cut-marker-tooltip');
+                if (tooltip) {
+                    return;
+                }
+
+                const isActive = markerNode.classList.contains('active');
+                document.querySelectorAll('.cut-marker-node.active').forEach(m => {
+                    if (m !== markerNode) m.classList.remove('active');
+                });
+
+                if (isActive) {
+                    markerNode.classList.remove('active');
+                } else {
+                    markerNode.classList.add('active');
+                }
+                return;
+            }
+
             if (suppressNextTimebarClick) {
                 suppressNextTimebarClick = false;
                 e.preventDefault();
@@ -2757,37 +2915,44 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderResults(items) {
         items.forEach(item => trackCache.set(String(item.id), item));
-        els.searchResults.innerHTML = items.map(item => {
+        
+        const fragment = document.createDocumentFragment();
+        items.forEach(item => {
             const artistId = item.performer?.id || item.artist?.id;
             const albumId = item.album?.id;
-            const isArtistInLib = libraryState.artistIds.has(Number(artistId));
             const isTrackLiked = libraryState.likedTrackIds.has(String(item.id));
-
-            return `
-                <div class="search-result-track"
-                     data-track-id="${item.id}"
-                     data-artist-id="${artistId}"
-                     data-album-id="${albumId}"
-                     data-title="${escapeHtml(item.title)}"
-                     data-artist="${escapeHtml(item.performer?.name || item.artist?.name)}"
-                     data-album="${escapeHtml(item.album?.title)}"
-                     data-cover="${item.album?.image?.large || item.image?.large || ''}">
-                    <img src="${item.album?.image?.small || item.image?.small}" class="search-result-track-cover" loading="lazy">
-                    <div class="track-info">
-                        <p class="track-title">${escapeHtml(item.title)}</p>
-                        <p class="track-artist">${escapeHtml(item.performer?.name || item.artist?.name)}<span class="track-title-sep"> | </span><span class="track-title-duration">${formatTime(item.duration)}</span></p>
-                    </div>
-                    <div class="track-actions-slide">
-                        <button class="slide-btn btn-like-track ${isTrackLiked ? 'active' : ''}" style="${isTrackLiked ? 'color: coral;' : ''}" title="Like Track">
-                            <i data-lucide="heart" style="${isTrackLiked ? 'fill: coral;' : ''}"></i>
-                        </button>
-                        <button class="slide-btn btn-add-to-playlist" title="Add to Playlist">
-                            <i data-lucide="plus"></i>
-                        </button>
-                    </div>
+            
+            const row = document.createElement('div');
+            row.className = 'search-result-track';
+            row.dataset.trackId = item.id;
+            row.dataset.artistId = artistId;
+            row.dataset.albumId = albumId;
+            row.dataset.title = escapeHtml(item.title);
+            row.dataset.artist = escapeHtml(item.performer?.name || item.artist?.name);
+            row.dataset.album = escapeHtml(item.album?.title || '');
+            row.dataset.cover = item.album?.image?.large || item.image?.large || '';
+            
+            row.innerHTML = `
+                <img src="${item.album?.image?.small || item.image?.small}" class="search-result-track-cover" loading="lazy">
+                <div class="track-info">
+                    <p class="track-title">${escapeHtml(item.title)}</p>
+                    <p class="track-artist">${escapeHtml(item.performer?.name || item.artist?.name)}<span class="track-title-sep"> | </span><span class="track-title-duration">${formatTime(item.duration)}</span></p>
+                </div>
+                <div class="track-actions-slide">
+                    <button class="slide-btn btn-like-track ${isTrackLiked ? 'active' : ''}" style="${isTrackLiked ? 'color: coral;' : ''}" title="Like Track">
+                        <i data-lucide="heart" style="${isTrackLiked ? 'fill: coral;' : ''}"></i>
+                    </button>
+                    <button class="slide-btn btn-add-to-playlist" title="Add to Playlist">
+                        <i data-lucide="plus"></i>
+                    </button>
                 </div>
             `;
-        }).join('');
+            fragment.appendChild(row);
+        });
+        
+        els.searchResults.innerHTML = '';
+        els.searchResults.appendChild(fragment);
+        
         syncPlayingHighlights();
         if (window.lucide) lucide.createIcons({
             attrs: { class: 'lucide-icon' },
@@ -2811,15 +2976,26 @@ document.addEventListener('DOMContentLoaded', () => {
             }, els.addArtistToLibBtn);
         }
 
+        if (artistAbortController) {
+            artistAbortController.abort();
+        }
+        artistAbortController = new AbortController();
+
         try {
-            const res = await fetch(`/data/audio/artist?artistId=${id}`);
+            const res = await fetch(`/data/audio/artist?artistId=${id}`, {
+                signal: artistAbortController.signal
+            });
             const data = await res.json();
             currentArtistData = data;
 
             if (els.artistContent.dataset.loadedId === idStr && els.artistContent.closest('.panel').classList.contains('active')) {
                 renderArtistPanel(data);
             }
-        } catch (e) { console.error(e); }
+        } catch (e) {
+            if (e.name !== 'AbortError') {
+                console.error(e);
+            }
+        }
     }
 
     async function loadAlbum(id) {
@@ -2864,8 +3040,15 @@ document.addEventListener('DOMContentLoaded', () => {
         els.albumContent.dataset.loadedId = idStr;
         els.albumContent.innerHTML = '<div style="padding:40px; text-align:center">Loading Geometry...</div>';
 
+        if (albumAbortController) {
+            albumAbortController.abort();
+        }
+        albumAbortController = new AbortController();
+
         try {
-            const res = await fetch(`/data/audio/album?albumId=${id}`);
+            const res = await fetch(`/data/audio/album?albumId=${id}`, {
+                signal: albumAbortController.signal
+            });
             const data = await res.json();
             currentAlbumData = data;
             albumCache.set(idStr, data);
@@ -2880,7 +3063,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                 }
             }
-        } catch (e) { console.error(e); }
+        } catch (e) {
+            if (e.name !== 'AbortError') {
+                console.error(e);
+            }
+        }
     }
 
 
@@ -3070,64 +3257,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
-        // Add Listeners dynamically
-        const addBtn = header.querySelector('#add-album-to-lib');
-        if (addBtn) {
-            addBtn.addEventListener('click', async (e) => {
-                e.stopPropagation();
-                const albumId = String(data.id);
-                const currentIsInLib = libraryState.albumIds.has(albumId);
-                if (currentIsInLib) {
-                    // Remove
-                    try {
-                        const res = await fetch(`/library/albums/${albumId}`, { method: 'DELETE' });
-                        if (res.ok) {
-                            libraryState.albumIds.delete(albumId);
-                            libraryState.albums = libraryState.albums.filter(a => String(a.id) !== albumId);
-                            renderAlbumsSS(libraryState.albums);
-                            libraryState.needsAlbumsSync = true;
-                            addBtn.innerHTML = '<i data-lucide="plus"></i>';
-                            if (window.lucide) lucide.createIcons({
-                                attrs: { class: 'lucide-icon' },
-                                nameAttr: 'data-lucide'
-                            }, addBtn);
-                        }
-                    } catch (e) { console.error(e); }
-                } else {
-                    // Add
-                    const payload = mapToAlbumDto(data);
-                    try {
-                        const res = await fetch('/library/albums', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(payload)
-                        });
-                        if (res.ok) {
-                            libraryState.albumIds.add(albumId);
-                            libraryState.albums.unshift(payload);
-                            renderAlbumsSS(libraryState.albums);
-                            libraryState.needsAlbumsSync = true;
-                            addBtn.innerHTML = '<i data-lucide="check"></i>';
-                            if (window.lucide) lucide.createIcons({
-                                attrs: { class: 'lucide-icon' },
-                                nameAttr: 'data-lucide'
-                            }, addBtn);
-                        }
-                    } catch (e) { console.error(e); }
-                }
-            });
-        }
-
-        const playBtn = header.querySelector('#play-album-start');
-        if (playBtn) {
-            playBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const firstTrack = scroll.querySelector('.playable-track');
-                if (firstTrack) {
-                    handleTrackClick(firstTrack, false, false);
-                }
-            });
-        }
+        // Listeners are delegated via els.albumContent click listener
 
         content.appendChild(header);
         content.appendChild(scroll);
@@ -3238,6 +3368,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const markerContainer = document.createElement('div');
             markerContainer.className = 'cut-marker-node';
             markerContainer.style.left = `${(sec / player.duration) * 100}%`;
+            markerContainer.dataset.seconds = sec.toString();
+            markerContainer.dataset.trackId = currentTrackId;
 
             const dot = document.createElement('div');
             dot.className = 'cut-marker-dot';
@@ -3248,55 +3380,15 @@ document.addEventListener('DOMContentLoaded', () => {
             const timeLabel = document.createElement('span');
             timeLabel.className = 'cut-marker-time';
             timeLabel.textContent = formatTime(sec);
+            timeLabel.style.cursor = 'pointer';
 
             const deleteBtn = document.createElement('button');
             deleteBtn.className = 'cut-marker-delete-btn';
             deleteBtn.innerHTML = '<i class="fa-solid fa-trash"></i>';
             deleteBtn.title = "Delete marker";
 
-            deleteBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const key = String(currentTrackId);
-                const currentMarkers = cutMarkersByTrack.get(key) || [];
-                const updated = currentMarkers.filter(m => Math.abs(m - sec) > 0.01);
-                setCutMarker(key, updated);
-                renderCutMarkers();
-                saveCutsToBackend(key);
-            });
-
-            tooltip.addEventListener('click', (e) => {
-                e.stopPropagation();
-            });
-
             tooltip.appendChild(timeLabel);
             tooltip.appendChild(deleteBtn);
-
-            // Click on time label inside the tooltip opens the fine-tune dial
-            timeLabel.style.cursor = 'pointer';
-            timeLabel.addEventListener('click', (e) => {
-                e.stopPropagation();
-                if (typeof window.openFinetuneDock === 'function') {
-                    window.openFinetuneDock(currentTrackId, sec);
-                }
-                markerContainer.classList.remove('active');
-            });
-
-            // Click on the marker node toggles the delete tooltip menu
-            markerContainer.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const isActive = markerContainer.classList.contains('active');
-
-                // Close other tooltips
-                document.querySelectorAll('.cut-marker-node.active').forEach(m => {
-                    if (m !== markerContainer) m.classList.remove('active');
-                });
-
-                if (isActive) {
-                    markerContainer.classList.remove('active');
-                } else {
-                    markerContainer.classList.add('active');
-                }
-            });
 
             const pincerTop = document.createElement('div');
             pincerTop.className = 'cut-marker-pincer pincer-top';
