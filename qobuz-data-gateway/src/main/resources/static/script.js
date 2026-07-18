@@ -2073,8 +2073,14 @@ document.addEventListener('DOMContentLoaded', () => {
                                     els.tracksLibContainer.innerHTML = '<div class="empty-state-ss">No liked tracks yet</div>';
                                 }
                             } else {
-                                // Unliked from player or search results, redraw to keep the library in sync
-                                renderLikedTracksSS();
+                                // Unliked from player or search results: remove targeted row without full list re-render
+                                const targetRow = els.tracksLibContainer.querySelector(`.search-result-track[data-track-id="${trackId}"]`);
+                                if (targetRow) {
+                                    targetRow.remove();
+                                }
+                                if (libraryState.likedTracks.length === 0) {
+                                    els.tracksLibContainer.innerHTML = '<div class="empty-state-ss">No liked tracks yet</div>';
+                                }
                             }
                         }
                     };
@@ -2110,7 +2116,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     libraryState.likedTracks.unshift(payload);
                     updateHeartIcons(trackId, true);
                     if (els.tracksLibContainer) {
-                        renderLikedTracksSS();
+                        if (typeof renderLikedTracksSS === 'function') {
+                            renderLikedTracksSS();
+                        }
                     }
                 }
             } catch (e) { console.error('Failed to add track to library', e); }
@@ -2120,36 +2128,11 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateHeartIcons(trackId, isLikedNow) {
         const playerBtnLike = document.getElementById('btn-like');
         if (playerBtnLike && playerState.currentTrack && String(playerState.currentTrack.id) === String(trackId)) {
-            const icon = playerBtnLike.querySelector('i');
-            if (isLikedNow) {
-                playerBtnLike.classList.add('active');
-                if (icon) icon.style.color = ''; // сброс инлайн-стиля, цвет берется из CSS
-            } else {
-                playerBtnLike.classList.remove('active');
-                if (icon) icon.style.color = ''; // сброс инлайн-стиля
-            }
+            playerBtnLike.classList.toggle('active', isLikedNow);
         }
 
         document.querySelectorAll(`.search-result-track[data-track-id="${trackId}"] .btn-like-track`).forEach(btn => {
-            const i = btn.querySelector('i');
-            const svg = btn.querySelector('svg');
-            if (isLikedNow) {
-                btn.classList.add('active');
-                btn.style.color = '';
-                if (i) i.style.fill = '';
-                if (svg) {
-                    svg.style.fill = '';
-                    svg.style.stroke = '';
-                }
-            } else {
-                btn.classList.remove('active');
-                btn.style.color = '';
-                if (i) i.style.fill = '';
-                if (svg) {
-                    svg.style.fill = '';
-                    svg.style.stroke = '';
-                }
-            }
+            btn.classList.toggle('active', isLikedNow);
         });
     }
 

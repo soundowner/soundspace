@@ -478,6 +478,17 @@ transition: z-index 0s 0s;
     height: 18px;
 }
 
+.btn-like-track,
+#btn-like,
+.btn-like-track svg,
+#btn-like svg,
+.btn-like-track svg path,
+#btn-like svg path,
+.btn-like-track i,
+#btn-like i {
+    transition: color 0.1s linear, fill 0.1s linear, stroke 0.1s linear, transform 0.1s linear, filter 0.1s linear;
+}
+
 .slide-btn.btn-like-track.active svg {
     fill: #ff2d55 !important;
     stroke: #ff2d55 !important;
