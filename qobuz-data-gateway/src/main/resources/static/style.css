@@ -487,7 +487,7 @@ transition: z-index 0s 0s;
 #btn-like svg path,
 .btn-like-track i,
 #btn-like i {
-    transition: color 0.1s linear, fill 0.1s linear, stroke 0.1s linear, transform 0.1s linear, filter 0.1s linear;
+    transition: color 0.15s ease-in-out, fill 0.15s ease-in-out, stroke 0.15s ease-in-out, transform 0.15s ease-in-out, filter 0.15s ease-in-out;
 }
 
 .slide-btn.btn-like-track.active svg {
