@@ -2158,6 +2158,7 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 const res = await fetch(`/library/tracks/${trackId}`, { method: 'DELETE' });
                 if (res.ok) {
+                    updateHeartIcons(trackId, false);
                     const row = els.tracksLibContainer ? els.tracksLibContainer.querySelector(`.search-result-track[data-track-id="${trackId}"]`) : null;
 
                     const updateStateAndUi = () => {
@@ -2168,7 +2169,6 @@ document.addEventListener('DOMContentLoaded', () => {
                             removeTrackFromQueue(trackId);
                         }
 
-                        updateHeartIcons(trackId, false);
                         if (els.tracksLibContainer) {
                             if (row) {
                                 // The row was already animated and removed from DOM, do not redraw the whole list
