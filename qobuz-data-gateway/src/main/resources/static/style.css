@@ -441,10 +441,10 @@ transition: z-index 0s 0s;
     align-items: center;
     padding-right: 20px;
     padding-left: 30px;
-    gap: 15px;
+    gap: 8px;
     background: linear-gradient(to right, transparent 0%, var(--panel-background) 30%);
     transform: translateX(105%);
-    transition: transform 0.15s ease-out;
+    transition: transform 0.08s ease-out;
     will-change: transform;
 
     z-index: 10;
@@ -634,7 +634,7 @@ transition: z-index 0s 0s;
 #tracks-lib-container .track-actions-slide {
     padding-right: 18px;
     padding-left: 27px;
-    gap: 13px;
+    gap: 6px;
 }
 
 #tracks-lib-container .slide-btn {
@@ -672,6 +672,13 @@ transition: z-index 0s 0s;
     height: auto !important;
     margin: 0 !important;
     padding: 0 !important;
+}
+
+/* Make plus icon 30% larger (24px) */
+.slide-btn svg[data-lucide="plus"],
+.slide-btn [data-lucide="plus"] {
+    width: 24px !important;
+    height: 24px !important;
 }
 
 /* --- PLAYER PANEL EXPANDED STATES --- */
