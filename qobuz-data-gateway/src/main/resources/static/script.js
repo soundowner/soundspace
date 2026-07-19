@@ -1743,10 +1743,15 @@ document.addEventListener('DOMContentLoaded', () => {
                                 if (res.ok) {
                                     const rowHeight = row.offsetHeight;
                                     row.style.maxHeight = `${rowHeight}px`;
-                                    requestAnimationFrame(() => {
-                                        row.classList.add('is-removing');
-                                        row.style.maxHeight = '0px';
-                                    });
+                                    
+                                    // Force reflow
+                                    row.offsetHeight;
+                                    
+                                    row.classList.add('is-removing');
+                                    row.style.maxHeight = '0px';
+                                    
+                                    // Force reflow to register transition
+                                    row.offsetHeight;
 
                                     const updateStateAndUi = () => {
                                         if (cachedQueueContext === 'playlist' && String(cachedQueueId) === String(playlist.id)) {
@@ -1785,9 +1790,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
                                     const animations = row.getAnimations();
                                     if (animations.length > 0) {
-                                        Promise.allSettled(animations.map(a => a.finished)).then(updateStateAndUi);
+                                        Promise.allSettled(animations.map(a => a.finished)).then(() => {
+                                            setTimeout(updateStateAndUi, 50);
+                                        });
                                     } else {
-                                        updateStateAndUi();
+                                        setTimeout(updateStateAndUi, 850);
                                     }
                                 }
                             } catch (err) { console.error(err); }
