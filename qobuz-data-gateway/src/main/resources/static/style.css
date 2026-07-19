@@ -471,7 +471,8 @@ transition: z-index 0s 0s;
 }
 
 .slide-btn:active {
-    transform: scale(0.9);
+    transform: scale(0.85) !important;
+    transition: transform 0s !important;
 }
 
 .slide-btn svg {

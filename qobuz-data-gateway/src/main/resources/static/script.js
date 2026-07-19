@@ -378,7 +378,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         </div>
                         <div class="track-actions-slide">
                             <button class="slide-btn btn-like-track ${isTrackLiked ? 'active' : ''}" title="Like Track">
-                                <i class="fa-solid fa-heart"></i>
+                                <i class="${isTrackLiked ? 'fa-solid' : 'fa-regular'} fa-heart"></i>
                             </button>
                             <button class="slide-btn btn-add-to-playlist" title="Add to Playlist">
                                 <i data-lucide="plus"></i>
@@ -494,7 +494,7 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
             <div class="track-actions-slide">
                 <button class="slide-btn btn-like-track ${isTrackLiked ? 'active' : ''}" title="Like Track">
-                    <i class="fa-solid fa-heart"></i>
+                    <i class="${isTrackLiked ? 'fa-solid' : 'fa-regular'} fa-heart"></i>
                 </button>
                 <button class="slide-btn btn-add-to-playlist" title="Add to Playlist">
                     <i data-lucide="plus"></i>
@@ -1726,7 +1726,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             </div>
                             <div class="track-actions-slide">
                                 <button class="slide-btn btn-like-track ${isTrackLiked ? 'active' : ''}" title="Like Track">
-                                    <i class="fa-solid fa-heart"></i>
+                                    <i class="${isTrackLiked ? 'fa-solid' : 'fa-regular'} fa-heart"></i>
                                 </button>
                                 <button class="slide-btn btn-delete-track" title="Remove from Playlist" style="color: #ff4a4a;">
                                     <i data-lucide="trash-2"></i>
@@ -2243,6 +2243,17 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll(`.search-result-track[data-track-id="${trackId}"] .btn-like-track`).forEach(btn => {
             btn.classList.toggle('active', isLikedNow);
             btn.style.color = '';
+            
+            const icon = btn.querySelector('.fa-heart');
+            if (icon) {
+                if (isLikedNow) {
+                    icon.classList.remove('fa-regular');
+                    icon.classList.add('fa-solid');
+                } else {
+                    icon.classList.remove('fa-solid');
+                    icon.classList.add('fa-regular');
+                }
+            }
         });
     }
 
@@ -2992,7 +3003,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
                 <div class="track-actions-slide">
                     <button class="slide-btn btn-like-track ${isTrackLiked ? 'active' : ''}" title="Like Track">
-                        <i class="fa-solid fa-heart"></i>
+                        <i class="${isTrackLiked ? 'fa-solid' : 'fa-regular'} fa-heart"></i>
                     </button>
                     <button class="slide-btn btn-add-to-playlist" title="Add to Playlist">
                         <i data-lucide="plus"></i>
@@ -3189,7 +3200,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
                 <div style="color:#777; font-size:13px; font-weight:500; white-space:nowrap; margin-right:8px;">${formatTime(t.duration)}</div>
                 <div class="track-actions-slide">
-                    <button class="slide-btn btn-like-track ${isTrackLiked ? 'active' : ''}"><i class="fa-solid fa-heart"></i></button>
+                    <button class="slide-btn btn-like-track ${isTrackLiked ? 'active' : ''}"><i class="${isTrackLiked ? 'fa-solid' : 'fa-regular'} fa-heart"></i></button>
                     <button class="slide-btn btn-add-to-playlist"><i data-lucide="plus"></i></button>
                 </div>
             `;
@@ -3301,7 +3312,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         </div>
                      </div>
                      <div class="track-actions-slide">
-                        <button class="slide-btn btn-like-track ${isTrackLiked ? 'active' : ''}"><i class="fa-solid fa-heart"></i></button>
+                        <button class="slide-btn btn-like-track ${isTrackLiked ? 'active' : ''}"><i class="${isTrackLiked ? 'fa-solid' : 'fa-regular'} fa-heart"></i></button>
                         <button class="slide-btn btn-add-to-playlist"><i data-lucide="plus"></i></button>
                      </div>
                 `;
