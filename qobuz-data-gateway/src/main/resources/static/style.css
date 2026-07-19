@@ -456,18 +456,18 @@ transition: z-index 0s 0s;
 }
 
 .slide-btn {
-    background: rgba(255, 255, 255, 0.1);
-    border: none;
+    background: transparent !important;
+    border: none !important;
     color: white;
     width: 36px;
     height: 36px;
-    border-radius: 50%;
+    border-radius: 0 !important;
+    box-shadow: none !important;
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
     transition: transform 0.2s, background 0.2s;
-
 }
 
 .slide-btn:active {
@@ -662,9 +662,9 @@ transition: z-index 0s 0s;
     height: auto !important;
 }
 
-/* Make all slide-btn heart icons 60% bigger and center them perfectly */
+/* Make all slide-btn heart icons 30% smaller than previous 28px (i.e. 20px) and center them perfectly */
 .slide-btn .fa-heart {
-    font-size: 28px !important;
+    font-size: 20px !important;
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
