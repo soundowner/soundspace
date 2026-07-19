@@ -74,7 +74,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     const player = new Audio();
-    const trackCache = new LRUCache(200);
+    const trackCache = new LRUCache(50000);
     const albumCache = new LRUCache(20);
     let currentTrackId = null;
     let loadedTrackId = null;
@@ -414,6 +414,55 @@ document.addEventListener('DOMContentLoaded', () => {
             if (renderedCount < tracks.length) {
                 if (els.tracksLibContainer.scrollTop + els.tracksLibContainer.clientHeight >= els.tracksLibContainer.scrollHeight - 300) {
                     renderNextChunk();
+                }
+            }
+        };
+    }
+
+    function getTrackDataById(trackId) {
+        trackId = String(trackId);
+        
+        // 1. Try LRU cache
+        let track = trackCache.get(trackId);
+        if (track) return track;
+        
+        // 2. Try library liked tracks
+        if (libraryState.likedTracks) {
+            track = libraryState.likedTracks.find(t => String(t.id) === trackId);
+            if (track) return track;
+        }
+        
+        // 3. Try playlist tracks
+        if (libraryState.playlists) {
+            for (const pl of libraryState.playlists) {
+                if (pl.tracks) {
+                    track = pl.tracks.find(t => String(t.id) === trackId);
+                    if (track) return track;
+                }
+            }
+        }
+        
+        return null;
+    }
+
+    function getTrackDataFromRow(row) {
+        if (!row) return null;
+        const trackId = String(row.dataset.trackId);
+        const track = getTrackDataById(trackId);
+        if (track) return track;
+        
+        // 4. Fallback: Reconstruct from DOM dataset
+        return {
+            id: trackId,
+            title: row.dataset.title || '',
+            artist: { name: row.dataset.artist || 'Unknown' },
+            performers: row.dataset.artist || 'Unknown',
+            album: {
+                id: row.dataset.albumId || '',
+                title: row.dataset.album || '',
+                image: {
+                    large: row.dataset.cover || '',
+                    small: row.dataset.cover || ''
                 }
             }
         };
@@ -2031,7 +2080,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const trackRow = addBtn.closest('.search-result-track');
             if (!trackRow) return;
             const trackId = trackRow.dataset.trackId;
-            const fullData = trackCache.get(String(trackId));
+            const fullData = getTrackDataFromRow(trackRow);
             if (!fullData) return;
 
             if (addBtn.classList.contains('btn-add-artist-search')) {
@@ -2380,7 +2429,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (addBtn) {
                 const trackRow = addBtn.closest('.search-result-track');
                 if (trackRow) {
-                    openAddToPlaylistModal(trackCache.get(String(trackRow.dataset.trackId)));
+                    openAddToPlaylistModal(getTrackDataFromRow(trackRow));
                 }
                 e.stopPropagation();
                 return;
@@ -2429,7 +2478,7 @@ document.addEventListener('DOMContentLoaded', () => {
         playerBtnLike.addEventListener('click', () => {
             if (playerState.currentTrack) {
                 const trackIdStr = String(playerState.currentTrack.id);
-                const cachedTrack = trackCache.get(trackIdStr);
+                const cachedTrack = getTrackDataById(trackIdStr);
                 const trackToLike = cachedTrack || {
                     id: playerState.currentTrack.id,
                     title: playerState.currentTrack.title,
@@ -2445,7 +2494,7 @@ document.addEventListener('DOMContentLoaded', () => {
         playerBtnAdd.addEventListener('click', () => {
             if (playerState.currentTrack) {
                 const trackIdStr = String(playerState.currentTrack.id);
-                const cachedTrack = trackCache.get(trackIdStr);
+                const cachedTrack = getTrackDataById(trackIdStr);
                 const trackToAdd = cachedTrack || {
                     id: playerState.currentTrack.id,
                     title: playerState.currentTrack.title,
@@ -3788,7 +3837,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateQualityInfoUI(trackId) {
         if (!els.trackQualityInfo) return;
 
-        const track = trackCache.get(String(trackId));
+        const track = getTrackDataById(String(trackId));
         const formatId = qualitySetting.formatId;
 
         if (formatId === 5) {
