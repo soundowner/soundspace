@@ -1070,7 +1070,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         playPromise.then(() => {
                             startLoop();
                         }).catch(error => {
-                            if (error.name !== 'AbortError' && error.name !== 'NotAllowedError') {
+                            if (error.name === 'AbortError') {
+                                return; // Ignore aborts from rapid switching
+                            }
+                            if (error.name !== 'NotAllowedError') {
                                 console.error('Playback error:', error);
                             }
                             playerState.isPlaying = false; // Сбросить статус в UI, если воспроизведение заблокировано
@@ -1665,6 +1668,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         row.setAttribute('data-album', t.album?.title || '');
                         row.setAttribute('data-cover', coverUrl);
 
+                        const isTrackLiked = libraryState.likedTrackIds.has(String(t.id));
                         row.innerHTML = `
                             <img src="${getImgSmall(t)}" class="search-result-track-cover" loading="lazy">
                             <div class="track-info">
@@ -1672,21 +1676,14 @@ document.addEventListener('DOMContentLoaded', () => {
                                 <p class="track-artist"><span style="color: var(--accent-primary, coral); font-weight: 500;">${escapeHtml(artistName)}</span><span class="track-title-sep"> | </span><span class="track-title-duration">${formatTime(t.duration)}</span></p>
                             </div>
                             <div class="track-actions-slide">
-                                <button class="slide-btn btn-add-to-playlist" title="Add to Playlist">
-                                    <i data-lucide="plus"></i>
+                                <button class="slide-btn btn-like-track ${isTrackLiked ? 'active' : ''}" style="${isTrackLiked ? 'color: coral;' : ''}" title="Like Track">
+                                    <i data-lucide="heart" style="${isTrackLiked ? 'fill: coral;' : ''}"></i>
                                 </button>
                                 <button class="slide-btn btn-delete-track" title="Remove from Playlist" style="color: #ff4a4a;">
                                     <i data-lucide="trash-2"></i>
                                 </button>
                             </div>
                         `;
-
-                        // Add to Playlist Button
-                        row.querySelector('.btn-add-to-playlist').onclick = (e) => {
-                            e.stopPropagation();
-                            row.classList.remove('show-actions');
-                            openAddToPlaylistModal(t);
-                        };
 
                         // Delete Logic
                         row.querySelector('.btn-delete-track').onclick = async (e) => {

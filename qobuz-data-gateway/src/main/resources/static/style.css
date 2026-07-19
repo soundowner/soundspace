@@ -443,8 +443,7 @@ transition: z-index 0s 0s;
     gap: 15px;
     background: linear-gradient(to right, transparent 0%, var(--panel-background) 30%);
     transform: translateX(105%);
-    /* Hidden by default */
-    transition: transform 0.4s linear;
+    transition: transform 0.1s linear;
     will-change: transform;
 
     z-index: 10;
