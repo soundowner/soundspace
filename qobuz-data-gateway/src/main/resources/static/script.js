@@ -2075,6 +2075,10 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
+    });
+
+    document.addEventListener('pointerup', (e) => {
+        if (e.button !== 0) return;
         const addBtn = e.target.closest('.slide-btn');
         if (addBtn) {
             const trackRow = addBtn.closest('.search-result-track');
@@ -2137,6 +2141,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 openAddToPlaylistModal(fullData);
             }
             e.stopPropagation();
+            e.preventDefault();
         }
     });
 
