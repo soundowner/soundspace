@@ -3024,8 +3024,6 @@ transition: z-index 0s 0s;
 .ss-acid-row.is-removing {
     opacity: 0 !important;
     max-height: 0 !important;
-    min-height: 0 !important;
-    height: 0 !important;
     padding-top: 0 !important;
     padding-bottom: 0 !important;
     margin-bottom: 0 !important;
@@ -3034,8 +3032,6 @@ transition: z-index 0s 0s;
     transition:
         opacity 0.8s linear,
         max-height 0.8s linear,
-        min-height 0.8s linear,
-        height 0.8s linear,
         padding-top 0.8s linear,
         padding-bottom 0.8s linear,
         margin-bottom 0.8s linear;
