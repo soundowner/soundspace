@@ -470,8 +470,9 @@ transition: z-index 0s 0s;
     transition: transform 0.2s, background 0.2s;
 }
 
-.slide-btn:active {
-    transform: scale(0.7) !important;
+.slide-btn:active,
+.slide-btn.pressed {
+    transform: scale(0.75) !important;
     transition: transform 0.1s !important;
 }
 
@@ -3031,13 +3032,13 @@ transition: z-index 0s 0s;
     pointer-events: none;
 
     transition:
-        opacity 0.3s cubic-bezier(0.25, 1, 0.5, 1),
-        max-height 0.3s cubic-bezier(0.25, 1, 0.5, 1),
-        min-height 0.3s cubic-bezier(0.25, 1, 0.5, 1),
-        height 0.3s cubic-bezier(0.25, 1, 0.5, 1),
-        padding-top 0.3s cubic-bezier(0.25, 1, 0.5, 1),
-        padding-bottom 0.3s cubic-bezier(0.25, 1, 0.5, 1),
-        margin-bottom 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+        opacity 0.8s linear,
+        max-height 0.8s linear,
+        min-height 0.8s linear,
+        height 0.8s linear,
+        padding-top 0.8s linear,
+        padding-bottom 0.8s linear,
+        margin-bottom 0.8s linear;
 }
 
 /* Prevent track contents from vertical squishing/shrinking during height collapse */
@@ -3051,13 +3052,13 @@ transition: z-index 0s 0s;
 /* Offset the 8px parent flex gap in the playlist track list */
 .ss-acid-list .ss-acid-row.is-removing {
     margin-top: -8px !important;
-    transition: margin-top 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+    transition: margin-top 0.8s linear;
 }
 
 /* Offset the 12px parent flex gap in the liked tracks list */
 #tracks-lib-container .ss-acid-row.is-removing {
     margin-top: -12px !important;
-    transition: margin-top 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+    transition: margin-top 0.8s linear;
 }
 
 /* --- Stage 2 Overrides: One-Handed UX + Cyberpunk Geometry --- */

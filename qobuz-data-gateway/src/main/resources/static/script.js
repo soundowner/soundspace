@@ -2078,6 +2078,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     document.addEventListener('pointerup', (e) => {
+        document.querySelectorAll('.slide-btn.pressed').forEach(btn => btn.classList.remove('pressed'));
         if (e.button !== 0) return;
         const addBtn = e.target.closest('.slide-btn');
         if (addBtn) {
@@ -2145,6 +2146,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    document.addEventListener('pointercancel', () => {
+        document.querySelectorAll('.slide-btn.pressed').forEach(btn => btn.classList.remove('pressed'));
+    });
+
     async function toggleLikeTrack(track, buttonEl) {
         const trackId = String(track.id);
         const isLiked = libraryState.likedTrackIds.has(trackId);
@@ -2187,15 +2192,25 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (row) {
                         const rowHeight = row.offsetHeight;
                         row.style.maxHeight = `${rowHeight}px`;
-                        requestAnimationFrame(() => {
-                            row.classList.add('is-removing');
-                            row.style.maxHeight = '0px';
-                        });
+                        
+                        // Force reflow
+                        row.offsetHeight;
+                        
+                        row.classList.add('is-removing');
+                        row.style.maxHeight = '0px';
+                        
+                        // Force reflow to register transition
+                        row.offsetHeight;
+
                         const animations = row.getAnimations();
                         if (animations.length > 0) {
-                            Promise.allSettled(animations.map(a => a.finished)).then(updateStateAndUi);
+                            Promise.allSettled(animations.map(a => a.finished)).then(() => {
+                                // Add 50ms (0.050s) extra buffer
+                                setTimeout(updateStateAndUi, 50);
+                            });
                         } else {
-                            updateStateAndUi();
+                            // Fallback if no animations are registered (0.8s + 50ms buffer = 850ms)
+                            setTimeout(updateStateAndUi, 850);
                         }
                     } else {
                         updateStateAndUi();
@@ -2336,6 +2351,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }, { capture: true, passive: true });
 
     document.addEventListener('pointerdown', (e) => {
+        const addBtn = e.target.closest('.slide-btn');
+        if (addBtn) {
+            addBtn.classList.add('pressed');
+        }
+
         const hasOpen = document.querySelector('.search-result-track.show-actions');
         if (!hasOpen) return;
         if (e.target.closest('.track-actions-slide')) return;
