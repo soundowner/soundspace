@@ -1735,8 +1735,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         `;
 
                         // Delete Logic
-                        row.querySelector('.btn-delete-track').onclick = async (e) => {
+                        row.querySelector('.btn-delete-track').addEventListener('pointerup', async (e) => {
                             e.stopPropagation();
+                            e.preventDefault();
+                            e.currentTarget.classList.remove('pressed');
                             row.classList.remove('show-actions');
                             try {
                                 const res = await fetch(`/library/playlists/${playlist.id}/tracks/${t.id}`, { method: 'DELETE' });
