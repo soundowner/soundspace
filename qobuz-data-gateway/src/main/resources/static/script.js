@@ -1735,10 +1735,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         `;
 
                         // Delete Logic
-                        row.querySelector('.btn-delete-track').addEventListener('pointerup', async (e) => {
+                        row.querySelector('.btn-delete-track').onclick = async (e) => {
                             e.stopPropagation();
-                            e.preventDefault();
-                            e.currentTarget.classList.remove('pressed');
                             row.classList.remove('show-actions');
                             try {
                                 const res = await fetch(`/library/playlists/${playlist.id}/tracks/${t.id}`, { method: 'DELETE' });
@@ -2084,11 +2082,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-    });
-
-    document.addEventListener('pointerup', (e) => {
-        document.querySelectorAll('.slide-btn.pressed').forEach(btn => btn.classList.remove('pressed'));
-        if (e.button !== 0) return;
         const addBtn = e.target.closest('.slide-btn');
         if (addBtn) {
             const trackRow = addBtn.closest('.search-result-track');
@@ -2151,12 +2144,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 openAddToPlaylistModal(fullData);
             }
             e.stopPropagation();
-            e.preventDefault();
         }
-    });
-
-    document.addEventListener('pointercancel', () => {
-        document.querySelectorAll('.slide-btn.pressed').forEach(btn => btn.classList.remove('pressed'));
     });
 
     async function toggleLikeTrack(track, buttonEl) {
@@ -2360,11 +2348,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }, { capture: true, passive: true });
 
     document.addEventListener('pointerdown', (e) => {
-        const addBtn = e.target.closest('.slide-btn');
-        if (addBtn) {
-            addBtn.classList.add('pressed');
-        }
-
         const hasOpen = document.querySelector('.search-result-track.show-actions');
         if (!hasOpen) return;
         if (e.target.closest('.track-actions-slide')) return;
