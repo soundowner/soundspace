@@ -1980,13 +1980,16 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- ADD TRACK TO PLAYLIST LOGIC ---
     let trackToAdd = null;
 
-    function openAddToPlaylistModal(trackData) {
-        closeAllSwipeActions();
-        trackToAdd = trackData;
-        if (!trackToAdd) return;
-        els.addToPlaylistModal.classList.remove('hidden');
+    function renderPlaylistSelectList() {
+        if (!els.selectPlaylistList) return;
+        if (!libraryState.playlists || libraryState.playlists.length === 0) {
+            els.selectPlaylistList.innerHTML = '<div class="empty-state-ss">No playlists yet</div>';
+            return;
+        }
+
         els.selectPlaylistList.innerHTML = libraryState.playlists.map(pl => {
-            const hasTrack = pl.tracks && pl.tracks.some(t => String(t.id) === String(trackToAdd.id));
+            const hasTrack = pl.tracks && pl.tracks.some(t => String(t.id) === String(trackToAdd?.id));
+            const trackCountText = pl.tracks ? `${pl.tracks.length} tracks` : `${pl.trackCount || 0} tracks`;
             return `
                 <div class="ss-playlist-select-item ${hasTrack ? 'ss-already-added' : ''}" data-id="${pl.id}" style="${hasTrack ? 'opacity: 0.5; pointer-events: none;' : ''}">
                     <div class="ss-playlist-select-cover">
@@ -1994,11 +1997,42 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                     <div class="ss-playlist-select-info">
                         <h4>${escapeHtml(pl.title)}</h4>
-                        <p>${hasTrack ? 'Already in this playlist' : `${pl.trackCount || 0} tracks`}</p>
+                        <p>${hasTrack ? 'Already in this playlist' : trackCountText}</p>
                     </div>
                 </div>
             `;
         }).join('');
+    }
+
+    async function openAddToPlaylistModal(trackData) {
+        closeAllSwipeActions();
+        trackToAdd = trackData;
+        if (!trackToAdd) return;
+
+        // Render initial view immediately
+        renderPlaylistSelectList();
+        els.addToPlaylistModal.classList.remove('hidden');
+
+        // Parallel fetch tracks for any playlist that hasn't loaded its track list yet
+        if (libraryState.playlists && libraryState.playlists.length > 0) {
+            const unloadedPlaylists = libraryState.playlists.filter(p => !p.tracks);
+            if (unloadedPlaylists.length > 0) {
+                await Promise.all(unloadedPlaylists.map(async (pl) => {
+                    try {
+                        const res = await fetch(`/library/playlists/${pl.id}/tracks`);
+                        if (res.ok) {
+                            pl.tracks = await res.json();
+                        }
+                    } catch (e) {
+                        console.error(`Failed to fetch tracks for playlist ${pl.id}`, e);
+                    }
+                }));
+                // Re-render modal once all playlist tracks are synchronized
+                if (trackToAdd && String(trackToAdd.id) === String(trackData.id)) {
+                    renderPlaylistSelectList();
+                }
+            }
+        }
     }
 
     if (els.addToPlaylistCancel) {
