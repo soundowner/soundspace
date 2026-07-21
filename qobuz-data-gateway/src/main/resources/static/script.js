@@ -1981,6 +1981,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let trackToAdd = null;
 
     function openAddToPlaylistModal(trackData) {
+        closeAllSwipeActions();
         trackToAdd = trackData;
         if (!trackToAdd) return;
         els.addToPlaylistModal.classList.remove('hidden');
@@ -2084,7 +2085,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const addBtn = e.target.closest('.slide-btn');
         if (addBtn) {
-            const trackRow = addBtn.closest('.search-result-track');
+            const trackRow = addBtn.closest('[data-track-id]');
             if (!trackRow) return;
             const trackId = trackRow.dataset.trackId;
             const fullData = getTrackDataFromRow(trackRow);
@@ -2341,18 +2342,20 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     document.addEventListener('touchstart', (e) => {
-        const hasOpen = document.querySelector('.search-result-track.show-actions');
+        if (document.querySelector('.ss-modal-overlay:not(.hidden)')) return;
+        const hasOpen = document.querySelector('.show-actions');
         if (!hasOpen) return;
         if (e.target.closest('.track-actions-slide')) return;
         closeAllSwipeActions();
-    }, { capture: true, passive: true });
+    }, { passive: true });
 
     document.addEventListener('pointerdown', (e) => {
-        const hasOpen = document.querySelector('.search-result-track.show-actions');
+        if (document.querySelector('.ss-modal-overlay:not(.hidden)')) return;
+        const hasOpen = document.querySelector('.show-actions');
         if (!hasOpen) return;
         if (e.target.closest('.track-actions-slide')) return;
         closeAllSwipeActions();
-    }, { capture: true });
+    });
 
     if (els.searchResults) {
         initSwipeForTrackList(els.searchResults);
