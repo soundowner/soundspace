@@ -2029,6 +2029,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Map full cached object to Backend DTO
             const trackPayload = mapToTrackDto(trackToAdd);
+            if (!trackPayload || !trackPayload.id) {
+                console.error('Invalid track payload', trackToAdd);
+                alert('Unable to process track data. Please try again.');
+                return;
+            }
 
             try {
                 const res = await fetch(`/library/playlists/${playlistId}/tracks`, {
@@ -2038,6 +2043,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 if (res.ok) {
                     els.addToPlaylistModal.classList.add('hidden');
+                    trackToAdd = null;
 
                     // Update local state and UI immediately
                     const pl = libraryState.playlists.find(p => String(p.id) === String(playlistId));
@@ -2052,8 +2058,23 @@ document.addEventListener('DOMContentLoaded', () => {
                             renderPlaylistDetailSS(pl);
                         }
                     }
+                } else if (res.status === 409) {
+                    item.classList.add('ss-already-added');
+                    const pl = libraryState.playlists.find(p => String(p.id) === String(playlistId));
+                    if (pl) {
+                        if (!pl.tracks) pl.tracks = [];
+                        if (!pl.tracks.some(t => String(t.id) === String(trackToAdd.id))) {
+                            pl.tracks.push(trackPayload);
+                        }
+                    }
+                    alert('This track is already in this playlist.');
+                } else {
+                    alert('Failed to add track to playlist. Server returned status ' + res.status);
                 }
-            } catch (e) { console.error(e); }
+            } catch (err) {
+                console.error('Failed to add track to playlist', err);
+                alert('Connection error while adding track to playlist.');
+            }
         });
     }
 
