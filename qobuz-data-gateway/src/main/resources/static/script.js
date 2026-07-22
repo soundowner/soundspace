@@ -159,6 +159,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // Profile Elements
         importYoutubeBtn: document.getElementById('import-youtube-btn'),
         youtubeImportStatus: document.getElementById('youtube-import-status'),
+        importSpotifyBtn: document.getElementById('import-spotify-btn'),
+        spotifyImportStatus: document.getElementById('spotify-import-status'),
 
         // Library Elements
         libraryPanel: document.getElementById('library-panel'),
@@ -4572,6 +4574,260 @@ document.addEventListener('DOMContentLoaded', () => {
                 fetchPlaylistsSS();
             }
         }
+    }
+
+    // --- SPOTIFY IMPORT LOGIC ---
+    function loginSpotify(clientId) {
+        let redirectUri = window.location.origin + '/';
+        if (window.location.pathname.endsWith('index.html')) {
+            redirectUri = window.location.origin + '/index.html';
+        }
+        
+        const scope = 'playlist-read-private playlist-read-collaborative user-library-read';
+        const authUrl = `https://accounts.spotify.com/authorize?client_id=${clientId}&response_type=token&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&show_dialog=true`;
+        
+        const width = 500;
+        const height = 600;
+        const left = (screen.width / 2) - (width / 2);
+        const top = (screen.height / 2) - (height / 2);
+        
+        els.spotifyImportStatus.textContent = "Waiting for authorization...";
+        
+        const popup = window.open(authUrl, 'SpotifyLogin', `width=${width},height=${height},top=${top},left=${left}`);
+        
+        if (!popup) {
+            els.spotifyImportStatus.textContent = "Popup blocked! Please allow popups for this site.";
+            return;
+        }
+        
+        const interval = setInterval(async () => {
+            try {
+                if (popup.closed) {
+                    clearInterval(interval);
+                    if (els.spotifyImportStatus.textContent === "Waiting for authorization...") {
+                        els.spotifyImportStatus.textContent = "Authorization window closed.";
+                    }
+                    return;
+                }
+                
+                const popupUrl = popup.location.href;
+                if (popupUrl && popup.location.origin === window.location.origin) {
+                    const hash = popup.location.hash;
+                    if (hash) {
+                        const params = new URLSearchParams(hash.substring(1));
+                        const accessToken = params.get('access_token');
+                        const error = params.get('error');
+                        
+                        popup.close();
+                        clearInterval(interval);
+                        
+                        if (accessToken) {
+                            els.spotifyImportStatus.textContent = "Authorized successfully! Loading playlists...";
+                            await handleSpotifyImport(accessToken);
+                        } else if (error) {
+                            els.spotifyImportStatus.textContent = `Authorization failed: ${error}`;
+                        } else {
+                            els.spotifyImportStatus.textContent = "Failed to parse access token.";
+                        }
+                    }
+                }
+            } catch (e) {
+                // Ignore cross-origin frame exceptions before redirect
+            }
+        }, 500);
+    }
+
+    async function handleSpotifyImport(accessToken) {
+        try {
+            els.spotifyImportStatus.textContent = "Fetching your playlists...";
+            
+            let playlists = [];
+            let url = 'https://api.spotify.com/v1/me/playlists?limit=50';
+            
+            let pages = 0;
+            while (url && pages < 2) {
+                const res = await fetch(url, {
+                    headers: { 'Authorization': `Bearer ${accessToken}` }
+                });
+                if (!res.ok) {
+                    throw new Error(`Spotify API error: ${res.status}`);
+                }
+                const data = await res.json();
+                if (data.items) {
+                    playlists = playlists.concat(data.items);
+                }
+                url = data.next;
+                pages++;
+            }
+            
+            showSpotifyPlaylistPicker(playlists, accessToken);
+        } catch (err) {
+            console.error("Spotify playlist fetch error:", err);
+            els.spotifyImportStatus.textContent = "Error fetching playlists from Spotify.";
+        }
+    }
+
+    function showSpotifyPlaylistPicker(playlists, accessToken) {
+        const modal = document.getElementById('spotify-playlist-modal');
+        const container = document.getElementById('spotify-playlists-container');
+        const closeBtn = document.getElementById('close-spotify-modal');
+        
+        container.innerHTML = '';
+        
+        if (playlists.length === 0) {
+            container.innerHTML = '<div style="color: var(--text-secondary); padding: 20px; text-align: center;">No playlists found.</div>';
+        } else {
+            playlists.forEach(pl => {
+                const item = document.createElement('div');
+                item.className = 'spot-playlist-item';
+                
+                item.style.display = 'flex';
+                item.style.alignItems = 'center';
+                item.style.gap = '14px';
+                item.style.padding = '12px';
+                item.style.borderRadius = '12px';
+                item.style.cursor = 'pointer';
+                item.style.background = 'rgba(255, 255, 255, 0.03)';
+                item.style.border = '1px solid rgba(255, 255, 255, 0.05)';
+                item.style.transition = 'background 0.25s, transform 0.2s';
+                
+                item.onmouseenter = () => {
+                    item.style.background = 'rgba(29, 185, 84, 0.12)';
+                    item.style.border = '1px solid rgba(29, 185, 84, 0.3)';
+                    item.style.transform = 'translateY(-2px)';
+                };
+                item.onmouseleave = () => {
+                    item.style.background = 'rgba(255, 255, 255, 0.03)';
+                    item.style.border = '1px solid rgba(255, 255, 255, 0.05)';
+                    item.style.transform = 'translateY(0)';
+                };
+                
+                const imgUrl = pl.images && pl.images[0] ? pl.images[0].url : '';
+                const imgMarkup = imgUrl 
+                    ? `<img src="${imgUrl}" style="width: 48px; height: 48px; border-radius: 8px; object-fit: cover; box-shadow: 0 4px 10px rgba(0,0,0,0.3);">`
+                    : `<div style="width: 48px; height: 48px; border-radius: 8px; background: #282828; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(0,0,0,0.3);"><i class="fa-brands fa-spotify" style="color: #1DB954; font-size: 24px;"></i></div>`;
+                
+                item.innerHTML = `
+                    ${imgMarkup}
+                    <div style="display: flex; flex-direction: column; gap: 4px; overflow: hidden; flex: 1;">
+                        <span style="font-weight: 600; color: white; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-family: 'Inter', sans-serif;">${pl.name}</span>
+                        <span style="font-size: 0.85em; color: rgba(255, 255, 255, 0.5); font-family: 'Inter', sans-serif;">${pl.tracks ? pl.tracks.total : 0} tracks</span>
+                    </div>
+                `;
+                
+                item.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    modal.classList.add('hidden');
+                    startSpotifyPlaylistImport(pl.id, pl.name, accessToken);
+                });
+                
+                container.appendChild(item);
+            });
+        }
+        
+        modal.classList.remove('hidden');
+        closeBtn.onclick = (e) => {
+            if (e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+            modal.classList.add('hidden');
+        };
+    }
+
+    async function startSpotifyPlaylistImport(playlistId, playlistTitle, accessToken) {
+        const overlay = document.getElementById('import-loading-overlay');
+        const subtext = document.getElementById('import-loading-subtext');
+        
+        overlay.classList.remove('hidden');
+        overlay.style.display = 'flex';
+        subtext.textContent = "Fetching tracks from Spotify...";
+        
+        try {
+            let tracks = [];
+            let url = `https://api.spotify.com/v1/playlists/${playlistId}/tracks?limit=100&fields=items(track(name,artists(name))),next`;
+            
+            while (url) {
+                const res = await fetch(url, {
+                    headers: { 'Authorization': `Bearer ${accessToken}` }
+                });
+                if (!res.ok) {
+                    throw new Error(`Spotify API error: ${res.status}`);
+                }
+                const data = await res.json();
+                if (data.items) {
+                    const batch = data.items
+                        .filter(item => item.track)
+                        .map(item => ({
+                            artist: item.track.artists.map(a => a.name).join(', '),
+                            title: item.track.name
+                        }));
+                    tracks = tracks.concat(batch);
+                }
+                url = data.next;
+            }
+            
+            subtext.textContent = `Matching and importing ${tracks.length} tracks...`;
+            
+            const payload = {
+                playlistTitle: playlistTitle,
+                tracks: tracks
+            };
+            
+            const importRes = await fetch('/library/import/spotify/playlist', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+            });
+            
+            if (importRes.ok) {
+                const result = await importRes.json();
+                els.spotifyImportStatus.innerHTML = `<span style="color: #4caf50; font-weight: 600;">Import complete! Created playlist with ${result.found} tracks.</span>`;
+            } else if (importRes.status === 409) {
+                els.spotifyImportStatus.innerHTML = `<span style="color: #ff5722; font-weight: 600;">Error: Playlist "${playlistTitle}" already exists.</span>`;
+            } else {
+                els.spotifyImportStatus.innerHTML = `<span style="color: #ff5722; font-weight: 600;">Server error during playlist import.</span>`;
+            }
+        } catch (err) {
+            console.error("Spotify import failed:", err);
+            els.spotifyImportStatus.innerHTML = `<span style="color: #ff5722; font-weight: 600;">An error occurred during import.</span>`;
+        } finally {
+            overlay.classList.add('hidden');
+            overlay.style.display = 'none';
+            // Refresh library
+            libraryState.needsPlaylistsSync = true;
+            if (libraryState.lastTab === 'playlists') {
+                fetchPlaylistsSS();
+            }
+        }
+    }
+
+    if (els.importSpotifyBtn) {
+        els.importSpotifyBtn.addEventListener('click', async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            els.spotifyImportStatus.textContent = "Connecting to configuration service...";
+            
+            try {
+                const configRes = await fetch('/auth/config/spotify');
+                if (!configRes.ok) {
+                    throw new Error(`Failed to load config: ${configRes.status}`);
+                }
+                const config = await configRes.json();
+                if (config.clientId && config.clientId !== "your_spotify_client_id_here") {
+                    loginSpotify(config.clientId);
+                } else {
+                    els.spotifyImportStatus.innerHTML = `<span style="color: #ff5722; font-weight: 600;">Spotify Client ID is not configured. Please add it to your .env file on the server.</span>`;
+                }
+            } catch (err) {
+                console.error("Config fetch error:", err);
+                els.spotifyImportStatus.textContent = "Error fetching configuration. Check connection.";
+            }
+        });
     }
 
     // Close active cut-marker tooltips on document click
