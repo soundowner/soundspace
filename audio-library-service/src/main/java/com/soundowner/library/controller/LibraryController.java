@@ -74,6 +74,39 @@ public class LibraryController {
         return ResponseEntity.ok(new YoutubeImportResponseDto(foundCount, request.getTracks().size()));
     }
 
+    @PostMapping("/import/spotify/playlist")
+    public ResponseEntity<YoutubeImportResponseDto> importPlaylistFromSpotify(
+            @RequestHeader("X-User-Id") UUID userId,
+            @RequestBody SpotifyPlaylistImportRequestDto request) {
+
+        // 1. Создаем плейлист
+        Playlist playlist = new Playlist();
+        playlist.setUserId(userId);
+        playlist.setTitle("🟢 " + request.getPlaylistTitle());
+        playlist.setDescription("Imported from Spotify");
+        Playlist created = libraryService.createPlaylist(playlist);
+
+        // 2. Запускаем задачи добавления в плейлист
+        List<CompletableFuture<Boolean>> futures = request.getTracks().stream()
+                .map(item -> youtubeImportService.processAndAddToPlaylistAsync(created.getId(), toYoutubeDto(item)))
+                .collect(Collectors.toList());
+
+        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+
+        int foundCount = (int) futures.stream()
+                .filter(CompletableFuture::join)
+                .count();
+
+        return ResponseEntity.ok(new YoutubeImportResponseDto(foundCount, request.getTracks().size()));
+    }
+
+    private YoutubeImportRequestDto toYoutubeDto(SpotifyImportRequestDto spotifyDto) {
+        YoutubeImportRequestDto ytDto = new YoutubeImportRequestDto();
+        ytDto.setArtist(spotifyDto.getArtist());
+        ytDto.setTitle(spotifyDto.getTitle());
+        return ytDto;
+    }
+
     @GetMapping("/artists/ids")
     public ResponseEntity<List<Long>> getMyArtistIds(
             @RequestHeader("X-User-Id") UUID userId) {

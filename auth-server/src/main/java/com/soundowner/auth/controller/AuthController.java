@@ -3,12 +3,14 @@ package com.soundowner.auth.controller;
 import com.soundowner.auth.controller.dto.LoginRequest;
 import com.soundowner.auth.controller.dto.RegisterRequest;
 import com.soundowner.auth.controller.dto.UserProfileResponse;
+import com.soundowner.auth.controller.dto.SpotifyConfigResponse;
 import com.soundowner.auth.service.AuthService;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -19,6 +21,14 @@ import org.springframework.web.bind.annotation.*;
 public class AuthController {
 
     private final AuthService authService;
+
+    @Value("${SPOTIFY_CLIENT_ID:}")
+    private String spotifyClientId;
+
+    @GetMapping("/config/spotify")
+    public ResponseEntity<SpotifyConfigResponse> getSpotifyConfig() {
+        return ResponseEntity.ok(new SpotifyConfigResponse(spotifyClientId));
+    }
 
     @GetMapping("/refresh")
     public ResponseEntity<Void> refresh(

@@ -80,6 +80,11 @@
                         <i class="fa-brands fa-youtube"></i> Import from YouTube
                     </button>
                     <div id="youtube-import-status" style="margin-top: 15px; color: var(--text-secondary); text-align: center; font-size: 0.9em; max-width: 80%;"></div>
+
+                    <button id="import-spotify-btn" style="margin-top: 15px; padding: 12px 24px; background-color: #1DB954; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 8px; font-family: 'Inter', sans-serif;">
+                        <i class="fa-brands fa-spotify"></i> Import from Spotify
+                    </button>
+                    <div id="spotify-import-status" style="margin-top: 15px; color: var(--text-secondary); text-align: center; font-size: 0.9em; max-width: 80%;"></div>
                 </div>
             </div>
 
@@ -180,6 +185,19 @@
                     </div>
                     <div class="ss-modal-actions">
                         <button id="close-youtube-modal" class="ss-text-btn">Cancel</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Spotify Playlist Picker -->
+            <div id="spotify-playlist-modal" class="ss-modal-overlay hidden">
+                <div class="ss-modal-window" style="max-width: 450px;">
+                    <h3>Select Spotify Playlist</h3>
+                    <div id="spotify-playlists-container" style="max-height: 400px; overflow-y: auto; margin: 15px 0; display: flex; flex-direction: column; gap: 8px;">
+                        <!-- Spotify playlists will be injected here -->
+                    </div>
+                    <div class="ss-modal-actions">
+                        <button id="close-spotify-modal" class="ss-text-btn">Cancel</button>
                     </div>
                 </div>
             </div>
