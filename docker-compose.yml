@@ -3,7 +3,7 @@ services:
     image: postgres:15-alpine
     container_name: soundspace-db
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     environment:
       POSTGRES_DB: soundspace_db
       POSTGRES_USER: soundowner
@@ -22,7 +22,7 @@ services:
       dockerfile: Dockerfile
     container_name: soundspace-gateway
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     environment:
       - JWT_SECRET=${JWT_SECRET}
       - GATEWAY_X_FORWARDED_PROTO=${GATEWAY_X_FORWARDED_PROTO:-true}
@@ -40,7 +40,7 @@ services:
       dockerfile: Dockerfile
     container_name: auth-server
     ports:
-      - "8081:8081"
+      - "127.0.0.1:8081:8081"
     environment:
       - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/soundspace_db
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
@@ -59,7 +59,7 @@ services:
       dockerfile: Dockerfile
     container_name: qobuz-api-gateway
     ports:
-      - "8082:8082"
+      - "127.0.0.1:8082:8082"
     environment:
       - QOBUZ_APP_ID=${QOBUZ_APP_ID}
       - QOBUZ_APP_SECRET=${QOBUZ_APP_SECRET}
@@ -75,7 +75,7 @@ services:
       dockerfile: Dockerfile
     container_name: audio-library-service
     ports:
-      - "8083:8083"
+      - "127.0.0.1:8083:8083"
     environment:
       - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/soundspace_library
       - JWT_SECRET=${JWT_SECRET}
