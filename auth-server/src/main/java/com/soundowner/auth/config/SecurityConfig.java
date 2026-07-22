@@ -32,7 +32,7 @@ public class SecurityConfig {
                         .sessionCreationPolicy(
                                 org.springframework.security.config.http.SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/login/**", "/register/**", "/refresh", "/error", "/callback/**", "/config/spotify").permitAll()
+                        .requestMatchers("/login/**", "/register/**", "/refresh", "/error", "/callback/**", "/config/spotify", "/config/spotify/**", "/auth/config/spotify", "/auth/config/spotify/**").permitAll()
                         .anyRequest().authenticated())
                 .oauth2Login(oauth2 -> oauth2
                         .authorizationEndpoint(authorization -> authorization
