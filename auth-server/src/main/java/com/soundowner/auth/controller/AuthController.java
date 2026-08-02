@@ -14,6 +14,15 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.HttpEntity;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
+import org.springframework.web.client.RestTemplate;
+import java.util.Base64;
+import java.util.Map;
+import java.nio.charset.StandardCharsets;
 
 @RestController
 @RequestMapping // Gateway strips /auth, so we use root mapping here
@@ -25,9 +34,42 @@ public class AuthController {
     @Value("${SPOTIFY_CLIENT_ID:}")
     private String spotifyClientId;
 
+    @Value("${SPOTIFY_CLIENT_SECRET:}")
+    private String spotifyClientSecret;
+
     @GetMapping("/config/spotify")
     public ResponseEntity<SpotifyConfigResponse> getSpotifyConfig() {
         return ResponseEntity.ok(new SpotifyConfigResponse(spotifyClientId));
+    }
+
+    @GetMapping("/config/spotify/token")
+    public ResponseEntity<Map<String, Object>> getSpotifyToken() {
+        if (spotifyClientId == null || spotifyClientId.isEmpty() ||
+            spotifyClientSecret == null || spotifyClientSecret.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Spotify credentials are not configured on the server."));
+        }
+        try {
+            RestTemplate restTemplate = new RestTemplate();
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
+            String auth = spotifyClientId + ":" + spotifyClientSecret;
+            String encodedAuth = Base64.getEncoder().encodeToString(auth.getBytes(StandardCharsets.UTF_8));
+            headers.set("Authorization", "Basic " + encodedAuth);
+
+            MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
+            body.add("grant_type", "client_credentials");
+
+            HttpEntity<MultiValueMap<String, String>> entity = new HttpEntity<>(body, headers);
+            ResponseEntity<Map> response = restTemplate.postForEntity("https://accounts.spotify.com/api/token", entity, Map.class);
+            
+            @SuppressWarnings("unchecked")
+            Map<String, Object> responseBody = (Map<String, Object>) response.getBody();
+            return ResponseEntity.ok(responseBody);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
+                    .body(Map.of("error", "Failed to retrieve token from Spotify: " + e.getMessage()));
+        }
     }
 
     @GetMapping("/refresh")

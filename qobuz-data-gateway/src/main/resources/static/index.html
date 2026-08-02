@@ -84,6 +84,17 @@
                     <button id="import-spotify-btn" style="margin-top: 15px; padding: 12px 24px; background-color: #1DB954; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 8px; font-family: 'Inter', sans-serif;">
                         <i class="fa-brands fa-spotify"></i> Import from Spotify
                     </button>
+
+                    <!-- Spotify Playlist Input Area -->
+                    <div id="spotify-import-input-container" style="display: none; flex-direction: column; align-items: center; gap: 10px; margin-top: 15px; width: 85%;">
+                        <input id="spotify-playlist-input" type="text" placeholder="Spotify Playlist URL or ID" 
+                               style="width: 100%; padding: 10px 14px; border-radius: 8px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); color: white; font-family: 'Inter', sans-serif; font-size: 0.9em; outline: none; transition: border-color 0.2s;" />
+                        <div style="display: flex; gap: 10px; width: 100%; justify-content: flex-end;">
+                            <button id="spotify-playlist-cancel-btn" style="padding: 8px 16px; background: rgba(255, 255, 255, 0.1); color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 0.9em; font-family: 'Inter', sans-serif;">Cancel</button>
+                            <button id="spotify-playlist-ok-btn" style="padding: 8px 24px; background: white; color: coral; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 0.9em; font-family: 'Inter', sans-serif; box-shadow: 0 4px 12px rgba(255, 127, 80, 0.2);">ok</button>
+                        </div>
+                    </div>
+
                     <div id="spotify-import-status" style="margin-top: 15px; color: var(--text-secondary); text-align: center; font-size: 0.9em; max-width: 80%;"></div>
                 </div>
             </div>

@@ -50,6 +50,7 @@ services:
       - FORWARD_HEADERS_STRATEGY=${FORWARD_HEADERS_STRATEGY:-framework}
       - JWT_SECRET=${JWT_SECRET}
       - SPOTIFY_CLIENT_ID=${SPOTIFY_CLIENT_ID}
+      - SPOTIFY_CLIENT_SECRET=${SPOTIFY_CLIENT_SECRET}
     depends_on:
       postgres:
         condition: service_healthy

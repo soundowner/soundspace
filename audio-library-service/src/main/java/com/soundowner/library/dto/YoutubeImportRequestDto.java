@@ -6,4 +6,5 @@ import lombok.Data;
 public class YoutubeImportRequestDto {
     private String artist;
     private String title;
+    private String isrc;
 }

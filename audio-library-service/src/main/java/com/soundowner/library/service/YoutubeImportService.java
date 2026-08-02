@@ -57,6 +57,31 @@ public class YoutubeImportService {
     }
 
     private TrackDto findBestMatch(YoutubeImportRequestDto item) throws Exception {
+        // 1. Try matching by ISRC first if present
+        if (item.getIsrc() != null && !item.getIsrc().trim().isEmpty()) {
+            String isrcQuery = item.getIsrc().trim();
+            String url = "http://qobuz-api-gateway:8082/data/audio/search/isrc?isrc={isrc}";
+            try {
+                log.debug("Searching Qobuz by ISRC: {}", isrcQuery);
+                String responseStr = restTemplate.getForObject(url, String.class, isrcQuery);
+                JsonNode tracksNode = objectMapper.readTree(responseStr).path("tracks").path("items");
+
+                if (tracksNode.isArray() && tracksNode.size() > 0) {
+                    for (JsonNode node : tracksNode) {
+                        TrackDto trackDto = objectMapper.treeToValue(node, TrackDto.class);
+                        if (trackDto != null && isrcQuery.equalsIgnoreCase(trackDto.getIsrc())) {
+                            log.debug("Exact ISRC match found on Qobuz: {}", isrcQuery);
+                            return trackDto;
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("Failed to find track by ISRC: {}. Error: {}", isrcQuery, e.getMessage());
+            }
+            log.debug("No exact ISRC match found on Qobuz for {}, falling back to text search.", isrcQuery);
+        }
+
+        // 2. Fallback to text-based search
         String query = item.getArtist() + " " + item.getTitle();
         String url = "http://qobuz-api-gateway:8082/data/audio/search?query={query}&type=tracks&limit=5";
 
@@ -76,6 +101,13 @@ public class YoutubeImportService {
 
     private boolean isValidMatch(YoutubeImportRequestDto yt, TrackDto qobuz) {
         if (qobuz == null || qobuz.getId() == null) return false;
+
+        // If ISRC matches exactly, it is a valid match!
+        if (yt.getIsrc() != null && !yt.getIsrc().trim().isEmpty() && qobuz.getIsrc() != null) {
+            if (yt.getIsrc().trim().equalsIgnoreCase(qobuz.getIsrc().trim())) {
+                return true;
+            }
+        }
 
         String ytArtist = normalize(yt.getArtist());
         String ytTitle = normalize(yt.getTitle());

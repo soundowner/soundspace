@@ -19,6 +19,11 @@ public class QobuzController {
         return qobuzApiService.search(query, type);
     }
 
+    @GetMapping("/search/isrc")
+    public Mono<String> searchByIsrc(@RequestParam String isrc) {
+        return qobuzApiService.searchTrackByIsrc(isrc);
+    }
+
     @GetMapping("/artist")
     public Mono<String> getArtistWithAlbums(@RequestParam String artistId) {
         return qobuzApiService.getArtistWithAlbums(artistId);

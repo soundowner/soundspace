@@ -91,6 +91,32 @@ public class QobuzApiService {
     }
 
     /**
+     * Выполняет поиск трека по ISRC через endpoint track/search.
+     *
+     * @param isrc ISRC код трека
+     * @return     Mono с JSON-строкой ответа от API Qobuz
+     */
+    public Mono<String> searchTrackByIsrc(String isrc) {
+        java.net.URI uri = UriComponentsBuilder.fromUriString(properties.getQobuzBaseUrl() + "track/search")
+                .queryParam("app_id", properties.getAppId())
+                .queryParam("query", isrc)
+                .queryParam("limit", 1)
+                .queryParam("user_auth_token", validSearchToken)
+                .build()
+                .toUri();
+
+        log.info("Requesting Track Search by ISRC URL: {}", uri.toString());
+
+        return webClient.get()
+                .uri(uri)
+                .retrieve()
+                .bodyToMono(String.class)
+                .doOnNext(res -> log.debug("Qobuz ISRC search success for: {}", isrc))
+                .doOnError(e -> log.error("Qobuz ISRC search failed for: {}. Error: {}", isrc, e.getMessage()))
+                .timeout(Duration.ofSeconds(5));
+    }
+
+    /**
      * Получает URL для стриминга или загрузки файла трека.
      *
      * @param trackId  ID трека в каталоге Qobuz

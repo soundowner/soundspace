@@ -161,6 +161,10 @@ document.addEventListener('DOMContentLoaded', () => {
         youtubeImportStatus: document.getElementById('youtube-import-status'),
         importSpotifyBtn: document.getElementById('import-spotify-btn'),
         spotifyImportStatus: document.getElementById('spotify-import-status'),
+        spotifyImportInputContainer: document.getElementById('spotify-import-input-container'),
+        spotifyPlaylistInput: document.getElementById('spotify-playlist-input'),
+        spotifyPlaylistCancelBtn: document.getElementById('spotify-playlist-cancel-btn'),
+        spotifyPlaylistOkBtn: document.getElementById('spotify-playlist-ok-btn'),
 
         // Library Elements
         libraryPanel: document.getElementById('library-panel'),
@@ -4746,7 +4750,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         try {
             let tracks = [];
-            let url = `https://api.spotify.com/v1/playlists/${playlistId}/tracks?limit=100&fields=items(track(name,artists(name))),next`;
+            let url = `https://api.spotify.com/v1/playlists/${playlistId}/tracks?limit=100&fields=items(track(name,artists(name),external_ids)),next`;
             
             while (url) {
                 const res = await fetch(url, {
@@ -4761,7 +4765,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         .filter(item => item.track)
                         .map(item => ({
                             artist: item.track.artists.map(a => a.name).join(', '),
-                            title: item.track.name
+                            title: item.track.name,
+                            isrc: (item.track.external_ids && item.track.external_ids.isrc) ? item.track.external_ids.isrc : null
                         }));
                     tracks = tracks.concat(batch);
                 }
@@ -4806,26 +4811,87 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (els.importSpotifyBtn) {
-        els.importSpotifyBtn.addEventListener('click', async (e) => {
+        els.importSpotifyBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            els.importSpotifyBtn.style.display = 'none';
+            els.spotifyImportInputContainer.style.display = 'flex';
+            els.spotifyPlaylistInput.focus();
+            els.spotifyImportStatus.textContent = '';
+        });
+    }
+
+    if (els.spotifyPlaylistCancelBtn) {
+        els.spotifyPlaylistCancelBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            els.spotifyImportInputContainer.style.display = 'none';
+            els.importSpotifyBtn.style.display = 'flex';
+            els.spotifyPlaylistInput.value = '';
+            els.spotifyImportStatus.textContent = '';
+        });
+    }
+
+    if (els.spotifyPlaylistOkBtn) {
+        els.spotifyPlaylistOkBtn.addEventListener('click', async (e) => {
             e.preventDefault();
             e.stopPropagation();
             
-            els.spotifyImportStatus.textContent = "Connecting to configuration service...";
+            let playlistValue = els.spotifyPlaylistInput.value.trim();
+            if (!playlistValue) {
+                els.spotifyImportStatus.innerHTML = `<span style="color: #ff5722; font-weight: 600;">Please enter a Spotify Playlist URL or ID.</span>`;
+                return;
+            }
+            
+            // Extract Playlist ID
+            let playlistId = playlistValue;
+            if (playlistId.includes('spotify.com/playlist/')) {
+                const parts = playlistId.split('spotify.com/playlist/');
+                playlistId = parts[1].split('?')[0];
+            } else if (playlistId.includes('spotify:playlist:')) {
+                playlistId = playlistId.split('spotify:playlist:')[1];
+            }
+            
+            if (playlistId.length < 15) {
+                els.spotifyImportStatus.innerHTML = `<span style="color: #ff5722; font-weight: 600;">Invalid Spotify Playlist URL or ID.</span>`;
+                return;
+            }
+            
+            els.spotifyImportInputContainer.style.display = 'none';
+            els.importSpotifyBtn.style.display = 'flex';
+            els.spotifyPlaylistInput.value = '';
+            els.spotifyImportStatus.textContent = "Connecting to Spotify...";
             
             try {
-                const configRes = await fetch('/auth/config/spotify');
-                if (!configRes.ok) {
-                    throw new Error(`Failed to load config: ${configRes.status}`);
+                // 1. Get Client Credentials Token from backend
+                const tokenRes = await fetch('/auth/config/spotify/token');
+                if (!tokenRes.ok) {
+                    throw new Error(`Failed to retrieve Spotify token from server: ${tokenRes.status}`);
                 }
-                const config = await configRes.json();
-                if (config.clientId && config.clientId !== "your_spotify_client_id_here") {
-                    loginSpotify(config.clientId);
-                } else {
-                    els.spotifyImportStatus.innerHTML = `<span style="color: #ff5722; font-weight: 600;">Spotify Client ID is not configured. Please add it to your .env file on the server.</span>`;
+                const tokenData = await tokenRes.json();
+                if (tokenData.error) {
+                    throw new Error(tokenData.error);
                 }
+                
+                const accessToken = tokenData.access_token;
+                
+                // 2. Fetch Playlist Details (specifically Title)
+                els.spotifyImportStatus.textContent = "Fetching playlist details...";
+                const plRes = await fetch(`https://api.spotify.com/v1/playlists/${playlistId}?fields=name`, {
+                    headers: { 'Authorization': `Bearer ${accessToken}` }
+                });
+                if (!plRes.ok) {
+                    throw new Error(`Failed to fetch playlist details: ${plRes.status}`);
+                }
+                const plData = await plRes.json();
+                const playlistTitle = plData.name || "Spotify Import";
+                
+                // 3. Start track fetch and import
+                await startSpotifyPlaylistImport(playlistId, playlistTitle, accessToken);
+                
             } catch (err) {
-                console.error("Config fetch error:", err);
-                els.spotifyImportStatus.textContent = "Error fetching configuration. Check connection.";
+                console.error("Spotify import error:", err);
+                els.spotifyImportStatus.innerHTML = `<span style="color: #ff5722; font-weight: 600;">${err.message || 'Error occurred during import.'}</span>`;
             }
         });
     }
