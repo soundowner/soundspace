@@ -58,7 +58,7 @@ class YoutubeImportServiceTest {
         // Qobuz returns completely different artist/title
         String jsonResponse = "{ \"tracks\": { \"items\": [ { \"id\": 1, \"title\": \"Flowers\", \"performers\": \"Miley Cyrus\" } ] } }";
 
-        when(restTemplate.getForObject(anyString(), eq(String.class))).thenReturn(jsonResponse);
+        when(restTemplate.getForObject(anyString(), eq(String.class), anyString())).thenReturn(jsonResponse);
         when(objectMapper.readTree(anyString())).thenReturn(realMapper.readTree(jsonResponse));
 
         TrackDto trackDto = new TrackDto();
@@ -81,7 +81,7 @@ class YoutubeImportServiceTest {
         ytDto.setTitle("Get Lucky");
 
         // Simulate RestTemplate throwing an exception (e.g., Timeout or 503)
-        when(restTemplate.getForObject(anyString(), eq(String.class)))
+        when(restTemplate.getForObject(anyString(), eq(String.class), anyString()))
                 .thenThrow(new RestClientException("Connection timed out"));
 
         // Should catch the exception, log it, and return false smoothly
@@ -100,7 +100,7 @@ class YoutubeImportServiceTest {
 
         String badJson = "{ invalid json";
 
-        when(restTemplate.getForObject(anyString(), eq(String.class))).thenReturn(badJson);
+        when(restTemplate.getForObject(anyString(), eq(String.class), anyString())).thenReturn(badJson);
         // Simulate ObjectMapper throwing JsonParseException
         when(objectMapper.readTree(anyString())).thenThrow(new com.fasterxml.jackson.core.JsonParseException(null, "Bad JSON"));
 
