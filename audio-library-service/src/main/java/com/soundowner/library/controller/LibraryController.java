@@ -104,6 +104,7 @@ public class LibraryController {
         YoutubeImportRequestDto ytDto = new YoutubeImportRequestDto();
         ytDto.setArtist(spotifyDto.getArtist());
         ytDto.setTitle(spotifyDto.getTitle());
+        ytDto.setIsrc(spotifyDto.getIsrc());
         return ytDto;
     }
 
