@@ -4730,7 +4730,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (data.items) {
                     playlists = playlists.concat(data.items);
                 }
-                url = data.next;
+                
+                let nextUrl = data.next;
+                if (nextUrl && nextUrl.includes('/users/') && nextUrl.includes('/playlists')) {
+                    try {
+                        const urlObj = new URL(nextUrl);
+                        const limit = urlObj.searchParams.get('limit') || '50';
+                        const offset = urlObj.searchParams.get('offset') || '0';
+                        nextUrl = `https://api.spotify.com/v1/me/playlists?limit=${limit}&offset=${offset}`;
+                    } catch (urlErr) {
+                        console.warn("Failed to parse nextUrl, using default logic", urlErr);
+                    }
+                }
+                url = nextUrl;
                 pages++;
             }
             
@@ -4821,7 +4833,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         try {
             let tracks = [];
-            let url = `https://api.spotify.com/v1/playlists/${playlistId}/items?limit=100&fields=items(track(name,artists(name),external_ids)),next`;
+            let url = `https://api.spotify.com/v1/playlists/${playlistId}/items?limit=100`;
             
             while (url) {
                 const res = await fetch(url, {
@@ -4835,15 +4847,21 @@ document.addEventListener('DOMContentLoaded', () => {
                     const batch = data.items
                         .filter(item => item.track)
                         .map(item => ({
-                            artist: item.track.artists.map(a => a.name).join(', '),
-                            title: item.track.name,
+                            artist: item.track.artists ? item.track.artists.map(a => a.name).join(', ') : 'Unknown Artist',
+                            title: item.track.name || 'Unknown Title',
                             isrc: (item.track.external_ids && item.track.external_ids.isrc) ? item.track.external_ids.isrc : null
                         }));
                     tracks = tracks.concat(batch);
                 }
-                url = data.next;
+                
+                let nextUrl = data.next;
+                if (nextUrl && nextUrl.includes('/tracks')) {
+                    nextUrl = nextUrl.replace('/tracks', '/items');
+                }
+                url = nextUrl;
             }
             
+            console.log(`Fetched tracks from Spotify for playlist ${playlistTitle}:`, tracks);
             subtext.textContent = `Matching and importing ${tracks.length} tracks...`;
             
             const payload = {
