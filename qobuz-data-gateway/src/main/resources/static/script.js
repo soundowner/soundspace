@@ -4747,6 +4747,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const closeBtn = document.getElementById('close-spotify-modal');
         
         container.innerHTML = '';
+        console.log("Fetched playlists from Spotify:", playlists);
         
         if (playlists.length === 0) {
             container.innerHTML = '<div style="color: var(--text-secondary); padding: 20px; text-align: center;">No playlists found.</div>';
@@ -4820,7 +4821,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         try {
             let tracks = [];
-            let url = `https://api.spotify.com/v1/playlists/${playlistId}/tracks?limit=100&fields=items(track(name,artists(name),external_ids)),next`;
+            let url = `https://api.spotify.com/v1/playlists/${playlistId}/items?limit=100&fields=items(track(name,artists(name),external_ids)),next`;
             
             while (url) {
                 const res = await fetch(url, {
