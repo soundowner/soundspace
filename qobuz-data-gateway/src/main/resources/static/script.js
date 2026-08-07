@@ -4577,15 +4577,43 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // --- SPOTIFY OAUTH PKCE HELPER FUNCTIONS ---
+    function generateRandomString(length) {
+        const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+        const values = crypto.getRandomValues(new Uint8Array(length));
+        return Array.from(values).map((x) => possible[x % possible.length]).join('');
+    }
+
+    async function sha256(plain) {
+        const encoder = new TextEncoder();
+        const data = encoder.encode(plain);
+        return window.crypto.subtle.digest('SHA-256', data);
+    }
+
+    function base64urlencode(a) {
+        return btoa(String.fromCharCode.apply(null, new Uint8Array(a)))
+            .replace(/\+/g, '-')
+            .replace(/\//g, '_')
+            .replace(/=+$/, '');
+    }
+
     // --- SPOTIFY IMPORT LOGIC ---
-    function loginSpotify(clientId) {
+    async function loginSpotify(clientId) {
         let redirectUri = window.location.origin + '/';
         if (window.location.pathname.endsWith('index.html')) {
             redirectUri = window.location.origin + '/index.html';
         }
         
+        // Generate PKCE values
+        const codeVerifier = generateRandomString(64);
+        const hashed = await sha256(codeVerifier);
+        const codeChallenge = base64urlencode(hashed);
+        
+        // Save codeVerifier locally to exchange it later
+        localStorage.setItem('spotify_code_verifier', codeVerifier);
+        
         const scope = 'playlist-read-private playlist-read-collaborative user-library-read';
-        const authUrl = `https://accounts.spotify.com/authorize?client_id=${clientId}&response_type=token&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&show_dialog=true`;
+        const authUrl = `https://accounts.spotify.com/authorize?client_id=${clientId}&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&code_challenge_method=S256&code_challenge=${codeChallenge}&show_dialog=true`;
         
         const width = 500;
         const height = 600;
@@ -4613,22 +4641,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 const popupUrl = popup.location.href;
                 if (popupUrl && popup.location.origin === window.location.origin) {
-                    const hash = popup.location.hash;
-                    if (hash) {
-                        const params = new URLSearchParams(hash.substring(1));
-                        const accessToken = params.get('access_token');
+                    const search = popup.location.search;
+                    if (search) {
+                        const params = new URLSearchParams(search);
+                        const code = params.get('code');
                         const error = params.get('error');
                         
                         popup.close();
                         clearInterval(interval);
                         
-                        if (accessToken) {
-                            els.spotifyImportStatus.textContent = "Authorized successfully! Loading playlists...";
-                            await handleSpotifyImport(accessToken);
+                        if (code) {
+                            els.spotifyImportStatus.textContent = "Exchanging authorization code...";
+                            await exchangeSpotifyCode(code, clientId, redirectUri);
                         } else if (error) {
                             els.spotifyImportStatus.textContent = `Authorization failed: ${error}`;
                         } else {
-                            els.spotifyImportStatus.textContent = "Failed to parse access token.";
+                            els.spotifyImportStatus.textContent = "Failed to parse authorization code.";
                         }
                     }
                 }
@@ -4636,6 +4664,51 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Ignore cross-origin frame exceptions before redirect
             }
         }, 500);
+    }
+
+    async function exchangeSpotifyCode(code, clientId, redirectUri) {
+        const codeVerifier = localStorage.getItem('spotify_code_verifier');
+        if (!codeVerifier) {
+            els.spotifyImportStatus.textContent = "Code verifier not found in localStorage.";
+            return;
+        }
+        
+        try {
+            const body = new URLSearchParams({
+                grant_type: 'authorization_code',
+                code: code,
+                redirect_uri: redirectUri,
+                client_id: clientId,
+                code_verifier: codeVerifier
+            });
+            
+            const res = await fetch('https://accounts.spotify.com/api/token', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: body
+            });
+            
+            if (!res.ok) {
+                const errData = await res.json();
+                throw new Error(errData.error_description || `HTTP error: ${res.status}`);
+            }
+            
+            const tokenData = await res.json();
+            const accessToken = tokenData.access_token;
+            if (accessToken) {
+                els.spotifyImportStatus.textContent = "Authorized successfully! Loading playlists...";
+                await handleSpotifyImport(accessToken);
+            } else {
+                els.spotifyImportStatus.textContent = "Failed to parse access token from Spotify response.";
+            }
+        } catch (err) {
+            console.error("Spotify token exchange error:", err);
+            els.spotifyImportStatus.innerHTML = `<span style="color: #ff5722; font-weight: 600;">Token exchange failed: ${err.message}</span>`;
+        } finally {
+            localStorage.removeItem('spotify_code_verifier');
+        }
     }
 
     async function handleSpotifyImport(accessToken) {
@@ -4824,7 +4897,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     throw new Error("Spotify Client ID is not configured on the server.");
                 }
                 
-                loginSpotify(configData.clientId);
+                await loginSpotify(configData.clientId);
             } catch (err) {
                 console.error("Spotify OAuth initiation error:", err);
                 els.spotifyImportStatus.innerHTML = `<span style="color: #ff5722; font-weight: 600;">${err.message}</span>`;
