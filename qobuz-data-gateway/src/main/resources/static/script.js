@@ -4847,12 +4847,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (data.items) {
                     console.log("Raw items from Spotify:", data.items);
                     const batch = data.items
-                        .filter(item => item.track)
-                        .map(item => ({
-                            artist: item.track.artists ? item.track.artists.map(a => a.name).join(', ') : 'Unknown Artist',
-                            title: item.track.name || 'Unknown Title',
-                            isrc: (item.track.external_ids && item.track.external_ids.isrc) ? item.track.external_ids.isrc : null
-                        }));
+                        .filter(item => item && (item.track || item.name))
+                        .map(item => {
+                            const trackObj = item.track || item;
+                            return {
+                                artist: trackObj.artists ? trackObj.artists.map(a => a.name).join(', ') : 'Unknown Artist',
+                                title: trackObj.name || 'Unknown Title',
+                                isrc: (trackObj.external_ids && trackObj.external_ids.isrc) ? trackObj.external_ids.isrc : null
+                            };
+                        });
                     tracks = tracks.concat(batch);
                 }
                 
