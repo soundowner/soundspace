@@ -4843,7 +4843,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     throw new Error(`Spotify API error: ${res.status}`);
                 }
                 const data = await res.json();
+                console.log("Raw API response from Spotify /items:", data);
                 if (data.items) {
+                    console.log("Raw items from Spotify:", data.items);
                     const batch = data.items
                         .filter(item => item.track)
                         .map(item => ({
