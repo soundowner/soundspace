@@ -4798,7 +4798,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     ${imgMarkup}
                     <div style="display: flex; flex-direction: column; gap: 4px; overflow: hidden; flex: 1;">
                         <span style="font-weight: 600; color: white; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-family: 'Inter', sans-serif;">${pl.name}</span>
-                        <span style="font-size: 0.85em; color: rgba(255, 255, 255, 0.5); font-family: 'Inter', sans-serif;">${pl.tracks ? pl.tracks.total : 0} tracks</span>
+                        <span style="font-size: 0.85em; color: rgba(255, 255, 255, 0.5); font-family: 'Inter', sans-serif;">${(pl.tracks && pl.tracks.total) || (pl.items && pl.items.total) || 0} tracks</span>
                     </div>
                 `;
                 
