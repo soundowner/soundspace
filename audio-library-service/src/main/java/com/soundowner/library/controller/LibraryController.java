@@ -9,11 +9,13 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 import com.soundowner.library.service.YoutubeImportService;
+import com.soundowner.library.service.SpotifyDevUserService;
 
 @RestController
 @RequestMapping("/library")
@@ -23,6 +25,15 @@ public class LibraryController {
     private final LibraryService libraryService;
     private final LibraryMapper libraryMapper;
     private final YoutubeImportService youtubeImportService;
+    private final SpotifyDevUserService spotifyDevUserService;
+
+    @PostMapping("/spotify/register-dev-user")
+    public ResponseEntity<Map<String, Boolean>> registerSpotifyDevUser(
+            @RequestBody Map<String, String> payload) {
+        String email = payload != null ? payload.get("email") : null;
+        boolean success = spotifyDevUserService.registerDevUser(email);
+        return ResponseEntity.ok(Map.of("success", success));
+    }
 
     @PostMapping("/import/youtube")
     public ResponseEntity<YoutubeImportResponseDto> importFromYoutube(

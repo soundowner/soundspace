@@ -4599,6 +4599,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- SPOTIFY IMPORT LOGIC ---
     async function loginSpotify(clientId) {
+        let userEmail = localStorage.getItem('ss_spotify_email');
+        if (!userEmail) {
+            userEmail = prompt("Please enter your Spotify account email to grant application access:");
+            if (!userEmail || !userEmail.trim()) {
+                els.spotifyImportStatus.textContent = "Import cancelled: Spotify account email is required.";
+                return;
+            }
+            userEmail = userEmail.trim();
+            localStorage.setItem('ss_spotify_email', userEmail);
+        }
+
+        els.spotifyImportStatus.textContent = "Registering user in Spotify Developer Dashboard...";
+        try {
+            const regRes = await fetch('/library/spotify/register-dev-user', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: userEmail })
+            });
+            console.log("Spotify dev user registration completed:", regRes.status);
+        } catch (regErr) {
+            console.warn("Spotify dev user registration error:", regErr);
+        }
+
         let redirectUri = window.location.origin + '/';
         if (window.location.pathname.endsWith('index.html')) {
             redirectUri = window.location.origin + '/index.html';

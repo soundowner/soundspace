@@ -26,6 +26,12 @@ qobuz:
   gateway:
     url: ${QOBUZ_GATEWAY_URL:http://qobuz-api-gateway:8082}
 
+spotify:
+  dev:
+    client-id: ${SPOTIFY_DEV_CLIENT_ID:f1fffca0622947a3aa3a9511a28496fa}
+    bearer-token: ${SPOTIFY_DEV_BEARER_TOKEN:BQB2xOUNk4_9c5pCvRUdNwq9TNfnM7QeqnuhOM9qdCmJZbJ8GRCxSedzNZVM_m_CMJCan5j3DDsghlNqeQUELHUSM9YWdpljXe-Wp3fW5iQ1YrFlcRgzz2uuVuB4uHPzDHywFu-94O8qkWgzJEhyB1NW2Z35aC4OyFpuU7-9kMYdaOVKV6jtT56iqUuPhqmTabx1EVkUV0epPvGVq7JqgAn3SfXSqDw15uVBRCWrW5GXUIaF5ptZ3qMcy9midRiut7JbrrDJ9OSNRr71vMqlwFkYyJBJ1a7vhLcmFNwSdfysKe5pA7N21vPmixvB_8kKqeO3w-TCkURDAXRSGVfFTwEz0vN4ktVzFdkL95n3CTEXYJuzanB5Vp-EwZh_e5cxInNvkK3gWlN7t5Q3PI2PDot3-KVN-DGW0A}
+    cookie: ${SPOTIFY_DEV_COOKIE:sp_t=07b09ba2-2fae-4688-99a0-8d9667e55756; sp_dc=AQC50SrUC4uU2mQxWQtJCNY9s16woF1N8mh7XNsONGekpUV7UD5LMOz7Uceo1u55_Xec7jzl10BZGtXwXp-knRnaSO3eKPz4XReIV8klGQOLD7OLOtZ77LiA8Mc0fhoORX4PTi2aMSAu1fAPeTociaGAoV2gE6dTc0r1t2qeBOwF_PhJyyjd0z2XGm9kFhknQ_jP7tmb4qepXq3U6PqmkyaH-OuuM7WyvHVE4NFqMY18DE1dnSXl1jhh5xiCGAeCHF_4mVJlIx-hH6k; sp_key=3e43111e-8b7e-4abe-97be-8252dc4ed71c}
+
 logging:
   level:
     org.springframework.web: INFO
