@@ -7,6 +7,7 @@ import com.soundowner.library.dto.YoutubeImportRequestDto;
 import com.soundowner.library.mapper.LibraryMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
@@ -25,6 +26,22 @@ public class YoutubeImportService {
     private final ObjectMapper objectMapper;
     private final LibraryService libraryService;
     private final LibraryMapper libraryMapper;
+
+    @Value("${qobuz.gateway.url}")
+    private String qobuzGatewayUrl;
+
+    private String getEffectiveGatewayUrl() {
+        if (qobuzGatewayUrl.contains("qobuz-api-gateway")) {
+            try {
+                java.net.InetAddress.getByName("qobuz-api-gateway");
+                return qobuzGatewayUrl;
+            } catch (java.net.UnknownHostException e) {
+                log.info("qobuz-api-gateway host is not resolvable (likely running outside Docker). Falling back to http://localhost:8082");
+                return "http://localhost:8082";
+            }
+        }
+        return qobuzGatewayUrl;
+    }
 
     @Async("youtubeImportExecutor")
     public CompletableFuture<Boolean> processAndSaveTrackAsync(UUID userId, YoutubeImportRequestDto item) {
@@ -57,10 +74,12 @@ public class YoutubeImportService {
     }
 
     private TrackDto findBestMatch(YoutubeImportRequestDto item) throws Exception {
+        String gatewayUrl = getEffectiveGatewayUrl();
+
         // 1. Try matching by ISRC first if present
         if (item.getIsrc() != null && !item.getIsrc().trim().isEmpty()) {
             String isrcQuery = item.getIsrc().trim();
-            String url = "http://qobuz-api-gateway:8082/data/audio/search/isrc?isrc={isrc}";
+            String url = gatewayUrl + "/data/audio/search/isrc?isrc={isrc}";
             try {
                 log.debug("Searching Qobuz by ISRC: {}", isrcQuery);
                 String responseStr = restTemplate.getForObject(url, String.class, isrcQuery);
@@ -83,7 +102,7 @@ public class YoutubeImportService {
 
         // 2. Fallback to text-based search
         String query = item.getArtist() + " " + item.getTitle();
-        String url = "http://qobuz-api-gateway:8082/data/audio/search?query={query}&type=tracks&limit=5";
+        String url = gatewayUrl + "/data/audio/search?query={query}&type=tracks&limit=5";
 
         String responseStr = restTemplate.getForObject(url, String.class, query);
         JsonNode tracksNode = objectMapper.readTree(responseStr).path("tracks").path("items");
@@ -129,6 +148,7 @@ public class YoutubeImportService {
         return input.toLowerCase()
                 .replaceAll("\\(.*?\\)", "") // Удаляем все в скобках (Official Video, Remastered)
                 .replaceAll("\\[.*?\\]", "") // Удаляем все в квадратных скобках
+                .replaceAll("\\b(feat|ft|and|with)\\b", "") // Удаляем слова-связки с границами слов
                 .replaceAll("[^a-z0-9а-яё]", "") // Удаляем все символы кроме букв и цифр (включая пробелы)
                 .trim();
     }

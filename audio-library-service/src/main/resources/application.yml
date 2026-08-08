@@ -22,6 +22,10 @@ spring:
 jwt:
   secret: ${JWT_SECRET:very-long-and-secure-secret-key-that-must-be-at-least-256-bits}
 
+qobuz:
+  gateway:
+    url: ${QOBUZ_GATEWAY_URL:http://qobuz-api-gateway:8082}
+
 logging:
   level:
     org.springframework.web: INFO

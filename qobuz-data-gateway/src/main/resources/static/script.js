@@ -4832,8 +4832,8 @@ document.addEventListener('DOMContentLoaded', () => {
         subtext.textContent = "Fetching tracks from Spotify...";
         
         try {
-            let playlistTracksInfo = [];
-            let url = `https://api.spotify.com/v1/playlists/${playlistId}/items?limit=100`;
+            let tracks = [];
+            let url = `https://api.spotify.com/v1/playlists/${playlistId}/tracks?limit=100`;
             
             while (url) {
                 const res = await fetch(url, {
@@ -4843,64 +4843,24 @@ document.addEventListener('DOMContentLoaded', () => {
                     throw new Error(`Spotify API error: ${res.status}`);
                 }
                 const data = await res.json();
-                console.log("Raw API response from Spotify /items:", data);
+                console.log("Raw API response from Spotify /tracks:", data);
                 if (data.items) {
-                    console.log("Raw items from Spotify:", data.items);
                     const batch = data.items
                         .filter(item => item && (item.track || item.name))
-                        .map(item => item.track || item);
-                    playlistTracksInfo = playlistTracksInfo.concat(batch);
+                        .map(item => {
+                            const trackObj = item.track || item;
+                            return {
+                                artist: trackObj.artists ? trackObj.artists.map(a => a.name).join(', ') : 'Unknown Artist',
+                                title: trackObj.name || 'Unknown Title',
+                                isrc: (trackObj.external_ids && trackObj.external_ids.isrc) ? trackObj.external_ids.isrc : null
+                            };
+                        });
+                    tracks = tracks.concat(batch);
                 }
-                
-                let nextUrl = data.next;
-                if (nextUrl && nextUrl.includes('/tracks')) {
-                    nextUrl = nextUrl.replace('/tracks', '/items');
-                }
-                url = nextUrl;
+                url = data.next;
             }
             
-            console.log(`Fetched ${playlistTracksInfo.length} track templates from Spotify. Fetching details/ISRCs...`);
-            subtext.textContent = `Fetching track details (ISRCs) from Spotify...`;
-
-            // Separate tracks with Spotify IDs from local tracks or tracks without IDs
-            const tracksWithIds = playlistTracksInfo.filter(t => t.id);
-            const tracksWithoutIds = playlistTracksInfo.filter(t => !t.id);
-
-            let tracks = [];
-
-            // Chunk tracks with IDs by 50
-            const chunkSize = 50;
-            for (let i = 0; i < tracksWithIds.length; i += chunkSize) {
-                const chunk = tracksWithIds.slice(i, i + chunkSize);
-                const ids = chunk.map(t => t.id).join(',');
-                const detailsRes = await fetch(`https://api.spotify.com/v1/tracks?ids=${ids}`, {
-                    headers: { 'Authorization': `Bearer ${accessToken}` }
-                });
-                if (!detailsRes.ok) {
-                    throw new Error(`Spotify tracks details API error: ${detailsRes.status}`);
-                }
-                const detailsData = await detailsRes.json();
-                if (detailsData.tracks) {
-                    const detailedBatch = detailsData.tracks
-                        .filter(t => t)
-                        .map(trackObj => ({
-                            artist: trackObj.artists ? trackObj.artists.map(a => a.name).join(', ') : 'Unknown Artist',
-                            title: trackObj.name || 'Unknown Title',
-                            isrc: (trackObj.external_ids && trackObj.external_ids.isrc) ? trackObj.external_ids.isrc : null
-                        }));
-                    tracks = tracks.concat(detailedBatch);
-                }
-            }
-
-            // Also append tracks without IDs (e.g. local files)
-            const localTracksMapped = tracksWithoutIds.map(trackObj => ({
-                artist: trackObj.artists ? trackObj.artists.map(a => a.name).join(', ') : 'Unknown Artist',
-                title: trackObj.name || 'Unknown Title',
-                isrc: null
-            }));
-            tracks = tracks.concat(localTracksMapped);
-            
-            console.log(`Fetched and detailed tracks from Spotify for playlist ${playlistTitle}:`, tracks);
+            console.log(`Fetched ${tracks.length} tracks with ISRCs from Spotify for playlist "${playlistTitle}":`, tracks);
             subtext.textContent = `Matching and importing ${tracks.length} tracks...`;
             
             const payload = {
