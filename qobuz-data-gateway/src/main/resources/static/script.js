@@ -4833,7 +4833,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         try {
             let tracks = [];
-            let url = `https://api.spotify.com/v1/playlists/${playlistId}/tracks?limit=100`;
+            let url = `https://api.spotify.com/v1/playlists/${playlistId}/items?limit=100`;
             
             while (url) {
                 const res = await fetch(url, {
@@ -4843,12 +4843,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     throw new Error(`Spotify API error: ${res.status}`);
                 }
                 const data = await res.json();
-                console.log("Raw API response from Spotify /tracks:", data);
+                console.log("Raw API response from Spotify /items:", data);
                 if (data.items) {
                     const batch = data.items
-                        .filter(item => item && (item.track || item.name))
+                        .filter(item => item && (item.track || item.item || item.name))
                         .map(item => {
-                            const trackObj = item.track || item;
+                            const trackObj = item.track || item.item || item;
                             return {
                                 artist: trackObj.artists ? trackObj.artists.map(a => a.name).join(', ') : 'Unknown Artist',
                                 title: trackObj.name || 'Unknown Title',
