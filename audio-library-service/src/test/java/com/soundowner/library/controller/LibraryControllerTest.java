@@ -7,6 +7,7 @@ import com.soundowner.library.entity.Album;
 import com.soundowner.library.entity.Track;
 import com.soundowner.library.mapper.LibraryMapper;
 import com.soundowner.library.service.LibraryService;
+import com.soundowner.library.service.SpotifyDevUserService;
 import com.soundowner.library.service.YoutubeImportService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -43,6 +44,9 @@ class LibraryControllerTest {
     @MockBean
     private YoutubeImportService youtubeImportService;
 
+    @MockBean
+    private SpotifyDevUserService spotifyDevUserService;
+
     @Autowired
     private ObjectMapper objectMapper;
 
@@ -77,5 +81,17 @@ class LibraryControllerTest {
                 .andExpect(status().isOk());
 
         verify(libraryService).addTrackToPlaylist(eq(playlistId), any());
+    }
+
+    @Test
+    void registerSpotifyDevUser_ShouldReturnOk() throws Exception {
+        when(spotifyDevUserService.registerDevUser(any())).thenReturn(true);
+
+        mockMvc.perform(post("/library/spotify/register-dev-user")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"test@example.com\"}"))
+                .andExpect(status().isOk());
+
+        verify(spotifyDevUserService).registerDevUser(eq("test@example.com"));
     }
 }
